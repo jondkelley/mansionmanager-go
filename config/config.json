@@ -1,0 +1,25 @@
+{
+  "manager": {
+    "port": 3000,
+    "host": "0.0.0.0",
+    "username": "admin",
+    "password": "changeme"
+  },
+  "scripts": {
+    "provision": "/usr/local/lib/palace-manager/scripts/provision-palace.sh",
+    "update": "/usr/local/lib/palace-manager/scripts/update-pserver.sh"
+  },
+  "pserver": {
+    "templateDir": "/root/palace-template",
+    "installPath": "/usr/local/bin/pserver",
+    "sdistUrl": ""
+  },
+  "nginx": {
+    "genScript": "/usr/local/bin/gen-media-nginx.sh",
+    "regenInterval": "2m",
+    "mediaHost": "media.thepalace.app",
+    "certDir": "/etc/letsencrypt/live/thepalace.app",
+    "edgeScheme": "https",
+    "matchScheme": "both"
+  }
+}

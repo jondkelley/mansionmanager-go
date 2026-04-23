@@ -1,0 +1,16 @@
+[Unit]
+Description=Palace Manager — multi-instance pserver management API
+Documentation=https://thepalace.app/server.html
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/palace-manager -config /etc/palace-manager/config.json
+Restart=on-failure
+RestartSec=5
+# The manager needs root to run provisioning scripts (adduser, systemctl, etc.)
+# If you prefer, create /etc/sudoers.d/palace-manager for least-privilege instead.
+
+[Install]
+WantedBy=multi-user.target

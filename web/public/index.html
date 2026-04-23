@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palace Manager</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #7c6af7;
+    --accent2: #5fd4a0;
+    --text: #e2e4ef;
+    --muted: #7a7d95;
+    --red: #f16b6b;
+    --yellow: #f0c060;
+    --green: #5fd4a0;
+  }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; }
+  a { color: var(--accent); }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 52px; }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header .version { color: var(--muted); font-size: 12px; }
+  nav { display: flex; gap: 4px; margin-left: auto; }
+  nav button { background: none; border: none; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  nav button.active, nav button:hover { background: var(--border); color: var(--text); }
+  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-active { background: rgba(95,212,160,.15); color: var(--green); }
+  .badge-inactive { background: rgba(255,255,255,.06); color: var(--muted); }
+  .badge-failed { background: rgba(241,107,107,.15); color: var(--red); }
+  .badge-unknown { background: rgba(240,192,96,.1); color: var(--yellow); }
+  .badge-ok { background: rgba(95,212,160,.15); color: var(--green); }
+  .palace-status { display: inline-flex; align-items: center; gap: 8px; }
+  .status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot-running {
+    background: var(--green);
+    box-shadow: 0 0 0 1px rgba(95,212,160,.35), 0 0 10px rgba(95,212,160,.35);
+  }
+  .status-dot-stopped {
+    background: var(--red);
+    box-shadow: 0 0 0 1px rgba(241,107,107,.35);
+  }
+  .status-dot-warn {
+    background: var(--yellow);
+    box-shadow: 0 0 0 1px rgba(240,192,96,.35);
+  }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  button:hover { background: var(--border); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { opacity: .88; }
+  button.danger { border-color: var(--red); color: var(--red); }
+  button.danger:hover { background: rgba(241,107,107,.1); }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input, select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; width: 180px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); }
+  .stream { background: #090b10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; max-height: 320px; overflow-y: auto; white-space: pre-wrap; color: #b4c0d4; margin-top: 12px; }
+  .stream:empty::after { content: "No output yet."; color: var(--muted); }
+  .step-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .step-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  .step-id { font-family: monospace; font-size: 12px; color: var(--muted); width: 80px; }
+  .step-msg { color: var(--muted); font-size: 12px; flex: 1; }
+  .nginx-info { display: flex; gap: 24px; flex-wrap: wrap; }
+  .nginx-stat { display: flex; flex-direction: column; gap: 2px; }
+  .nginx-stat .label { font-size: 11px; color: var(--muted); }
+  .nginx-stat .value { font-size: 14px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; }
+  #loginScreen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 200; align-items: center; justify-content: center; flex-direction: column; gap: 8px; }
+  #loginScreen.visible { display: flex; }
+  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 36px 40px; width: 340px; }
+  .login-box h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .login-box .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .login-box .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .login-box .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .login-box input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+  .login-box input:focus { outline: 2px solid var(--accent); }
+  .login-box button.primary { width: 100%; padding: 9px; font-size: 14px; margin-top: 6px; border-radius: 8px; }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
+  #logoutBtn { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  #logoutBtn:hover { background: var(--border); color: var(--text); }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 480px; max-width: 680px; width: 90%; }
+  .modal h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+  .modal-footer { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  #provisionResult { display: none; margin-top: 14px; padding: 14px 16px; border-radius: 8px; border: 1px solid; }
+  #provisionResult.success { border-color: rgba(95,212,160,.35); background: rgba(95,212,160,.07); }
+  #provisionResult.failure { border-color: rgba(241,107,107,.35); background: rgba(241,107,107,.07); }
+  #provisionResult .res-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  #provisionResult .res-body { font-size: 13px; line-height: 1.6; color: var(--text); }
+  #provisionResult .res-note { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  #provisionResult code { background: #090b10; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h2>Palace Manager</h2>
+    <p class="sub">Sign in to continue</p>
+    <div class="field">
+      <label>Username</label>
+      <input id="loginUser" type="text" autocomplete="username" placeholder="admin" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••••" />
+    </div>
+    <button class="primary" onclick="doLogin()">Sign in</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<header>
+  <h1>Palace Manager</h1>
+  <span class="version">v0.1.0</span>
+  <nav>
+    <button class="active" onclick="showTab('palaces',this)">Palaces</button>
+    <button onclick="showTab('update',this)">Update Binary</button>
+    <button onclick="showTab('nginx',this)">Nginx</button>
+    <button onclick="showTab('setup',this)">Host Setup</button>
+    <button id="logoutBtn" onclick="doLogout()">Sign out</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ===== PALACES TAB ===== -->
+<div id="tab-palaces" class="tab active">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2>Palace Instances</h2>
+      <button class="primary" onclick="openProvisionModal()">+ New Palace</button>
+    </div>
+    <table id="palaceTable">
+      <thead><tr>
+        <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>User</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="palaceBody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== UPDATE TAB ===== -->
+<div id="tab-update" class="tab">
+  <div class="card">
+    <h2>Update pserver Binary</h2>
+    <p style="color:var(--muted);margin-bottom:8px;font-size:13px;">Downloads the latest official pserver tarball, refreshes the template at <code>/root/palace-template</code>, and updates <code>/usr/local/bin/pserver</code>.</p>
+    <p style="background:rgba(240,192,96,.08);border:1px solid rgba(240,192,96,.25);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--yellow);margin-bottom:16px;">
+      <strong>First-time setup:</strong> run <em>Update Binary</em> before creating any Palace instances — it downloads the pserver template that provisioning depends on.
+    </p>
+    <div class="form-row">
+      <button class="primary" onclick="runUpdate(false)">Update Binary</button>
+      <button onclick="runUpdate(true)">Update + Restart All Palaces</button>
+    </div>
+    <div id="updateStream" class="stream"></div>
+  </div>
+</div>
+
+<!-- ===== NGINX TAB ===== -->
+<div id="tab-nginx" class="tab">
+  <div class="card" id="nginxStatusCard">
+    <h2>Nginx Media Proxy</h2>
+    <div class="nginx-info" id="nginxInfo"><span style="color:var(--muted)">Loading...</span></div>
+    <div style="margin-top:16px;">
+      <button class="primary" onclick="triggerNginxRegen()">Regen Now</button>
+    </div>
+    <div id="nginxStream" class="stream"></div>
+  </div>
+</div>
+
+<!-- ===== SETUP TAB ===== -->
+<div id="tab-setup" class="tab">
+  <div class="card">
+    <h2>Host Setup Wizard</h2>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">Run these steps once on a fresh host to configure nginx, obtain a Let's Encrypt certificate, and prepare palace-manager. Each step is idempotent.</p>
+    <div class="step-list" id="stepList">
+      <span style="color:var(--muted)">Loading...</span>
+    </div>
+    <div class="form-row" style="margin-top:16px;">
+      <div class="field">
+        <label>Media Hostname</label>
+        <input id="setupHost" type="text" placeholder="media.example.com" />
+      </div>
+      <div class="field">
+        <label>Email (for Let's Encrypt)</label>
+        <input id="setupEmail" type="email" placeholder="admin@example.com" />
+      </div>
+      <div class="field">
+        <label>Staging CA</label>
+        <select id="setupStaging">
+          <option value="false">No (production)</option>
+          <option value="true">Yes (testing)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <button class="primary" onclick="runBootstrap()">Run Setup</button>
+      <button onclick="loadBootstrapStatus()">Refresh Status</button>
+    </div>
+    <div id="setupStream" class="stream"></div>
+  </div>
+</div>
+
+</main>
+
+<!-- Provision Modal -->
+<div class="modal-bg" id="provisionModal">
+  <div class="modal">
+    <h3>New Palace Instance</h3>
+    <div id="provisionForm">
+      <div class="form-row">
+        <div class="field">
+          <label>Palace Name (used as Linux user)</label>
+          <input id="pName" type="text" placeholder="mypalace" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>TCP Port</label>
+          <input id="pTCP" type="number" placeholder="9998" />
+        </div>
+        <div class="field">
+          <label>HTTP Port</label>
+          <input id="pHTTP" type="number" placeholder="8080" />
+        </div>
+      </div>
+    </div>
+    <div id="provisionStream" class="stream" style="min-height:80px;"></div>
+    <div id="provisionResult"></div>
+    <div class="modal-footer" id="provisionFooter">
+      <button id="provisionCancelBtn" onclick="closeProvisionModal()">Cancel</button>
+      <button id="provisionBtn" class="primary" onclick="doProvision()">Provision</button>
+    </div>
+  </div>
+</div>
+
+<!-- Log Modal -->
+<div class="modal-bg" id="logModal">
+  <div class="modal" style="max-width:800px;">
+    <h3 id="logModalTitle">Logs</h3>
+    <div id="logContent" class="stream" style="max-height:460px;"></div>
+    <div class="modal-footer"><button onclick="closeLogModal()">Close</button></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Basic Auth credentials kept in memory for the session.
+// sessionStorage survives page refreshes but not tab close.
+let AUTH_HEADER = sessionStorage.getItem('pm_auth') || '';
+
+function headers() {
+  const h = { 'Content-Type': 'application/json' };
+  if (AUTH_HEADER) h['Authorization'] = AUTH_HEADER;
+  return h;
+}
+
+function showLogin() {
+  $('loginScreen').classList.add('visible');
+  $('loginUser').focus();
+}
+function hideLogin() {
+  $('loginScreen').classList.remove('visible');
+}
+
+async function doLogin() {
+  const user = $('loginUser').value.trim();
+  const pass = $('loginPass').value;
+  $('loginError').textContent = '';
+  if (!user || !pass) { $('loginError').textContent = 'Username and password required.'; return; }
+
+  const encoded = btoa(user + ':' + pass);
+  const testHeaders = { 'Authorization': 'Basic ' + encoded, 'Content-Type': 'application/json' };
+
+  try {
+    const res = await fetch('/api/palaces', { headers: testHeaders });
+    if (res.status === 401) {
+      $('loginError').textContent = 'Invalid username or password.';
+      return;
+    }
+    AUTH_HEADER = 'Basic ' + encoded;
+    sessionStorage.setItem('pm_auth', AUTH_HEADER);
+    hideLogin();
+    loadPalaces();
+  } catch(e) {
+    $('loginError').textContent = 'Connection error: ' + e.message;
+  }
+}
+
+function doLogout() {
+  AUTH_HEADER = '';
+  sessionStorage.removeItem('pm_auth');
+  showLogin();
+}
+
+// Enter key submits the login form.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && $('loginScreen').classList.contains('visible')) doLogin();
+});
+
+// Tab switching
+function showTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  $('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'palaces') loadPalaces();
+  if (name === 'nginx') loadNginxStatus();
+  if (name === 'setup') loadBootstrapStatus();
+}
+
+// ===== Palaces =====
+function palaceStatusDot(status) {
+  if (status === 'active') {
+    return { dotClass: 'status-dot-running', title: 'Service running' };
+  }
+  if (status === 'inactive') {
+    return { dotClass: 'status-dot-stopped', title: 'Service stopped' };
+  }
+  if (status === 'failed') {
+    return { dotClass: 'status-dot-stopped', title: 'Service failed' };
+  }
+  return { dotClass: 'status-dot-warn', title: 'Status unknown' };
+}
+
+async function loadPalaces() {
+  const tbody = $('palaceBody');
+  try {
+    const res = await fetch('/api/palaces', { headers: headers() });
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No palaces found. Provision one to get started.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(p => {
+      const { dotClass, title } = palaceStatusDot(p.status);
+      return `
+      <tr>
+        <td><strong>${esc(p.name)}</strong></td>
+        <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
+        <td>${p.tcpPort || '—'}</td>
+        <td>${p.httpPort || '—'}</td>
+        <td><code>${esc(p.user || p.name)}</code></td>
+        <td>
+          <div class="actions">
+            <button onclick="palaceAction('${esc(p.name)}','start')">Start</button>
+            <button onclick="palaceAction('${esc(p.name)}','stop')">Stop</button>
+            <button onclick="palaceAction('${esc(p.name)}','restart')">Restart</button>
+            <button onclick="viewLogs('${esc(p.name)}')">Logs</button>
+            <button class="danger" onclick="deletePalace('${esc(p.name)}')">Remove</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function palaceAction(name, action) {
+  await fetch(`/api/palaces/${name}/${action}`, { method: 'POST', headers: headers() });
+  setTimeout(loadPalaces, 800);
+}
+
+async function deletePalace(name) {
+  if (!confirm(`Remove palace "${name}" from the manager?\n\nThis stops the service and disables its systemd unit.`)) {
+    return;
+  }
+  if (!confirm(
+    `Also delete Linux user "${name}" and their home directory?\n\n` +
+      `OK — remove palace and delete user/home\nCancel — cancel (nothing is changed)`
+  )) {
+    return;
+  }
+  await fetch(`/api/palaces/${encodeURIComponent(name)}?purge=true`, { method: 'DELETE', headers: headers() });
+  loadPalaces();
+}
+
+// Provision modal
+function openProvisionModal() {
+  $('provisionModal').classList.add('open');
+  $('provisionStream').innerHTML = '';
+  $('provisionResult').className = '';
+  $('provisionResult').innerHTML = '';
+  $('provisionResult').style.display = 'none';
+  $('provisionForm').style.display = '';
+  $('provisionFooter').innerHTML =
+    `<button id="provisionCancelBtn" onclick="closeProvisionModal()">Cancel</button>` +
+    `<button id="provisionBtn" class="primary" onclick="doProvision()">Provision</button>`;
+  ['pName','pTCP','pHTTP'].forEach(id => { $(id).disabled = false; $(id).value = ''; });
+}
+function closeProvisionModal() {
+  $('provisionModal').classList.remove('open');
+  loadPalaces();
+}
+
+function _setProvisionRunning(running) {
+  ['pName','pTCP','pHTTP'].forEach(id => { $(id).disabled = running; });
+  const btn = $('provisionBtn');
+  if (btn) { btn.disabled = running; btn.textContent = running ? 'Provisioning…' : 'Provision'; }
+}
+
+async function doProvision() {
+  const name = $('pName').value.trim();
+  const tcpPort = parseInt($('pTCP').value);
+  const httpPort = parseInt($('pHTTP').value);
+  if (!name || !tcpPort || !httpPort) { alert('All fields required'); return; }
+
+  const stream = $('provisionStream');
+  stream.textContent = '';
+  stream.innerHTML = '';
+  $('provisionResult').style.display = 'none';
+
+  _setProvisionRunning(true);
+
+  const res = await fetch('/api/palaces', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ name, tcpPort, httpPort })
+  });
+
+  if (res.status === 412) {
+    const data = await res.json().catch(() => ({ error: 'pserver template not ready' }));
+    stream.innerHTML =
+      `<span style="color:var(--yellow);font-weight:600;">⚠ Setup required</span>\n\n` +
+      `<span style="color:var(--text);">${esc(data.error)}</span>\n\n` +
+      `<span style="color:var(--muted);">→ <a href="#" onclick="gotoUpdateTab();return false" style="color:var(--accent);">Go to Update Binary</a> and click <strong>Update Binary</strong> to download the pserver template, then come back here.</span>`;
+    _setProvisionRunning(false);
+    return;
+  }
+
+  await streamSSE(res, stream, (okObj) => {
+    if (okObj) {
+      _showProvisionSuccess(okObj.name || name);
+    } else {
+      _showProvisionFailure();
+    }
+  });
+}
+
+function _showProvisionSuccess(palName) {
+  loadPalaces();
+  const el = $('provisionResult');
+  el.className = 'success';
+  el.innerHTML =
+    `<div class="res-title" style="color:var(--green);">✓ Palace "${esc(palName)}" is ready!</div>` +
+    `<div class="res-body">Your new palace has been provisioned. <strong>Click the button below to close this window</strong> — then hit <strong>Start</strong> next to <em>${esc(palName)}</em> in the Palaces list to launch it.</div>` +
+    `<div class="res-note">Before starting, make sure your pserver.pat and media assets are in place:<br>` +
+    `<code>/home/${esc(palName)}/palace/pserver.pat</code><br>` +
+    `<code>/home/${esc(palName)}/palace/media/</code></div>`;
+  el.style.display = 'block';
+  $('provisionFooter').innerHTML =
+    `<button class="primary" onclick="closeProvisionModal()">Done — Go to Palaces ›</button>`;
+}
+
+function _showProvisionFailure() {
+  const el = $('provisionResult');
+  el.className = 'failure';
+  el.innerHTML =
+    `<div class="res-title" style="color:var(--red);">✗ Provisioning failed</div>` +
+    `<div class="res-body">Check the log above for details. You can fix the issue and try again, or <a href="#" onclick="closeProvisionModal();return false">close</a> this window.</div>`;
+  el.style.display = 'block';
+  _setProvisionRunning(false);
+}
+
+function gotoUpdateTab() {
+  closeProvisionModal();
+  const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim() === 'Update Binary');
+  if (btn) showTab('update', btn);
+}
+
+// Log modal (polls while open — near–real-time tail of pserver.log)
+let logLiveTimer = null;
+let logLiveName = null;
+
+function _applyLogText(text) {
+  const el = $('logContent');
+  const fromBottom = el.scrollHeight - el.scrollTop;
+  const stickBottom = fromBottom <= el.clientHeight + 80;
+  el.textContent = text;
+  if (stickBottom) {
+    el.scrollTop = el.scrollHeight;
+  } else {
+    el.scrollTop = Math.max(0, el.scrollHeight - fromBottom);
+  }
+}
+
+async function fetchPalaceLogs(name) {
+  if (!$('logModal').classList.contains('open') || name !== logLiveName) return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/logs?lines=200`, { headers: headers() });
+    if (!res.ok) {
+      _applyLogText(`Error: HTTP ${res.status}`);
+      return;
+    }
+    const data = await res.json();
+    _applyLogText((data.lines || []).join('\n'));
+  } catch (e) {
+    _applyLogText(`Error: ${e.message}`);
+  }
+}
+
+async function viewLogs(name) {
+  if (logLiveTimer) {
+    clearInterval(logLiveTimer);
+    logLiveTimer = null;
+  }
+  logLiveName = name;
+  $('logModalTitle').textContent = `Logs — ${name} · auto-refresh`;
+  $('logContent').textContent = 'Loading...';
+  $('logModal').classList.add('open');
+
+  await fetchPalaceLogs(name);
+  logLiveTimer = setInterval(() => fetchPalaceLogs(name), 2000);
+}
+
+function closeLogModal() {
+  if (logLiveTimer) {
+    clearInterval(logLiveTimer);
+    logLiveTimer = null;
+  }
+  logLiveName = null;
+  $('logModal').classList.remove('open');
+}
+
+// ===== Update Binary =====
+async function runUpdate(restartAll) {
+  const stream = $('updateStream');
+  stream.textContent = '';
+  const res = await fetch(`/api/update?restartAll=${restartAll}`, { method: 'POST', headers: headers() });
+  await streamSSE(res, stream);
+}
+
+// ===== Nginx =====
+async function loadNginxStatus() {
+  const info = $('nginxInfo');
+  try {
+    const res = await fetch('/api/nginx/status', { headers: headers() });
+    const s = await res.json();
+    const lastRun = s.lastRun ? new Date(s.lastRun).toLocaleString() : 'never';
+    const nextRun = s.nextRun ? new Date(s.nextRun).toLocaleString() : '—';
+    const exitBadge = s.exitCode === 0 ? '<span class="badge badge-ok">ok</span>' : `<span class="badge badge-failed">exit ${s.exitCode}</span>`;
+    info.innerHTML = `
+      <div class="nginx-stat"><span class="label">Last Run</span><span class="value">${lastRun}</span></div>
+      <div class="nginx-stat"><span class="label">Exit Code</span><span class="value">${exitBadge}</span></div>
+      <div class="nginx-stat"><span class="label">Next Run</span><span class="value">${nextRun}</span></div>
+    `;
+    if (s.output) {
+      $('nginxStream').textContent = s.output;
+    }
+  } catch(e) {
+    info.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function triggerNginxRegen() {
+  const stream = $('nginxStream');
+  stream.textContent = '';
+  const res = await fetch('/api/nginx/regen', { method: 'POST', headers: headers() });
+  await streamSSE(res, stream);
+  loadNginxStatus();
+}
+
+// ===== Bootstrap / Setup =====
+const STEP_LABELS = {
+  deps: 'System Dependencies',
+  dns: 'DNS Check',
+  cert: "Let's Encrypt Certificate",
+  dhparam: 'DH Parameters',
+  hook: 'Certbot Renewal Hook',
+  nginx: 'Nginx Config Generation',
+  config: 'Manager Config',
+};
+
+async function loadBootstrapStatus() {
+  const list = $('stepList');
+  try {
+    const res = await fetch('/api/bootstrap/status', { headers: headers() });
+    const steps = await res.json();
+    list.innerHTML = steps.map(s => `
+      <div class="step-row">
+        <span class="step-id">${esc(s.id)}</span>
+        <span style="flex:0 0 auto">${badgeForState(s.state)}</span>
+        <span class="step-msg">${esc(STEP_LABELS[s.id] || s.id)}${s.message ? ' — ' + esc(s.message) : ''}</span>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = `<span style="color:var(--red)">Error: ${esc(e.message)}</span>`;
+  }
+}
+
+function badgeForState(state) {
+  const map = { ok: 'badge-ok', failed: 'badge-failed', skipped: 'badge-inactive', unknown: 'badge-unknown' };
+  return `<span class="badge ${map[state] || 'badge-unknown'}">${esc(state)}</span>`;
+}
+
+async function runBootstrap() {
+  const stream = $('setupStream');
+  stream.textContent = '';
+  const body = {
+    mediaHost: $('setupHost').value.trim() || undefined,
+    email: $('setupEmail').value.trim() || undefined,
+    staging: $('setupStaging').value === 'true',
+  };
+  const res = await fetch('/api/bootstrap/run', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  await streamSSE(res, stream, () => loadBootstrapStatus());
+}
+
+// ===== SSE helper =====
+// onDone(okObj) — okObj is the first parsed object with ok:true, or null if none was seen.
+async function streamSSE(res, el, onDone) {
+  if (!res.ok) {
+    el.textContent = `HTTP ${res.status}: ${await res.text()}`;
+    if (onDone) onDone(null);
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let okObj = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split('\n\n');
+    buf = parts.pop();
+    for (const part of parts) {
+      const line = part.replace(/^data:\s?/, '');
+      if (!line) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (obj.ok && !okObj) okObj = obj;
+        if (obj.log) {
+          appendStreamLine(el, obj.log);
+        } else if (obj.id && obj.state) {
+          appendStreamLine(el, `[${obj.id}] ${obj.state}${obj.message ? ': ' + obj.message : ''}`);
+        } else {
+          appendStreamLine(el, JSON.stringify(obj));
+        }
+      } catch {
+        appendStreamLine(el, line);
+      }
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+  if (onDone) onDone(okObj);
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function appendStreamLine(el, line) {
+  const span = document.createElement('span');
+  const lo = line.toLowerCase();
+  if (/^error[: ]|^\s*fatal[: ]/.test(lo)) {
+    span.style.color = 'var(--red)';
+    span.style.fontWeight = '600';
+  } else if (/^warn(ing)?[: ]/.test(lo)) {
+    span.style.color = 'var(--yellow)';
+  }
+  span.textContent = line;
+  el.appendChild(span);
+  el.appendChild(document.createTextNode('\n'));
+}
+
+// Initial load — check auth before showing the UI.
+(async () => {
+  if (!AUTH_HEADER) { showLogin(); return; }
+  const res = await fetch('/api/palaces', { headers: headers() }).catch(() => null);
+  if (!res || res.status === 401) { showLogin(); return; }
+  loadPalaces();
+})();
+setInterval(async () => {
+  if ($('loginScreen').classList.contains('visible')) return;
+  loadPalaces();
+}, 15000);
+</script>
+</body>
+</html>
