@@ -45,8 +45,34 @@ INSTALL_SYSTEMD=true
 INSTALL_LOGROTATE=true
 INSTALL_CRON=false   # palace-manager owns the nginx regen loop; no cron needed
 JSON_OUTPUT=false
+LOGROTATE_ONLY=false
+# Non-default systemd unit for postrotate SIGHUP (legacy layouts); default palman-<user>.service
+SYSTEMD_UNIT_CLI=""
 
 die() { echo "error: $*" >&2; exit 1; }
+
+# Shared by full provision and --logrotate-only.
+# Args: palace_login_user log_file_path systemd_unit_for_hup
+build_logrotate_content() {
+  local lu="$1" lp="$2" unit="$3"
+  printf '%s\n' "# palace ${lu} — rotate log, reopen via SIGHUP (also reloads pserver.pat if changed)
+${lp} {
+	su ${lu} ${lu}
+	daily
+	maxsize 500M
+	rotate 14
+	compress
+	delaycompress
+	missingok
+	notifempty
+	create 0644 ${lu} ${lu}
+	sharedscripts
+	postrotate
+		systemctl kill -s HUP ${unit} >/dev/null 2>&1 || true
+	endscript
+}
+"
+}
 
 require_rsync() {
   if command -v rsync >/dev/null 2>&1; then
@@ -79,6 +105,8 @@ Common options:
   --no-cron                Skip cron (use when adding a 2nd+ palace user; one global cron is enough)
   --no-systemd             Skip systemd unit
   --no-logrotate           Skip logrotate snippet
+  --logrotate-only         Write only /etc/logrotate.d/palace-<user> (needs existing Linux user & paths)
+  --systemd-unit NAME.service   With --logrotate-only: unit for postrotate SIGHUP (default palman-<user>.service)
 
 After install: copy pserver.pat + media, then:
   systemctl enable --now palman-<user>.service
@@ -165,6 +193,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     --no-systemd) INSTALL_SYSTEMD=false; shift ;;
     --no-logrotate) INSTALL_LOGROTATE=false; shift ;;
+    --logrotate-only) LOGROTATE_ONLY=true; shift ;;
+    --systemd-unit) SYSTEMD_UNIT_CLI="$2"; shift 2 ;;
     --no-cron) INSTALL_CRON=false; shift ;;
     --cron) INSTALL_CRON=true; shift ;;
     --json) JSON_OUTPUT=true; shift ;;
@@ -174,6 +204,26 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$(id -u)" -eq 0 ]] || die "run as root (creates user, systemd, logrotate, cron)"
+
+if $LOGROTATE_ONLY; then
+  id -u "$PALACE_USER" &>/dev/null || die "Linux user ${PALACE_USER} does not exist (create the palace first)"
+  [[ -z "$PALACE_DATA_DIR" ]] && PALACE_DATA_DIR="/home/${PALACE_USER}/palace"
+  UNIT_NAME="${SYSTEMD_UNIT_CLI:-palman-${PALACE_USER}.service}"
+  LOG_PATH="${PALACE_DATA_DIR}/pserver.log"
+  LOGROTATE_PATH="/etc/logrotate.d/palace-${PALACE_USER}"
+  LOGROTATE_CONTENT="$(build_logrotate_content "$PALACE_USER" "$LOG_PATH" "$UNIT_NAME")"
+  echo "Writing ${LOGROTATE_PATH} for ${LOG_PATH} (postrotate → ${UNIT_NAME}) ..."
+  if $DRY_RUN; then
+    echo "[dry-run] would write logrotate (${#LOGROTATE_CONTENT} bytes)"
+  else
+    printf '%s\n' "$LOGROTATE_CONTENT" > "$LOGROTATE_PATH"
+  fi
+  if $JSON_OUTPUT; then
+    printf '{"ok":true,"user":"%s","logrotatePath":"%s","logPath":"%s","systemdUnit":"%s"}\n' \
+      "$PALACE_USER" "$LOGROTATE_PATH" "$LOG_PATH" "$UNIT_NAME"
+  fi
+  exit 0
+fi
 
 # Validate template early — before touching the system — so a retry doesn't
 # fail with "user already exists" after a previous partial run.
@@ -303,23 +353,7 @@ else
   echo "Skipping systemd (--no-systemd)."
 fi
 
-LOGROTATE_CONTENT="# palace ${PALACE_USER} — rotate log, reopen via SIGHUP (also reloads pserver.pat if changed)
-${LOG_PATH} {
-	su ${PALACE_USER} ${PALACE_USER}
-	daily
-	maxsize 500M
-	rotate 14
-	compress
-	delaycompress
-	missingok
-	notifempty
-	create 0644 ${PALACE_USER} ${PALACE_USER}
-	sharedscripts
-	postrotate
-		systemctl kill -s HUP ${UNIT_NAME} >/dev/null 2>&1 || true
-	endscript
-}
-"
+LOGROTATE_CONTENT="$(build_logrotate_content "$PALACE_USER" "$LOG_PATH" "$UNIT_NAME")"
 
 if $INSTALL_LOGROTATE; then
   echo "Writing ${LOGROTATE_PATH} ..."

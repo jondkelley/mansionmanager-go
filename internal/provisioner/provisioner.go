@@ -25,6 +25,15 @@ type UpdateResult struct {
 	OK bool `json:"ok"`
 }
 
+// LogrotateResult is emitted as JSON by provision-palace.sh --logrotate-only.
+type LogrotateResult struct {
+	OK            bool   `json:"ok"`
+	User          string `json:"user"`
+	LogrotatePath string `json:"logrotatePath"`
+	LogPath       string `json:"logPath"`
+	SystemdUnit   string `json:"systemdUnit"`
+}
+
 type Provisioner struct {
 	cfg *config.Config
 }
@@ -90,6 +99,28 @@ func (p *Provisioner) Update(restartAll bool, w io.Writer) (*UpdateResult, error
 		return &UpdateResult{OK: true}, nil
 	}
 	return res, nil
+}
+
+// EnsureLogrotate writes /etc/logrotate.d/palace-<user> for an existing palace (same rules as full provision).
+func (p *Provisioner) EnsureLogrotate(linuxUser, dataDir, systemdUnit string, w io.Writer) (*LogrotateResult, error) {
+	args := []string{
+		"--logrotate-only",
+		"--user", linuxUser,
+		"--json",
+	}
+	if dataDir != "" {
+		args = append(args, "--data-dir", dataDir)
+	}
+	if systemdUnit != "" {
+		args = append(args, "--systemd-unit", systemdUnit)
+	}
+	return runScript(p.cfg.Scripts.Provision, args, os.Environ(), w, func(line string) (*LogrotateResult, bool) {
+		var r LogrotateResult
+		if strings.HasPrefix(line, "{") && json.Unmarshal([]byte(line), &r) == nil && r.OK {
+			return &r, true
+		}
+		return nil, false
+	})
 }
 
 // PurgeUser removes the Linux user and their home directory.

@@ -1,36 +1,167 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="basic">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+(function(){
+  try {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/ui/config', false);
+    xhr.send(null);
+    if (xhr.status === 200) {
+      var j = JSON.parse(xhr.responseText);
+      var t = j.theme;
+      if (t === 'metal' || t === 'basic') {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    }
+  } catch (e) {}
+})();
+</script>
 <title>Palace Manager</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --border: #2a2d3a;
-    --accent: #7c6af7;
+  html[data-theme="metal"] {
+    /* Brushed aluminum: base grays + layered shine + fine horizontal grain */
+    --metal-shine: linear-gradient(168deg,
+      rgba(255,255,255,.14) 0%,
+      rgba(255,255,255,.04) 38%,
+      rgba(0,0,0,.12) 72%,
+      rgba(0,0,0,.22) 100%);
+    --metal-brush: repeating-linear-gradient(90deg,
+      rgba(255,255,255,.055) 0px,
+      rgba(0,0,0,.07) 1px,
+      rgba(255,255,255,.03) 2px,
+      rgba(0,0,0,.04) 3px,
+      transparent 4px,
+      transparent 7px);
+    --bg: #2d3138;
+    --surface: #5c626c;
+    --surface2: #4e545e;
+    --panel-a: #4a505a;
+    --panel-b: #3f454e;
+    --inset: #2f333a;
+    --border: rgba(255,255,255,.14);
+    --border-shade: rgba(0,0,0,.45);
+    --metal-edge: inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(0,0,0,.35);
+    --metal-drop: 0 4px 14px rgba(0,0,0,.35);
+    --accent: #8b9fef;
     --accent2: #5fd4a0;
-    --text: #e2e4ef;
-    --muted: #7a7d95;
-    --red: #f16b6b;
-    --yellow: #f0c060;
+    --text: #eceef4;
+    --muted: #9ea3b0;
+    --red: #f17878;
+    --yellow: #e8bc68;
     --green: #5fd4a0;
+    --btn-hover-bg: #585e68;
+    --nav-active-bg: rgba(0,0,0,.2);
+    --nav-active-edge: inset 0 1px 0 rgba(255,255,255,.1);
+    --logout-hover-bg: rgba(0,0,0,.22);
+    --footer-bg: linear-gradient(180deg, rgba(74,80,90,.92), rgba(52,56,64,.94));
+    --footer-border: var(--border-shade);
+    --dropzone-active-bg: rgba(139,159,239,.09);
+    --remove-option-checked-bg: rgba(139,159,239,.09);
+    --remove-option-hover-border: rgba(139,159,239,.42);
   }
-  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; }
+  html[data-theme="basic"] {
+    --metal-shine: none;
+    --metal-brush: none;
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface2: #f3f4f6;
+    --panel-a: #ffffff;
+    --panel-b: #fafbfc;
+    --inset: #f9fafb;
+    --border: rgba(15,23,42,.08);
+    --border-shade: rgba(15,23,42,.12);
+    --metal-edge: none;
+    --metal-drop: 0 1px 3px rgba(15,23,42,.06);
+    --accent: #3b82f6;
+    --accent2: #059669;
+    --text: #111827;
+    --muted: #6b7280;
+    --red: #dc2626;
+    --yellow: #ca8a04;
+    --green: #059669;
+    --btn-hover-bg: #e5e7eb;
+    --nav-active-bg: rgba(15,23,42,.06);
+    --nav-active-edge: none;
+    --logout-hover-bg: rgba(15,23,42,.06);
+    --footer-bg: #ffffff;
+    --footer-border: rgba(15,23,42,.1);
+    --dropzone-active-bg: rgba(59,130,246,.08);
+    --remove-option-checked-bg: rgba(59,130,246,.08);
+    --remove-option-hover-border: rgba(59,130,246,.35);
+  }
+  body {
+    background-color: var(--bg);
+    background-image: var(--metal-shine), var(--metal-brush);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+  }
   a { color: var(--accent); }
-  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 52px; }
+  header {
+    background-color: var(--surface);
+    background-image: var(--metal-shine), var(--metal-brush);
+    border-bottom: 1px solid var(--border-shade);
+    box-shadow: var(--metal-edge), var(--metal-drop);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 52px;
+  }
   header h1 { font-size: 17px; font-weight: 600; }
   header .version { color: var(--muted); font-size: 12px; }
   nav { display: flex; gap: 4px; margin-left: auto; }
   nav button { background: none; border: none; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-  nav button.active, nav button:hover { background: var(--border); color: var(--text); }
-  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  nav button.active, nav button:hover {
+    background: var(--nav-active-bg);
+    color: var(--text);
+    box-shadow: var(--nav-active-edge);
+  }
+  main { padding: 24px 24px 56px; max-width: 1100px; margin: 0 auto; }
+  .app-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--muted);
+    background: var(--footer-bg);
+    border-top: 1px solid var(--footer-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: none;
+  }
+  .app-footer a {
+    pointer-events: auto;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .app-footer a:hover { text-decoration: underline; }
   .tab { display: none; }
   .tab.active { display: block; }
   h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card {
+    background-color: var(--panel-a);
+    background-image: var(--metal-shine), var(--metal-brush);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--metal-edge), var(--metal-drop);
+  }
+  .card + .card {
+    background-color: var(--panel-b);
+    background-image: var(--metal-shine), var(--metal-brush);
+  }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); }
   td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -41,6 +172,22 @@
   .badge-failed { background: rgba(241,107,107,.15); color: var(--red); }
   .badge-unknown { background: rgba(240,192,96,.1); color: var(--yellow); }
   .badge-unregistered { background: rgba(240,192,96,.14); color: var(--yellow); font-weight: 600; }
+  .unregistered-palaces-box {
+    margin-top: 20px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(240,192,96,.35);
+    background: rgba(240,192,96,.06);
+  }
+  .unregistered-palaces-box h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+  .unregistered-palaces-box .unregistered-lead {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .unregistered-palaces-box table { font-size: 13px; }
+  .unregistered-palaces-box table th { font-size: 11px; }
   .badge-ok { background: rgba(95,212,160,.15); color: var(--green); }
   .palace-status { display: inline-flex; align-items: center; gap: 8px; }
   .status-dot {
@@ -62,8 +209,21 @@
     box-shadow: 0 0 0 1px rgba(240,192,96,.35);
   }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-  button:hover { background: var(--border); }
+  button {
+    background-color: var(--surface2);
+    background-image: var(--metal-shine), var(--metal-brush);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 3px rgba(0,0,0,.25);
+  }
+  button:hover {
+    background-color: var(--btn-hover-bg);
+    background-image: var(--metal-shine), var(--metal-brush);
+  }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.primary:hover { opacity: .88; }
   button.danger { border-color: var(--red); color: var(--red); }
@@ -71,12 +231,61 @@
   .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; align-items: flex-end; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 12px; color: var(--muted); }
-  input, select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; width: 180px; }
+  input, select {
+    background-color: var(--inset);
+    background-image: linear-gradient(180deg, rgba(0,0,0,.18), transparent 55%), var(--metal-brush);
+    border: 1px solid var(--border-shade);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 180px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.35);
+  }
   input:focus, select:focus { outline: 2px solid var(--accent); }
-  .stream { background: #090b10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; max-height: 320px; overflow-y: auto; white-space: pre-wrap; color: #b4c0d4; margin-top: 12px; }
+  .stream {
+    background-color: #25282f;
+    background-image: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 40%), var(--metal-brush);
+    border: 1px solid var(--border-shade);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 12px;
+    max-height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    color: #c5ccd8;
+    margin-top: 12px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.45);
+  }
   .stream:empty::after { content: "No output yet."; color: var(--muted); }
+  #sfContent {
+    width: 100%;
+    min-height: 300px;
+    background-color: var(--inset);
+    background-image: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 45%), var(--metal-brush);
+    border: 1px solid var(--border-shade);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.45;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.45);
+    resize: vertical;
+  }
   .step-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-  .step-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  .step-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background-color: var(--inset);
+    background-image: linear-gradient(180deg, rgba(0,0,0,.12), transparent), var(--metal-brush);
+    border: 1px solid var(--border-shade);
+    border-radius: 8px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  }
   .step-id { font-family: monospace; font-size: 12px; color: var(--muted); width: 80px; }
   .step-msg { color: var(--muted); font-size: 12px; flex: 1; }
   .nginx-info { display: flex; gap: 24px; flex-wrap: wrap; }
@@ -85,24 +294,76 @@
   .nginx-stat .value { font-size: 14px; }
   .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; }
-  #loginScreen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 200; align-items: center; justify-content: center; flex-direction: column; gap: 8px; }
+  #loginScreen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: var(--bg);
+    background-image: var(--metal-shine), var(--metal-brush);
+    background-attachment: fixed;
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+  }
   #loginScreen.visible { display: flex; }
-  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 36px 40px; width: 340px; }
+  .login-box {
+    background-color: var(--panel-a);
+    background-image: var(--metal-shine), var(--metal-brush);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 40px;
+    width: 340px;
+    box-shadow: var(--metal-edge), 0 12px 40px rgba(0,0,0,.45);
+  }
   .login-box h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
   .login-box .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
   .login-box .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
   .login-box .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
-  .login-box input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+  .login-box input {
+    width: 100%;
+    background-color: var(--inset);
+    background-image: linear-gradient(180deg, rgba(0,0,0,.18), transparent 55%), var(--metal-brush);
+    border: 1px solid var(--border-shade);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.35);
+  }
   .login-box input:focus { outline: 2px solid var(--accent); }
   .login-box button.primary { width: 100%; padding: 9px; font-size: 14px; margin-top: 6px; border-radius: 8px; }
   #loginError { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
-  #passwordGate { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 210; align-items: center; justify-content: center; flex-direction: column; gap: 8px; }
+  #passwordGate {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: var(--bg);
+    background-image: var(--metal-shine), var(--metal-brush);
+    background-attachment: fixed;
+    z-index: 210;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+  }
   #passwordGate.visible { display: flex; }
   #passwordGateError { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
   #logoutBtn { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
-  #logoutBtn:hover { background: var(--border); color: var(--text); }
+  #logoutBtn:hover { background: var(--logout-hover-bg); color: var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
   .modal-bg.open { display: flex; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 480px; max-width: 680px; width: 90%; }
+  .modal {
+    background-color: var(--surface2);
+    background-image: var(--metal-shine), var(--metal-brush);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 480px;
+    max-width: 680px;
+    width: 90%;
+    box-shadow: var(--metal-edge), 0 16px 48px rgba(0,0,0,.5);
+  }
   .modal h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
   .modal-footer { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
   #provisionResult { display: none; margin-top: 14px; padding: 14px 16px; border-radius: 8px; border: 1px solid; }
@@ -111,23 +372,82 @@
   #provisionResult .res-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
   #provisionResult .res-body { font-size: 13px; line-height: 1.6; color: var(--text); }
   #provisionResult .res-note { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
-  #provisionResult code { background: #090b10; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+  #provisionResult code {
+    background: rgba(0,0,0,.35);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.3);
+  }
   .modal-lead { font-size: 13px; line-height: 1.55; color: var(--text); margin-bottom: 10px; }
-  .modal-lead code { font-size: 12px; background: #090b10; padding: 2px 7px; border-radius: 4px; }
+  .modal-lead code { font-size: 12px; background: rgba(0,0,0,.35); padding: 2px 7px; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,.3); }
   .remove-option-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
   .remove-option {
     display: flex; gap: 12px; align-items: flex-start;
     border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
     cursor: pointer; transition: border-color .12s, background .12s;
   }
-  .remove-option:has(input:checked) { border-color: var(--accent); background: rgba(124,106,247,.07); }
-  .remove-option:hover { border-color: rgba(124,106,247,.4); }
+  .remove-option:has(input:checked) { border-color: var(--accent); background: rgba(139,159,239,.09); }
+  .remove-option:hover { border-color: rgba(139,159,239,.42); }
   .remove-option input { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
   .remove-option-body { flex: 1; min-width: 0; }
   .remove-option-label { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
   .remove-option-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
-  .remove-option-desc code { font-size: 11px; background: #090b10; padding: 1px 5px; border-radius: 4px; }
+  .remove-option-desc code { font-size: 11px; background: rgba(0,0,0,.35); padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,.3); }
   .modal-bg.modal-stacked { z-index: 120; }
+  .modal-bg.modal-media-preview { z-index: 125; }
+  .media-preview-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .media-preview-head code { font-size: 12px; word-break: break-all; color: var(--text); line-height: 1.45; }
+  .media-preview-close {
+    flex-shrink: 0;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 22px;
+    line-height: 1;
+    border-radius: 8px;
+  }
+  #mediaPreviewBody {
+    flex: 1;
+    min-height: 180px;
+    overflow: auto;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,.22);
+  }
+  #mediaPreviewBody .media-preview-frame {
+    width: 100%;
+    max-height: min(72vh, 680px);
+    border: none;
+    border-radius: 8px;
+    background: #fff;
+  }
+  #mediaPreviewBody pre.media-preview-text {
+    width: 100%;
+    margin: 0;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: min(72vh, 680px);
+    overflow: auto;
+    background: var(--inset);
+    border: 1px solid var(--border-shade);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+  }
   .media-dropzone {
     position: relative;
     border: 1px dashed var(--border);
@@ -137,12 +457,13 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: var(--bg);
-    transition: border-color .15s, background .15s;
+    background-color: var(--inset);
+    background-image: linear-gradient(180deg, rgba(0,0,0,.1), transparent), var(--metal-brush);
+    transition: border-color .15s, background-color .15s;
   }
   .media-dropzone.media-drop-active {
     border-color: var(--accent);
-    background: rgba(124,106,247,.08);
+    background: var(--dropzone-active-bg);
   }
   .media-dropzone-hint { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
   .media-dropzone-hint label.choose-files { color: var(--accent); cursor: pointer; text-decoration: underline; }
@@ -159,6 +480,43 @@
     border: 0;
   }
   #mediaMessageBody.error { color: var(--red); }
+
+  html[data-theme="basic"] .stream {
+    background-color: #f3f4f6;
+    background-image: none;
+    border-color: var(--border-shade);
+    color: #374151;
+    box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+  }
+  html[data-theme="basic"] #sfContent {
+    background-color: #ffffff;
+    background-image: none;
+    border-color: var(--border-shade);
+    box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+  }
+  html[data-theme="basic"] input,
+  html[data-theme="basic"] select {
+    box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+  }
+  html[data-theme="basic"] #mediaPreviewBody {
+    background: #f3f4f6;
+  }
+  html[data-theme="basic"] #logoutBtn:hover {
+    box-shadow: none;
+  }
+  html[data-theme="basic"] .modal-lead code,
+  html[data-theme="basic"] #provisionResult code {
+    background: rgba(15,23,42,.06);
+    box-shadow: none;
+  }
+  html[data-theme="basic"] .remove-option-desc code {
+    background: rgba(15,23,42,.06);
+    box-shadow: none;
+  }
+  html[data-theme="basic"] .app-footer {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 </style>
 </head>
 <body>
@@ -230,6 +588,18 @@
       </tr></thead>
       <tbody id="palaceBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
     </table>
+    <div id="unregisteredPalacesPanel" class="unregistered-palaces-box" style="display:none;">
+      <h3>Unregistered palaces</h3>
+      <p class="unregistered-lead">
+        Not in <code>registry.json</code> anymore (e.g. after <strong>Unregister only</strong>). Palace Manager keeps a snapshot in <code>/etc/palace-manager/unregistered-palaces.json</code> so they stay listed here even if systemd does not show the unit. Use <strong>Register…</strong> to put them back in the registry and restore nginx routing; restore or recreate the <code>palman-</code> unit on the host if you need the service to start.
+      </p>
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>User</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="unregisteredPalaceBody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -263,10 +633,11 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
         <strong id="sfViewerTitle" style="font-size:13px;"></strong>
         <div class="actions">
+          <button type="button" id="sfSaveBtn" class="primary" style="display:none;" onclick="openSfSaveModal()">Save…</button>
           <button type="button" id="sfDownloadBtn" onclick="downloadServerFileBlob()">Download</button>
         </div>
       </div>
-      <textarea id="sfContent" readonly style="width:100%;min-height:300px;background:#090b10;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--text);line-height:1.45;"></textarea>
+      <textarea id="sfContent"></textarea>
       <p id="sfBinaryNote" style="display:none;color:var(--muted);font-size:12px;margin-top:8px;">Binary content is shown base64-encoded in JSON; use Download for the raw file.</p>
     </div>
   </div>
@@ -425,12 +796,17 @@
     <div class="form-row">
       <button class="primary" onclick="runBootstrap()">Run Setup</button>
       <button onclick="loadBootstrapStatus()">Refresh Status</button>
+      <button type="button" onclick="enableLogrotateAll()">Enable logrotate for pserver.log</button>
     </div>
     <div id="setupStream" class="stream"></div>
   </div>
 </div>
 
 </main>
+
+<footer class="app-footer" role="contentinfo">
+  Copyright 2026 jonk at <a href="https://thepalace.app" target="_blank" rel="noopener noreferrer">https://thepalace.app</a> - The Palace Restoration Project
+</footer>
 
 <!-- Provision Modal -->
 <div class="modal-bg" id="provisionModal">
@@ -539,12 +915,42 @@
   </div>
 </div>
 
+<!-- Media: inline preview (stacked above media modal) -->
+<div class="modal-bg modal-stacked modal-media-preview" id="mediaPreviewModal">
+  <div class="modal" style="max-width:900px;width:94%;max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+    <div class="media-preview-head">
+      <code id="mediaPreviewTitle"></code>
+      <button type="button" class="media-preview-close" onclick="closeMediaPreviewModal()" title="Close" aria-label="Close">×</button>
+    </div>
+    <div id="mediaPreviewBody"></div>
+  </div>
+</div>
+
 <!-- Log Modal -->
 <div class="modal-bg" id="logModal">
   <div class="modal" style="max-width:800px;">
     <h3 id="logModalTitle">Logs</h3>
     <div id="logContent" class="stream" style="max-height:460px;"></div>
     <div class="modal-footer"><button type="button" onclick="closeLogModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- Server file save confirm -->
+<div class="modal-bg modal-stacked" id="sfSaveModal">
+  <div class="modal" style="min-width:420px;max-width:540px;">
+    <h3>Save server file</h3>
+    <p class="modal-lead">You should take a backup before clicking anything else.</p>
+    <p class="modal-lead" style="margin-bottom:6px;">
+      <a href="#" id="sfSaveBackupLink" onclick="sfSaveBackupClick(event)" style="color:var(--accent);font-weight:600;">Click here for a backup of the current on-disk file (as it was before your edits)</a>
+    </p>
+    <p class="modal-lead" style="color:var(--yellow);margin-bottom:12px;">
+      If you click <strong>OK</strong>, your edit is saved and the palace server is restarted so the changes take effect.
+    </p>
+    <div id="sfSaveError" style="color:var(--red);font-size:13px;min-height:20px;margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeSfSaveModal()">Cancel</button>
+      <button type="button" class="primary" onclick="confirmSfSave()">OK</button>
+    </div>
   </div>
 </div>
 
@@ -704,11 +1110,23 @@ let EDIT_USER = null;
 let REMOVE_PALACE_NAME = null;
 let DELETE_USER_NAME = null;
 let REGISTER_PALACE_NAME = null;
+/** After unregister-only removal, scroll the unregistered panel into view once. */
+let SCROLL_UNREGISTER_PANEL = false;
 /** @type {string} */
 let SF_PALACE = '';
 /** @type {string} */
 let SF_FILE = '';
+/** @type {'utf8'|'base64'} */
+let SF_FILE_ENCODING = 'utf8';
+/** Logs / logrotate files are view-only (no Save / backup modal). */
+let SF_ALLOW_SAVE = false;
 let PAT_UPLOAD_NAME = '';
+
+/** pserver.log and rotated variants (including *.gz). */
+function isPalaceServerLogFamily(fileName) {
+  const low = String(fileName || '').toLowerCase();
+  return low === 'pserver.log' || low.startsWith('pserver.log.');
+}
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
@@ -1012,6 +1430,8 @@ async function loadUsers() {
 }
 
 let MEDIA_MODAL_NAME = '';
+let MEDIA_PREVIEW_OBJECT_URL = '';
+const MEDIA_PREVIEW_MAX_BYTES = 20 << 20;
 /** @type {File[] | null} */
 let MEDIA_PENDING_UPLOAD_FILES = null;
 let MEDIA_RENAME_FROM = '';
@@ -1202,8 +1622,108 @@ function openPalaceMediaModal(palaceName) {
 }
 
 function closeMediaModal() {
+  closeMediaPreviewModal();
   $('mediaModal').classList.remove('open');
   MEDIA_MODAL_NAME = '';
+}
+
+function closeMediaPreviewModal() {
+  const body = $('mediaPreviewBody');
+  if (body) {
+    body.querySelectorAll('video, audio').forEach(el => {
+      try { el.pause(); } catch (_) {}
+    });
+    body.innerHTML = '';
+  }
+  if (MEDIA_PREVIEW_OBJECT_URL) {
+    URL.revokeObjectURL(MEDIA_PREVIEW_OBJECT_URL);
+    MEDIA_PREVIEW_OBJECT_URL = '';
+  }
+  const wrap = $('mediaPreviewModal');
+  if (wrap) wrap.classList.remove('open');
+}
+
+function mediaPreviewKind(relPath, mime) {
+  const ext = (relPath.includes('.') ? relPath.substring(relPath.lastIndexOf('.') + 1) : '').toLowerCase();
+  const m = (mime || '').split(';')[0].trim().toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  if (m.startsWith('audio/')) return 'audio';
+  if (m === 'application/pdf') return 'pdf';
+  if (m.startsWith('text/')) return 'text';
+  const imageExt = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'avif'];
+  const videoExt = ['mp4', 'webm', 'ogv', 'mov', 'm4v'];
+  const audioExt = ['mp3', 'wav', 'ogg', 'opus', 'm4a', 'aac', 'flac'];
+  const textExt = ['txt', 'log', 'json', 'xml', 'csv', 'md', 'html', 'htm', 'css', 'js', 'ts', 'mjs', 'c', 'cpp', 'h', 'hpp', 'plist', 'yaml', 'yml', 'sh', 'bat', 'ini', 'conf', 'cfg', 'pat', 'prefs'];
+  if (imageExt.includes(ext)) return 'image';
+  if (videoExt.includes(ext)) return 'video';
+  if (audioExt.includes(ext)) return 'audio';
+  if (ext === 'pdf') return 'pdf';
+  if (textExt.includes(ext)) return 'text';
+  return '';
+}
+
+async function openMediaPreview(relPath) {
+  const palaceName = MEDIA_MODAL_NAME;
+  if (!palaceName) return;
+  closeMediaPreviewModal();
+  $('mediaPreviewTitle').textContent = relPath;
+  const bodyEl = $('mediaPreviewBody');
+  bodyEl.innerHTML = '<p class="empty">Loading…</p>';
+  $('mediaPreviewModal').classList.add('open');
+
+  try {
+    const url = `/api/palaces/${encodeURIComponent(palaceName)}/media/download?name=` + encodeURIComponent(relPath);
+    const res = await fetch(url, { headers: headers() });
+    const mimeHdr = (res.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase();
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      bodyEl.innerHTML = `<p class="empty" style="color:var(--red);">${esc(data.error || ('HTTP ' + res.status))}</p>`;
+      return;
+    }
+    const cl = res.headers.get('Content-Length');
+    if (cl && !Number.isNaN(parseInt(cl, 10)) && parseInt(cl, 10) > MEDIA_PREVIEW_MAX_BYTES) {
+      bodyEl.innerHTML = `<p class="empty">This file is ${formatBytes(parseInt(cl, 10))}. Preview is limited to ${formatBytes(MEDIA_PREVIEW_MAX_BYTES)} — use Download.</p>`;
+      return;
+    }
+    const blob = await res.blob();
+    if (blob.size > MEDIA_PREVIEW_MAX_BYTES) {
+      bodyEl.innerHTML = `<p class="empty">This file is ${formatBytes(blob.size)}. Preview is limited to ${formatBytes(MEDIA_PREVIEW_MAX_BYTES)} — use Download.</p>`;
+      return;
+    }
+    const mime = (blob.type && blob.type !== 'application/octet-stream') ? blob.type.toLowerCase() : mimeHdr;
+    const kind = mediaPreviewKind(relPath, mime);
+    MEDIA_PREVIEW_OBJECT_URL = URL.createObjectURL(blob);
+
+    if (kind === 'image') {
+      bodyEl.innerHTML = `<img alt="" src="${MEDIA_PREVIEW_OBJECT_URL}" style="max-width:100%;max-height:min(72vh,680px);object-fit:contain;border-radius:8px;" />`;
+      return;
+    }
+    if (kind === 'video') {
+      bodyEl.innerHTML = `<video class="media-preview-frame" src="${MEDIA_PREVIEW_OBJECT_URL}" controls playsinline></video>`;
+      return;
+    }
+    if (kind === 'audio') {
+      bodyEl.innerHTML = `<audio src="${MEDIA_PREVIEW_OBJECT_URL}" controls style="width:100%;max-width:520px;"></audio>`;
+      return;
+    }
+    if (kind === 'pdf') {
+      bodyEl.innerHTML = `<iframe class="media-preview-frame" title="Preview" src="${MEDIA_PREVIEW_OBJECT_URL}" style="min-height:min(72vh,680px);"></iframe>`;
+      return;
+    }
+    if (kind === 'text') {
+      const text = await blob.text();
+      bodyEl.innerHTML = `<pre class="media-preview-text">${esc(text)}</pre>`;
+      URL.revokeObjectURL(MEDIA_PREVIEW_OBJECT_URL);
+      MEDIA_PREVIEW_OBJECT_URL = '';
+      return;
+    }
+    bodyEl.innerHTML = `<p class="empty">No preview for this type. Use <strong>Download</strong> to open it locally.</p>`;
+    URL.revokeObjectURL(MEDIA_PREVIEW_OBJECT_URL);
+    MEDIA_PREVIEW_OBJECT_URL = '';
+  } catch (e) {
+    bodyEl.innerHTML = `<p class="empty" style="color:var(--red);">${esc(e.message)}</p>`;
+  }
 }
 
 async function refreshMediaModal() {
@@ -1233,7 +1753,8 @@ async function refreshMediaModal() {
       const nm = JSON.stringify(f.name);
       const sz = f.is_dir ? '—' : formatBytes(f.size);
       const actions = f.is_dir ? ''
-        : `<button type="button" onclick='downloadMediaRel(${nm})'>Download</button> ` +
+        : `<button type="button" onclick='openMediaPreview(${nm})'>View</button> ` +
+          `<button type="button" onclick='downloadMediaRel(${nm})'>Download</button> ` +
           `<button type="button" onclick='openMediaRenameModal(${nm})'>Rename</button> ` +
           `<button type="button" class="danger" onclick='openMediaDeleteModal(${nm})'>Delete</button>`;
       return `<tr>
@@ -1330,7 +1851,10 @@ async function loadServerFileList() {
   $('sfViewerWrap').style.display = 'none';
   $('sfContent').value = '';
   $('sfBinaryNote').style.display = 'none';
+  $('sfSaveBtn').style.display = 'none';
   SF_FILE = '';
+  SF_FILE_ENCODING = 'utf8';
+  SF_ALLOW_SAVE = false;
   SF_PALACE = name || '';
   if (!name) {
     tbody.innerHTML = '<tr><td colspan="3" class="empty">No palace selected.</td></tr>';
@@ -1346,20 +1870,24 @@ async function loadServerFileList() {
     }
     const files = data.files || [];
     if (files.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" class="empty">No matching files (pserver.pat or *.json in palace root).</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3" class="empty">No matching files (pserver.pat, pserver.prefs, pserver.log / rotated logs, or *.json in palace root).</td></tr>';
       return;
     }
     tbody.innerHTML = files.map(f => {
       const fn = JSON.stringify(f.name);
       const nm = JSON.stringify(name);
       const sz = typeof f.size === 'number' ? formatBytes(f.size) : '—';
+      const logFam = isPalaceServerLogFamily(f.name);
+      const editorBtn = logFam
+        ? ''
+        : `<button type="button" onclick='viewServerFile(${nm}, ${fn})'>Editor</button>`;
       return `<tr>
         <td><code>${esc(f.name)}</code></td>
         <td>${esc(sz)}</td>
         <td class="actions">
-          <button type="button" onclick="openServerFileInBrowser(${nm}, ${fn})">View</button>
-          <button type="button" onclick="downloadServerFileDirect(${nm}, ${fn})">Download</button>
-          <button type="button" onclick="viewServerFile(${nm}, ${fn})">Editor</button>
+          <button type="button" onclick='openServerFileInBrowser(${nm}, ${fn})'>View</button>
+          <button type="button" onclick='downloadServerFileDirect(${nm}, ${fn})'>Download</button>
+          ${editorBtn}
         </td>
       </tr>`;
     }).join('');
@@ -1485,17 +2013,32 @@ async function viewServerFile(palaceName, fileName) {
   $('sfContent').value = 'Loading…';
   $('sfBinaryNote').style.display = 'none';
   $('sfDownloadBtn').disabled = false;
+  $('sfSaveBtn').style.display = 'none';
+  SF_FILE_ENCODING = 'utf8';
+  SF_ALLOW_SAVE = false;
   try {
     const res = await fetch(`/api/palaces/${encodeURIComponent(palaceName)}/server-files/${encodeURIComponent(fileName)}`, { headers: headers() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      SF_ALLOW_SAVE = false;
+      $('sfSaveBtn').style.display = 'none';
+      $('sfContent').readOnly = true;
       $('sfContent').value = data.error || ('HTTP ' + res.status);
       return;
     }
     if (data.encoding === 'base64') {
+      SF_FILE_ENCODING = 'base64';
+      SF_ALLOW_SAVE = false;
+      $('sfContent').readOnly = true;
+      $('sfSaveBtn').style.display = 'none';
       $('sfContent').value = data.content || '';
       $('sfBinaryNote').style.display = 'block';
     } else {
+      SF_FILE_ENCODING = 'utf8';
+      const logFam = isPalaceServerLogFamily(fileName);
+      SF_ALLOW_SAVE = !logFam;
+      $('sfContent').readOnly = logFam;
+      $('sfSaveBtn').style.display = logFam ? 'none' : '';
       let text = typeof data.content === 'string' ? data.content : JSON.stringify(data, null, 2);
       if (fileName.toLowerCase().endsWith('.json')) {
         try {
@@ -1505,6 +2048,9 @@ async function viewServerFile(palaceName, fileName) {
       $('sfContent').value = text;
     }
   } catch (e) {
+    SF_ALLOW_SAVE = false;
+    $('sfSaveBtn').style.display = 'none';
+    $('sfContent').readOnly = true;
     $('sfContent').value = 'Error: ' + e.message;
   }
 }
@@ -1531,6 +2077,132 @@ async function downloadServerFileBlob() {
   }
 }
 
+function formatLocalBackupStamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+}
+
+function padTar512(len) {
+  const r = len % 512;
+  return r === 0 ? len : len + (512 - r);
+}
+
+function writeTarOctalField(header, offset, fieldLen, value) {
+  const te = new TextEncoder();
+  const str = value.toString(8) + '\0';
+  const enc = te.encode(str);
+  header.fill(0, offset, offset + fieldLen);
+  for (let i = 0; i < Math.min(fieldLen, enc.length); i++) header[offset + i] = enc[i];
+}
+
+/** Single-file POSIX ustar tarball (raw bytes). */
+function createTarArchiveSingle(fileName, data) {
+  if (fileName.length > 100) throw new Error('File name is too long for tar (max 100 characters).');
+  const te = new TextEncoder();
+  const header = new Uint8Array(512);
+  header.fill(0);
+  header.set(te.encode(fileName), 0);
+  writeTarOctalField(header, 100, 8, 0o644);
+  writeTarOctalField(header, 108, 8, 0);
+  writeTarOctalField(header, 116, 8, 0);
+  writeTarOctalField(header, 124, 12, data.length);
+  writeTarOctalField(header, 136, 12, Math.floor(Date.now() / 1000));
+  header[156] = 48; // '0' regular file
+  header.set(te.encode('ustar'), 257);
+  header.set(te.encode('00'), 263);
+  for (let i = 148; i < 156; i++) header[i] = 0x20;
+  let sum = 0;
+  for (let i = 0; i < 512; i++) sum += header[i];
+  const chkStr = sum.toString(8).padStart(6, '0') + '\0 ';
+  const chkEnc = te.encode(chkStr);
+  const chkFinal = new Uint8Array(8);
+  chkFinal.fill(32);
+  for (let i = 0; i < Math.min(8, chkEnc.length); i++) chkFinal[i] = chkEnc[i];
+  header.set(chkFinal, 148);
+
+  const padded = padTar512(data.length);
+  const out = new Uint8Array(512 + padded + 1024);
+  out.set(header, 0);
+  out.set(data, 512);
+  return out;
+}
+
+async function gzipUint8(raw) {
+  if (typeof CompressionStream === 'undefined') {
+    throw new Error('This browser cannot gzip (no CompressionStream). Use Download for a raw copy.');
+  }
+  const blob = new Blob([raw]);
+  const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function triggerDownloadBlob(blob, filename) {
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
+async function sfDownloadBackupTarGz() {
+  const palaceName = SF_PALACE;
+  const fileName = SF_FILE;
+  if (!palaceName || !fileName) return;
+  const url = `/api/palaces/${encodeURIComponent(palaceName)}/server-files/${encodeURIComponent(fileName)}?download=1`;
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || ('HTTP ' + res.status));
+  }
+  const raw = new Uint8Array(await res.arrayBuffer());
+  const tar = createTarArchiveSingle(fileName, raw);
+  const gz = await gzipUint8(tar);
+  const stamp = formatLocalBackupStamp(new Date());
+  triggerDownloadBlob(new Blob([gz], { type: 'application/gzip' }), `${fileName}.${stamp}.tar.gz`);
+}
+
+function sfSaveBackupClick(ev) {
+  ev.preventDefault();
+  $('sfSaveError').textContent = '';
+  sfDownloadBackupTarGz().catch(e => {
+    $('sfSaveError').textContent = e.message || String(e);
+  });
+}
+
+function openSfSaveModal() {
+  if (!SF_PALACE || !SF_FILE || !SF_ALLOW_SAVE) return;
+  $('sfSaveError').textContent = '';
+  $('sfSaveModal').classList.add('open');
+}
+
+function closeSfSaveModal() {
+  $('sfSaveModal').classList.remove('open');
+}
+
+async function confirmSfSave() {
+  $('sfSaveError').textContent = '';
+  if (!SF_PALACE || !SF_FILE || !SF_ALLOW_SAVE) return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SF_PALACE)}/server-files/${encodeURIComponent(SF_FILE)}`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ content: $('sfContent').value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('sfSaveError').textContent = data.error || ('HTTP ' + res.status);
+      return;
+    }
+    closeSfSaveModal();
+    await viewServerFile(SF_PALACE, SF_FILE);
+  } catch (e) {
+    $('sfSaveError').textContent = e.message || String(e);
+  }
+}
+
 // ===== Palaces =====
 function palaceStatusDot(status) {
   if (status === 'active') {
@@ -1547,6 +2219,8 @@ function palaceStatusDot(status) {
 
 async function loadPalaces() {
   const tbody = $('palaceBody');
+  const unregPanel = $('unregisteredPalacesPanel');
+  const unregTbody = $('unregisteredPalaceBody');
   try {
     const res = await fetch('/api/palaces', { headers: headers() });
     if (res.status === 403) {
@@ -1560,40 +2234,72 @@ async function loadPalaces() {
     }
     if (!res.ok) {
       tbody.innerHTML = `<tr><td colspan="8" class="empty">Could not load palaces (HTTP ${res.status})</td></tr>`;
+      if (unregPanel) unregPanel.style.display = 'none';
       return;
     }
     const data = await res.json();
+    const canAdmin = SESSION && SESSION.role === 'admin';
+    const orphans = canAdmin && Array.isArray(data) ? data.filter(p => p.registered === false) : [];
+    const mainList = canAdmin && Array.isArray(data)
+      ? data.filter(p => p.registered !== false)
+      : (Array.isArray(data) ? data : []);
+
+    if (canAdmin && orphans.length > 0) {
+      unregPanel.style.display = '';
+      unregTbody.innerHTML = orphans.map(p => {
+        const { dotClass, title } = palaceStatusDot(p.status);
+        const nm = JSON.stringify(p.name);
+        const removeBtn = `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`;
+        return `
+      <tr>
+        <td><strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Not in registry yet">Not registered</span></td>
+        <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
+        <td>${p.tcpPort || '—'}</td>
+        <td>${p.httpPort || '—'}</td>
+        <td><code>${esc(p.user || p.name)}</code></td>
+        <td>
+          <div class="actions">
+            <button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>
+            <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
+            <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
+            <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
+            ${removeBtn}
+          </div>
+        </td>
+      </tr>`;
+      }).join('');
+      if (SCROLL_UNREGISTER_PANEL) {
+        SCROLL_UNREGISTER_PANEL = false;
+        requestAnimationFrame(() => {
+          unregPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+      }
+    } else {
+      unregPanel.style.display = 'none';
+      unregTbody.innerHTML = '';
+    }
+
     if (!Array.isArray(data) || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" class="empty">No palaces found. Provision one to get started.</td></tr>';
       return;
     }
-    const canAdmin = SESSION && SESSION.role === 'admin';
-    tbody.innerHTML = data.map(p => {
+    if (mainList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No registered palaces in the manager. Unregistered instances are listed below.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = mainList.map(p => {
       const { dotClass, title } = palaceStatusDot(p.status);
       const nm = JSON.stringify(p.name);
-      const unregistered = canAdmin && p.registered === false;
-      const nameCell = unregistered
-        ? `<strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Known systemd unit only — not in registry yet">Not registered</span>`
-        : `<strong>${esc(p.name)}</strong>`;
-      const pserv = unregistered ? '—' : `<code>${esc(p.pserverVersion || 'latest')}</code>`;
+      const pserv = `<code>${esc(p.pserverVersion || 'latest')}</code>`;
       const removeBtn = canAdmin
         ? `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`
         : '';
-      const registerBtn = unregistered
-        ? `<button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>`
-        : '';
-      const logsBtn = unregistered
-        ? `<button type="button" disabled title="Registry entry required for log path">Logs</button>`
-        : `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
-      const mediaBtn = unregistered
-        ? `<button type="button" disabled title="Registry entry required">Media</button>`
-        : `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
-      const backupBtn = unregistered
-        ? `<button type="button" disabled title="Registry entry required">Backup</button>`
-        : `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Backup</button>`;
+      const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
+      const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
+      const backupBtn = `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Backup</button>`;
       return `
       <tr>
-        <td>${nameCell}</td>
+        <td><strong>${esc(p.name)}</strong></td>
         <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
@@ -1602,7 +2308,6 @@ async function loadPalaces() {
         <td><div class="actions">${mediaBtn}${backupBtn}</div></td>
         <td>
           <div class="actions">
-            ${registerBtn}
             <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
             <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
             <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
@@ -1614,6 +2319,7 @@ async function loadPalaces() {
     }).join('');
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${esc(e.message)}</td></tr>`;
+    if (unregPanel) unregPanel.style.display = 'none';
   }
 }
 
@@ -1761,6 +2467,9 @@ async function confirmRemovePalace() {
       btn.disabled = false;
       syncRemovePalaceSubmitStyle();
       return;
+    }
+    if (!purge) {
+      SCROLL_UNREGISTER_PANEL = true;
     }
     closeRemovePalaceModal();
     loadPalaces();
@@ -2163,6 +2872,16 @@ function badgeForState(state) {
   return `<span class="badge ${map[state] || 'badge-unknown'}">${esc(state)}</span>`;
 }
 
+async function enableLogrotateAll() {
+  const stream = $('setupStream');
+  stream.textContent = '';
+  const res = await fetch('/api/host/logrotate-enable-all', {
+    method: 'POST',
+    headers: headers(),
+  });
+  await streamSSE(res, stream);
+}
+
 async function runBootstrap() {
   const stream = $('setupStream');
   stream.textContent = '';
@@ -2244,7 +2963,10 @@ function appendStreamLine(el, line) {
 
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
-  if ($('mediaMessageModal').classList.contains('open')) {
+  if ($('mediaPreviewModal').classList.contains('open')) {
+    closeMediaPreviewModal();
+    ev.preventDefault();
+  } else if ($('mediaMessageModal').classList.contains('open')) {
     closeMediaMessageModal();
     ev.preventDefault();
   } else if ($('mediaRenameModal').classList.contains('open')) {

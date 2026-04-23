@@ -285,7 +285,7 @@ All endpoints require `Authorization: Bearer <apiKey>`.
 | `POST` | `/api/palaces/:name/start` | Start |
 | `POST` | `/api/palaces/:name/stop` | Stop |
 | `POST` | `/api/palaces/:name/restart` | Restart |
-| `DELETE` | `/api/palaces/:name` | Disable unit (`?purge=true` also removes the Linux user) |
+| `DELETE` | `/api/palaces/:name` | Stop + disable + drop from registry; keeps `palman-*.service` (unregister-only) and appends a recovery snapshot to `/etc/palace-manager/unregistered-palaces.json`. `?purge=true` also removes the Linux user, deletes the unit file, and removes the home directory (and drops any snapshot). |
 | `GET` | `/api/palaces/:name/logs` | Tail log (`?lines=N`, default 100) |
 
 ### Binary update

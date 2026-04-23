@@ -14,6 +14,7 @@ import (
 	"palace-manager/internal/nginx"
 	"palace-manager/internal/provisioner"
 	"palace-manager/internal/registry"
+	"palace-manager/internal/unregistered"
 	"palace-manager/internal/versionstore"
 	"palace-manager/web"
 )
@@ -28,6 +29,7 @@ type Server struct {
 	boot       *bootstrap.Runner
 	reg        *registry.Registry
 	vers       *versionstore.Store
+	unreg      *unregistered.Store
 	authStore  *authstore.Store
 	mux        *http.ServeMux
 }
@@ -41,6 +43,7 @@ func New(
 	bootRunner *bootstrap.Runner,
 	reg *registry.Registry,
 	vers *versionstore.Store,
+	unreg *unregistered.Store,
 	authStore *authstore.Store,
 ) *Server {
 	s := &Server{
@@ -52,6 +55,7 @@ func New(
 		boot:       bootRunner,
 		reg:        reg,
 		vers:       vers,
+		unreg:      unreg,
 		authStore:  authStore,
 		mux:        http.NewServeMux(),
 	}
@@ -69,6 +73,10 @@ func (s *Server) Addr() string {
 
 func (s *Server) routes() {
 	auth := s.authMiddleware
+
+	s.mux.Handle("/api/ui/config", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.handleUIConfig(w, r)
+	}))
 
 	// Static web UI — no auth so the login form is always reachable.
 	sub, _ := fs.Sub(web.FS, "public")
@@ -149,6 +157,14 @@ func (s *Server) routes() {
 		}
 		s.handleBootstrapRun(w, r)
 	})))
+
+	s.mux.Handle("/api/host/logrotate-enable-all", auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleHostLogrotateEnableAll(w, r)
+	})))
 }
 
 func (s *Server) routePalaces(w http.ResponseWriter, r *http.Request) {
@@ -209,14 +225,21 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalaceMediaDelete(w, r, name)
 	case action == "server-files" && r.Method == http.MethodGet:
 		s.handlePalaceServerRoot(w, r, name)
-	case strings.HasPrefix(action, "server-files/") && r.Method == http.MethodGet:
+	case strings.HasPrefix(action, "server-files/"):
 		filePart := strings.TrimPrefix(action, "server-files/")
 		filePart, err := url.PathUnescape(filePart)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid file path")
 			return
 		}
-		s.handlePalaceServerFile(w, r, name, filePart)
+		switch r.Method {
+		case http.MethodGet:
+			s.handlePalaceServerFile(w, r, name, filePart)
+		case http.MethodPut:
+			s.handlePalaceServerFileSave(w, r, name, filePart)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
 	case action == "pat-upload" && r.Method == http.MethodPost:
 		s.handlePalacePatUpload(w, r, name)
 	case action == "home-backup" && r.Method == http.MethodGet:

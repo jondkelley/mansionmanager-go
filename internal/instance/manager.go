@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"palace-manager/internal/registry"
+	"palace-manager/internal/unregistered"
 )
 
 type Status string
@@ -44,11 +45,12 @@ type systemdUnit struct {
 }
 
 type Manager struct {
-	reg *registry.Registry
+	reg   *registry.Registry
+	unreg *unregistered.Store
 }
 
-func NewManager(reg *registry.Registry) *Manager {
-	return &Manager{reg: reg}
+func NewManager(reg *registry.Registry, unreg *unregistered.Store) *Manager {
+	return &Manager{reg: reg, unreg: unreg}
 }
 
 func (m *Manager) List() ([]Instance, error) {
@@ -105,6 +107,32 @@ func (m *Manager) List() ([]Instance, error) {
 				UnitName:   u,
 				// list-units + glob sometimes omits loaded units; ask systemd directly.
 				Status: queryUnitStatus(u),
+			})
+		}
+	}
+
+	// Tombstone records: unregistered but not discoverable via list-units (or no unit file).
+	if m.unreg != nil {
+		seen := make(map[string]struct{}, len(instances))
+		for _, inst := range instances {
+			seen[inst.Name] = struct{}{}
+		}
+		for _, rec := range m.unreg.All() {
+			if _, ok := seen[rec.Name]; ok {
+				continue
+			}
+			u := unitName(rec.Name)
+			pv := rec.PserverVersion
+			instances = append(instances, Instance{
+				Name:           rec.Name,
+				User:           rec.User,
+				TCPPort:        rec.TCPPort,
+				HTTPPort:       rec.HTTPPort,
+				DataDir:        rec.DataDir,
+				Registered:     false,
+				UnitName:       u,
+				Status:         queryUnitStatus(u),
+				PserverVersion: pv,
 			})
 		}
 	}
@@ -191,15 +219,19 @@ func (m *Manager) EnableNow(name string) error {
 	return systemctl("enable", "--now", unitName(name))
 }
 
-func (m *Manager) Disable(name string) error {
+// Disable stops the palman unit and disables it at boot.
+// If removeUnitFile is true, the unit file under /etc/systemd/system is deleted (used when purging the Linux user).
+// For unregister-only, pass false so the unit remains on disk and can be discovered and re-registered.
+func (m *Manager) Disable(name string, removeUnitFile bool) error {
 	if err := systemctl("stop", unitName(name)); err != nil {
 		return err
 	}
 	if err := systemctl("disable", unitName(name)); err != nil {
 		return err
 	}
-	unitPath := fmt.Sprintf("/etc/systemd/system/%s", unitName(name))
-	_ = os.Remove(unitPath)
+	if removeUnitFile {
+		_ = os.Remove(UnitPath(name))
+	}
 	return systemctl("daemon-reload")
 }
 

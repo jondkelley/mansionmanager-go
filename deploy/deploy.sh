@@ -32,7 +32,8 @@ if [[ ! -f "${CONFIG_DIR}/config.json" ]]; then
     "port": 3000,
     "host": "0.0.0.0",
     "username": "admin",
-    "password": "${ADMIN_PASS}"
+    "password": "${ADMIN_PASS}",
+    "theme": "basic"
   },
   "scripts": {
     "provision": "/usr/local/lib/palace-manager/scripts/provision-palace.sh",

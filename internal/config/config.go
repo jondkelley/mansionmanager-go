@@ -13,6 +13,8 @@ type Manager struct {
 	Host     string `json:"host"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	// Theme selects the web UI palette: "basic" (light, default) or "metal" (original brushed dark chrome).
+	Theme string `json:"theme"`
 }
 
 type Scripts struct {
@@ -142,6 +144,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Nginx.MatchScheme == "" {
 		c.Nginx.MatchScheme = "both"
+	}
+	if c.Manager.Theme == "" {
+		c.Manager.Theme = "basic"
+	}
+	if c.Manager.Theme != "metal" && c.Manager.Theme != "basic" {
+		c.Manager.Theme = "basic"
 	}
 	if c.Scripts.Provision == "" {
 		c.Scripts.Provision = "/usr/local/lib/palace-manager/scripts/provision-palace.sh"
