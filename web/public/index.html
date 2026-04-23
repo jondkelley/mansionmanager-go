@@ -2326,6 +2326,10 @@ async function loadPalaces() {
 async function palaceAction(name, action) {
   await fetch(`/api/palaces/${encodeURIComponent(name)}/${action}`, { method: 'POST', headers: headers() });
   setTimeout(loadPalaces, 800);
+  if (action === 'start' || action === 'restart') {
+    loadNginxStatus();
+    setTimeout(loadNginxStatus, 2500);
+  }
 }
 
 async function downloadPalaceHomeBackup(name) {
@@ -2544,6 +2548,8 @@ async function doProvision() {
 
 function _showProvisionSuccess(palName) {
   loadPalaces();
+  loadNginxStatus();
+  setTimeout(loadNginxStatus, 3000);
   const el = $('provisionResult');
   el.className = 'success';
   el.innerHTML =

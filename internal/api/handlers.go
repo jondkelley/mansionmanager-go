@@ -169,6 +169,10 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "port already in use by another palace")
 		return
 	}
+	if err := instance.CheckTCPListenPortsFree(req.TCPPort, req.HTTPPort); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
 
 	// Pre-flight: pserver template must exist before we touch any system state.
 	if fi, err := os.Stat(s.cfg.Pserver.TemplateDir); err != nil || !fi.IsDir() {
@@ -195,8 +199,8 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		if err := s.reg.Add(entry); err != nil {
 			streamLine(sw, fmt.Sprintf("WARNING: could not update registry: %v", err))
 		}
-		// Trigger nginx regen so the new palace gets a location block immediately
-		s.nginx.Trigger()
+		// Async: queue gen-media scan + nginx reload without blocking this handler path.
+		go func() { s.nginx.Trigger() }()
 		streamLine(sw, fmt.Sprintf(`{"ok":true,"name":"%s","tcpPort":%d,"httpPort":%d}`,
 			req.Name, req.TCPPort, req.HTTPPort))
 	}
@@ -224,6 +228,12 @@ func (s *Server) handlePalaceAction(w http.ResponseWriter, r *http.Request, name
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if action == "start" || action == "restart" {
+		go func() {
+			s.nginx.Trigger()
+			s.nginx.TriggerDelayed(2 * time.Second)
+		}()
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "action": action, "name": name})
 }

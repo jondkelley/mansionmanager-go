@@ -31,7 +31,8 @@ type Manager struct {
 func NewManager(cfg *config.Nginx) *Manager {
 	return &Manager{
 		cfg:     cfg,
-		trigger: make(chan struct{}, 1),
+		// Buffered so bursts of Trigger (provision + start + settings) are not dropped.
+		trigger: make(chan struct{}, 32),
 	}
 }
 
@@ -65,12 +66,21 @@ func (m *Manager) Start(ctx context.Context) {
 }
 
 // Trigger causes an immediate regen outside the normal tick schedule.
-// If a regen is already queued, this is a no-op.
+// If the queue is full, this is a no-op (avoid blocking callers).
 func (m *Manager) Trigger() {
 	select {
 	case m.trigger <- struct{}{}:
 	default:
 	}
+}
+
+// TriggerDelayed schedules Trigger after d (another pass after pserver writes mediaserverurl.txt).
+func (m *Manager) TriggerDelayed(d time.Duration) {
+	if d <= 0 {
+		m.Trigger()
+		return
+	}
+	time.AfterFunc(d, func() { m.Trigger() })
 }
 
 // RegenWithWriter runs gen-media-nginx.sh immediately and streams output to w.
