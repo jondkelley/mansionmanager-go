@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"palace-manager/internal/config"
+	ngx "palace-manager/internal/nginx"
 )
 
 // StepID identifies a bootstrap step.
@@ -48,12 +49,14 @@ type StepStatus struct {
 
 // Options controls the bootstrap run.
 type Options struct {
-	MediaHost string
-	Email     string
-	CertDir   string  // override; auto-derived if empty
-	Staging   bool
-	Steps     []StepID // nil = all steps
-	ConfigPath string
+	MediaHost  string   `json:"mediaHost"`
+	Email      string   `json:"email"`
+	CertDir    string   `json:"certDir"` // override; auto-derived if empty
+	Staging    bool     `json:"staging"`
+	Steps      []StepID `json:"steps"` // nil = all steps
+	ConfigPath string   `json:"configPath"`
+	// EdgeScheme mirrors nginx.edgeScheme: https | http | dual. When http, cert/dhparam/hook steps are skipped.
+	EdgeScheme string `json:"edgeScheme"`
 }
 
 type Runner struct {
@@ -69,13 +72,14 @@ func (r *Runner) CheckStatus() []StepStatus {
 	mediaHost := r.cfg.Nginx.MediaHost
 	certDir := r.cfg.Nginx.CertDir
 
+	edge := r.cfg.Nginx.EdgeScheme
 	statuses := []StepStatus{
 		{ID: StepDeps, State: checkDeps()},
 		{ID: StepDNS, State: checkDNS(mediaHost)},
-		{ID: StepCert, State: checkCert(certDir, mediaHost)},
-		{ID: StepDHParam, State: checkDHParam()},
-		{ID: StepHook, State: checkRenewalHook()},
-		{ID: StepNginx, State: checkNginxConf(r.cfg.Nginx.MediaHost)},
+		{ID: StepCert, State: certStepState(edge, certDir, mediaHost)},
+		{ID: StepDHParam, State: dhStepState(edge)},
+		{ID: StepHook, State: hookStepState(edge)},
+		{ID: StepNginx, State: checkNginxConf()},
 		{ID: StepConfig, State: StateUnknown, Message: "configuration state"},
 	}
 	return statuses
@@ -96,6 +100,11 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 	certDir := opts.CertDir
 	if certDir == "" {
 		certDir = fmt.Sprintf("/etc/letsencrypt/live/%s", mediaHost)
+	}
+
+	effectiveEdge := strings.TrimSpace(opts.EdgeScheme)
+	if effectiveEdge == "" {
+		effectiveEdge = strings.TrimSpace(r.cfg.Nginx.EdgeScheme)
 	}
 
 	emit := func(step StepID, state StepState, msg string) {
@@ -140,6 +149,10 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 			// DNS mismatch is advisory only; continue
 
 		case StepCert:
+			if strings.EqualFold(effectiveEdge, "http") {
+				emit(StepCert, StateSkipped, "edgeScheme is http — skipping Let's Encrypt")
+				break
+			}
 			certFile := filepath.Join(certDir, "fullchain.pem")
 			if _, err := os.Stat(certFile); err == nil {
 				emit(StepCert, StateSkipped, fmt.Sprintf("certificate already exists at %s", certDir))
@@ -166,6 +179,10 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 			emit(StepCert, StateOK, fmt.Sprintf("certificate issued at %s", certDir))
 
 		case StepDHParam:
+			if strings.EqualFold(effectiveEdge, "http") {
+				emit(StepDHParam, StateSkipped, "edgeScheme is http — skipping dhparam")
+				break
+			}
 			dhPath := "/etc/letsencrypt/ssl-dhparams.pem"
 			if _, err := os.Stat(dhPath); err == nil {
 				emit(StepDHParam, StateSkipped, "dhparam already exists")
@@ -179,6 +196,10 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 			emit(StepDHParam, StateOK, "dhparam generated")
 
 		case StepHook:
+			if strings.EqualFold(effectiveEdge, "http") {
+				emit(StepHook, StateSkipped, "edgeScheme is http — skipping certbot renewal hook")
+				break
+			}
 			hookPath := "/etc/letsencrypt/renewal-hooks/deploy/nginx-reload.sh"
 			const hookContent = "#!/bin/sh\nsystemctl reload nginx\n"
 			if existing, err := os.ReadFile(hookPath); err == nil && string(existing) == hookContent {
@@ -203,6 +224,7 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 				"--edge-scheme", r.cfg.Nginx.EdgeScheme,
 				"--cert-dir", certDir,
 				"--media-host", mediaHost,
+				"--nginx-conf", ngx.MediaProxySiteConf,
 				"--reload",
 			}
 			if err := runCmd(w, r.cfg.Nginx.GenScript, args...); err != nil {
@@ -215,6 +237,9 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 		case StepConfig:
 			r.cfg.Nginx.CertDir = certDir
 			r.cfg.Nginx.MediaHost = mediaHost
+			if effectiveEdge != "" {
+				r.cfg.Nginx.EdgeScheme = strings.ToLower(effectiveEdge)
+			}
 			configPath := opts.ConfigPath
 			if configPath == "" {
 				configPath = "/etc/palace-manager/config.json"
@@ -294,6 +319,27 @@ func fetchPublicIP() (string, error) {
 	return strings.TrimSpace(buf.String()), nil
 }
 
+func certStepState(edgeScheme, certDir, mediaHost string) StepState {
+	if strings.EqualFold(strings.TrimSpace(edgeScheme), "http") {
+		return StateSkipped
+	}
+	return checkCert(certDir, mediaHost)
+}
+
+func dhStepState(edgeScheme string) StepState {
+	if strings.EqualFold(strings.TrimSpace(edgeScheme), "http") {
+		return StateSkipped
+	}
+	return checkDHParam()
+}
+
+func hookStepState(edgeScheme string) StepState {
+	if strings.EqualFold(strings.TrimSpace(edgeScheme), "http") {
+		return StateSkipped
+	}
+	return checkRenewalHook()
+}
+
 func checkCert(certDir, mediaHost string) StepState {
 	if certDir == "" {
 		certDir = fmt.Sprintf("/etc/letsencrypt/live/%s", mediaHost)
@@ -319,12 +365,9 @@ func checkDHParam() StepState {
 	return StateUnknown
 }
 
-func checkNginxConf(mediaHost string) StepState {
-	// Look for any generated conf that references the media host
-	pattern := "/etc/nginx/sites-enabled/03-media*.conf"
-	matches, err := filepath.Glob(pattern)
-	if err != nil || len(matches) == 0 {
-		return StateUnknown
+func checkNginxConf() StepState {
+	if _, err := os.Stat(ngx.MediaProxySiteConf); err == nil {
+		return StateOK
 	}
-	return StateOK
+	return StateUnknown
 }

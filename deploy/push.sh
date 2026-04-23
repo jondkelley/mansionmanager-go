@@ -53,6 +53,7 @@ scp "${SCP_OPTS[@]}" -q \
   "${SCRIPT_DIR}/palace-manager.service" \
   "${REPO_DIR}/scripts/provision-palace.sh" \
   "${REPO_DIR}/scripts/update-pserver.sh" \
+  "${REPO_DIR}/scripts/gen-media-nginx.sh" \
   "${HOST}:${REMOTE_TMP}/"
 
 # ── 3. Run install on the server ─────────────────────────────────────────────

@@ -28,7 +28,8 @@ TCP_PORT="9998"
 HTTP_PORT="8080"
 VERBOSITY="2"
 PROVIDER="MyPalaceNet"
-REVERSE_PROXY_MEDIA="https://media.thepalace.app"
+# palace-manager sets PALACE_REVERSE_PROXY_MEDIA from nginx.edgeScheme + mediaHost (see config.json).
+REVERSE_PROXY_MEDIA="${PALACE_REVERSE_PROXY_MEDIA:-https://media.thepalace.app}"
 PALACE_DATA_DIR=""
 CRON_TAG=""
 # Default tree produced by deploy/update-install-pserver.sh (sdist tarball).

@@ -14,11 +14,11 @@ import (
 )
 
 type ProvisionResult struct {
-	OK      bool   `json:"ok"`
-	User    string `json:"user"`
-	TCPPort int    `json:"tcpPort"`
-	HTTPPort int   `json:"httpPort"`
-	DataDir string `json:"dataDir"`
+	OK       bool   `json:"ok"`
+	User     string `json:"user"`
+	TCPPort  int    `json:"tcpPort"`
+	HTTPPort int    `json:"httpPort"`
+	DataDir  string `json:"dataDir"`
 }
 
 type UpdateResult struct {
@@ -48,6 +48,7 @@ func (p *Provisioner) Provision(name string, tcpPort, httpPort int, w io.Writer)
 	env := append(os.Environ(),
 		"PALACE_TEMPLATE_DIR="+p.cfg.Pserver.TemplateDir,
 		"PSERVER_BIN="+p.cfg.Pserver.InstallPath,
+		"PALACE_REVERSE_PROXY_MEDIA="+config.ReverseProxyMediaBase(p.cfg.Nginx.EdgeScheme, p.cfg.Nginx.MediaHost),
 	)
 
 	return runScript(p.cfg.Scripts.Provision, args, env, w, func(line string) (*ProvisionResult, bool) {

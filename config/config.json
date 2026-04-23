@@ -1,9 +1,7 @@
 {
   "manager": {
     "port": 3000,
-    "host": "0.0.0.0",
-    "username": "admin",
-    "password": "changeme"
+    "host": "0.0.0.0"
   },
   "scripts": {
     "provision": "/usr/local/lib/palace-manager/scripts/provision-palace.sh",
@@ -18,7 +16,7 @@
     "genScript": "/usr/local/bin/gen-media-nginx.sh",
     "regenInterval": "2m",
     "mediaHost": "media.thepalace.app",
-    "certDir": "/etc/letsencrypt/live/thepalace.app",
+    "certDir": "/etc/letsencrypt/live/media.thepalace.app",
     "edgeScheme": "https",
     "matchScheme": "both"
   }

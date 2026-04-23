@@ -19,6 +19,7 @@ echo "Installing scripts → ${SCRIPTS_DIR}"
 mkdir -p "${SCRIPTS_DIR}"
 install -m 0755 scripts/provision-palace.sh "${SCRIPTS_DIR}/provision-palace.sh"
 install -m 0755 scripts/update-pserver.sh   "${SCRIPTS_DIR}/update-pserver.sh"
+install -m 0755 scripts/gen-media-nginx.sh  "/usr/local/bin/gen-media-nginx.sh"
 
 echo "Ensuring config dir → ${CONFIG_DIR}"
 mkdir -p "${CONFIG_DIR}"
@@ -46,7 +47,7 @@ if [[ ! -f "${CONFIG_DIR}/config.json" ]]; then
     "genScript": "/usr/local/bin/gen-media-nginx.sh",
     "regenInterval": "2m",
     "mediaHost": "media.thepalace.app",
-    "certDir": "/etc/letsencrypt/live/thepalace.app",
+    "certDir": "/etc/letsencrypt/live/media.thepalace.app",
     "edgeScheme": "https",
     "matchScheme": "both"
   }
@@ -94,5 +95,5 @@ echo "  Password: ${ADMIN_PASS}"
 echo "========================================"
 echo ""
 echo "Open the URL above in your browser — no further setup needed."
-echo "Change the password by editing ${CONFIG_DIR}/config.json"
-echo "then restarting: systemctl restart palace-manager"
+echo "Credentials are stored in ${CONFIG_DIR}/users.json (hashed)."
+echo "Use the UI or edit that file, then: systemctl restart palace-manager"

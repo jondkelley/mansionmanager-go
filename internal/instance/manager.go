@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"palace-manager/internal/registry"
@@ -22,14 +24,17 @@ const (
 )
 
 type Instance struct {
-	Name          string         `json:"name"`
-	User          string         `json:"user"`
-	TCPPort       int            `json:"tcpPort"`
-	HTTPPort      int            `json:"httpPort"`
-	DataDir       string         `json:"dataDir"`
-	Status        Status         `json:"status"`
-	ProvisionedAt string         `json:"provisionedAt,omitempty"`
-	UnitName      string         `json:"unitName"`
+	Name           string `json:"name"`
+	User           string `json:"user"`
+	TCPPort        int    `json:"tcpPort"`
+	HTTPPort       int    `json:"httpPort"`
+	DataDir        string `json:"dataDir"`
+	Status         Status `json:"status"`
+	ProvisionedAt  string `json:"provisionedAt,omitempty"`
+	UnitName       string `json:"unitName"`
+	PserverVersion string `json:"pserverVersion,omitempty"` // pinned semver, or omitted/"latest"
+	Registered     bool   `json:"registered"`               // false = systemd unit exists but not in palace-manager registry
+	MediaDir       string `json:"mediaDir,omitempty"`       // absolute path from palman unit -m (or …/media)
 }
 
 type systemdUnit struct {
@@ -66,6 +71,7 @@ func (m *Manager) List() ([]Instance, error) {
 		}
 
 		if p, ok := m.reg.Get(name); ok {
+			inst.Registered = true
 			inst.User = p.User
 			inst.TCPPort = p.TCPPort
 			inst.HTTPPort = p.HTTPPort
@@ -90,12 +96,13 @@ func (m *Manager) List() ([]Instance, error) {
 		if !found {
 			u := fmt.Sprintf("palman-%s.service", p.Name)
 			instances = append(instances, Instance{
-				Name:     p.Name,
-				User:     p.User,
-				TCPPort:  p.TCPPort,
-				HTTPPort: p.HTTPPort,
-				DataDir:  p.DataDir,
-				UnitName: u,
+				Name:       p.Name,
+				Registered: true,
+				User:       p.User,
+				TCPPort:    p.TCPPort,
+				HTTPPort:   p.HTTPPort,
+				DataDir:    p.DataDir,
+				UnitName:   u,
 				// list-units + glob sometimes omits loaded units; ask systemd directly.
 				Status: queryUnitStatus(u),
 			})
@@ -130,6 +137,60 @@ func (m *Manager) Restart(name string) error {
 	return systemctl("restart", unitName(name))
 }
 
+// UnitPath returns the filesystem path for palman-<name>.service.
+func UnitPath(name string) string {
+	return filepath.Join("/etc/systemd/system", unitName(name))
+}
+
+var (
+	reUnitUser             = regexp.MustCompile(`(?m)^User=(.+)$`)
+	reUnitWorkingDirectory = regexp.MustCompile(`(?m)^WorkingDirectory=(.+)$`)
+	reUnitExecStart        = regexp.MustCompile(`(?m)^ExecStart=(.+)$`)
+	reExecTCP              = regexp.MustCompile(`(?:^|\s)-p\s+(\d+)`)
+	reExecHTTP             = regexp.MustCompile(`(?:^|\s)-H\s+(\d+)`)
+)
+
+// DiscoverFromUnit reads /etc/systemd/system/palman-<name>.service and extracts
+// service user, WorkingDirectory, and TCP/HTTP ports from ExecStart (-p / -H).
+func DiscoverFromUnit(name string) (linuxUser string, tcpPort, httpPort int, dataDir string, err error) {
+	path := UnitPath(name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", 0, 0, "", fmt.Errorf("unit file %s: %w", path, err)
+	}
+	content := string(data)
+	if m := reUnitUser.FindStringSubmatch(content); len(m) > 1 {
+		linuxUser = strings.TrimSpace(m[1])
+	}
+	if m := reUnitWorkingDirectory.FindStringSubmatch(content); len(m) > 1 {
+		dataDir = strings.TrimSpace(m[1])
+	}
+	var execLine string
+	if m := reUnitExecStart.FindStringSubmatch(content); len(m) > 1 {
+		execLine = strings.TrimSpace(m[1])
+	}
+	if execLine != "" {
+		if m := reExecTCP.FindStringSubmatch(execLine); len(m) > 1 {
+			tcpPort, _ = strconv.Atoi(m[1])
+		}
+		if m := reExecHTTP.FindStringSubmatch(execLine); len(m) > 1 {
+			httpPort, _ = strconv.Atoi(m[1])
+		}
+	}
+	if linuxUser == "" {
+		linuxUser = name
+	}
+	if dataDir == "" {
+		dataDir = filepath.Join("/home", linuxUser, "palace")
+	}
+	return linuxUser, tcpPort, httpPort, dataDir, nil
+}
+
+// EnableNow runs systemctl enable --now for the palace unit (boot + start).
+func (m *Manager) EnableNow(name string) error {
+	return systemctl("enable", "--now", unitName(name))
+}
+
 func (m *Manager) Disable(name string) error {
 	if err := systemctl("stop", unitName(name)); err != nil {
 		return err
@@ -140,6 +201,25 @@ func (m *Manager) Disable(name string) error {
 	unitPath := fmt.Sprintf("/etc/systemd/system/%s", unitName(name))
 	_ = os.Remove(unitPath)
 	return systemctl("daemon-reload")
+}
+
+// RewriteReverseProxyMedia updates --reverseproxymedia on every palman-*.service unit, then daemon-reload.
+func (m *Manager) RewriteReverseProxyMedia(newBase string) error {
+	units, err := listUnits()
+	if err != nil {
+		return err
+	}
+	var lastErr error
+	for _, u := range units {
+		path := filepath.Join("/etc/systemd/system", u.Unit)
+		if err := PatchUnitReverseProxy(path, newBase); err != nil {
+			lastErr = fmt.Errorf("%s: %w", u.Unit, err)
+		}
+	}
+	if err := systemctl("daemon-reload"); err != nil {
+		return err
+	}
+	return lastErr
 }
 
 func (m *Manager) RestartAll() error {

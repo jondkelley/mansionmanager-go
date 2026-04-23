@@ -1,28 +1,76 @@
 package api
 
 import (
-	"crypto/subtle"
+	"context"
 	"net/http"
+
+	"palace-manager/internal/authstore"
 )
+
+func unauthorized(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+}
+
+func passwordChangeAllowed(path, method string) bool {
+	if path == "/api/session" && method == http.MethodGet {
+		return true
+	}
+	if path == "/api/session/password" && method == http.MethodPost {
+		return true
+	}
+	return false
+}
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wantUser := s.cfg.Manager.Username
-		wantPass := s.cfg.Manager.Password
-
-		// If no password is configured, allow all requests.
-		if wantPass == "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
 		user, pass, ok := r.BasicAuth()
-		userOK := subtle.ConstantTimeCompare([]byte(user), []byte(wantUser)) == 1
-		passOK := subtle.ConstantTimeCompare([]byte(pass), []byte(wantPass)) == 1
-		if !ok || !userOK || !passOK {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		if !ok {
+			unauthorized(w)
 			return
 		}
+
+		u, verified := s.authStore.Verify(user, pass)
+		if !verified {
+			unauthorized(w)
+			return
+		}
+
+		id := Identity{
+			Username:           u.Username,
+			Role:               u.Role,
+			Palaces:            append([]string(nil), u.Palaces...),
+			MustChangePassword: u.MustChangePassword,
+		}
+		ctx := WithIdentity(r.Context(), id)
+		r = r.WithContext(ctx)
+
+		if id.MustChangePassword && !passwordChangeAllowed(r.URL.Path, r.Method) {
+			writeJSON(w, http.StatusForbidden, map[string]string{
+				"error": "password change required",
+				"code":  "password_change_required",
+			})
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
+}
+
+func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	id, ok := IdentityFrom(r.Context())
+	if !ok || id.Role != authstore.RoleAdmin {
+		writeError(w, http.StatusForbidden, "admin only")
+		return false
+	}
+	return true
+}
+
+func canAccessPalace(ctx context.Context, palaceName string) bool {
+	id, ok := IdentityFrom(ctx)
+	if !ok {
+		return false
+	}
+	return authstore.CanAccessPalace(id.Role, id.Palaces, palaceName)
 }

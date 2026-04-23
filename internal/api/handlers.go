@@ -1,19 +1,47 @@
 package api
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"palace-manager/internal/authstore"
 	"palace-manager/internal/bootstrap"
+	"palace-manager/internal/config"
+	"palace-manager/internal/instance"
 	"palace-manager/internal/provisioner"
 	"palace-manager/internal/registry"
 )
+
+func filterInstances(ctx context.Context, instances []instance.Instance) []instance.Instance {
+	id, ok := IdentityFrom(ctx)
+	if !ok {
+		return instances
+	}
+	if id.Role == authstore.RoleAdmin {
+		return instances
+	}
+	out := make([]instance.Instance, 0, len(instances))
+	for _, inst := range instances {
+		if authstore.CanAccessPalace(id.Role, id.Palaces, inst.Name) {
+			out = append(out, inst)
+		}
+	}
+	return out
+}
 
 // --- helpers -----------------------------------------------------------------
 
@@ -64,27 +92,58 @@ func streamLine(w io.Writer, line string) {
 
 // --- palace list / get -------------------------------------------------------
 
+func (s *Server) applyPserverVersionDisplay(inst *instance.Instance) {
+	if p, ok := s.reg.Get(inst.Name); ok {
+		if p.PserverVersion == "" {
+			inst.PserverVersion = "latest"
+		} else {
+			inst.PserverVersion = p.PserverVersion
+		}
+	} else {
+		inst.PserverVersion = "latest"
+	}
+}
+
+func (s *Server) enrichInstance(inst *instance.Instance) {
+	s.applyPserverVersionDisplay(inst)
+	if md, err := instance.DiscoverMediaDir(inst.Name); err == nil {
+		inst.MediaDir = md
+	}
+}
+
 func (s *Server) handleListPalaces(w http.ResponseWriter, r *http.Request) {
 	instances, err := s.instances.List()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	instances = filterInstances(r.Context(), instances)
+	for i := range instances {
+		s.enrichInstance(&instances[i])
+	}
 	writeJSON(w, http.StatusOK, instances)
 }
 
 func (s *Server) handleGetPalace(w http.ResponseWriter, r *http.Request, name string) {
+	if !canAccessPalace(r.Context(), name) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+		return
+	}
 	inst, err := s.instances.Get(name)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
+	s.enrichInstance(&inst)
 	writeJSON(w, http.StatusOK, inst)
 }
 
 // --- provision ---------------------------------------------------------------
 
 func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	var req struct {
 		Name     string `json:"name"`
 		TCPPort  int    `json:"tcpPort"`
@@ -138,6 +197,10 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 // --- palace lifecycle --------------------------------------------------------
 
 func (s *Server) handlePalaceAction(w http.ResponseWriter, r *http.Request, name, action string) {
+	if !canAccessPalace(r.Context(), name) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+		return
+	}
 	var err error
 	switch action {
 	case "start":
@@ -158,6 +221,9 @@ func (s *Server) handlePalaceAction(w http.ResponseWriter, r *http.Request, name
 }
 
 func (s *Server) handleDeletePalace(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	purge := r.URL.Query().Get("purge") == "true"
 
 	if err := s.instances.Disable(name); err != nil {
@@ -177,9 +243,119 @@ func (s *Server) handleDeletePalace(w http.ResponseWriter, r *http.Request, name
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "purged": purge})
 }
 
+func (s *Server) handleDiscoverPalace(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	if _, ok := s.reg.Get(name); ok {
+		writeError(w, http.StatusConflict, "palace already in registry")
+		return
+	}
+	user, tcp, httpPort, dd, err := instance.DiscoverFromUnit(name)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":      name,
+		"linuxUser": user,
+		"tcpPort":   tcp,
+		"httpPort":  httpPort,
+		"dataDir":   dd,
+	})
+}
+
+func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	if _, ok := s.reg.Get(name); ok {
+		writeError(w, http.StatusConflict, "palace already registered")
+		return
+	}
+
+	var req struct {
+		TcpPort   int    `json:"tcpPort"`
+		HttpPort  int    `json:"httpPort"`
+		DataDir   string `json:"dataDir"`
+		LinuxUser string `json:"linuxUser"`
+		EnableNow bool   `json:"enableNow"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	dUser, dTcp, dHttp, dDd, discoverErr := instance.DiscoverFromUnit(name)
+	if discoverErr != nil {
+		writeError(w, http.StatusBadRequest,
+			"missing systemd unit — restore /etc/systemd/system/palman-"+name+".service or reprovision: "+discoverErr.Error())
+		return
+	}
+
+	tcp := req.TcpPort
+	httpPort := req.HttpPort
+	if tcp == 0 {
+		tcp = dTcp
+	}
+	if httpPort == 0 {
+		httpPort = dHttp
+	}
+	user := strings.TrimSpace(req.LinuxUser)
+	if user == "" {
+		user = dUser
+	}
+	if user == "" {
+		user = name
+	}
+	dd := strings.TrimSpace(req.DataDir)
+	if dd == "" {
+		dd = dDd
+	}
+	if dd == "" {
+		dd = filepath.Join("/home", user, "palace")
+	}
+
+	if tcp == 0 || httpPort == 0 {
+		writeError(w, http.StatusBadRequest, "tcpPort and httpPort are required (could not read them from the unit file)")
+		return
+	}
+
+	if s.reg.PortInUse(tcp, httpPort) {
+		writeError(w, http.StatusConflict, "port already in use by another palace")
+		return
+	}
+
+	entry := registry.Palace{
+		Name:          name,
+		User:          user,
+		TCPPort:       tcp,
+		HTTPPort:      httpPort,
+		DataDir:       dd,
+		ProvisionedAt: time.Now(),
+	}
+	if err := s.reg.Add(entry); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.nginx.Trigger()
+
+	resp := map[string]any{"ok": true, "name": name}
+	if req.EnableNow {
+		if err := s.instances.EnableNow(name); err != nil {
+			resp["enableWarning"] = err.Error()
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // --- logs --------------------------------------------------------------------
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request, name string) {
+	if !canAccessPalace(r.Context(), name) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+		return
+	}
 	linesStr := r.URL.Query().Get("lines")
 	lines := 100
 	if linesStr != "" {
@@ -199,6 +375,9 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request, name string)
 // --- binary update -----------------------------------------------------------
 
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	restartAll := r.URL.Query().Get("restartAll") == "true"
 
 	sw, ok := sseWriter(w)
@@ -211,17 +390,78 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		streamLine(sw, fmt.Sprintf("ERROR: %v", err))
 		return
 	}
+	if err := s.vers.ArchiveFromTemplate(); err != nil {
+		streamLine(sw, fmt.Sprintf("NOTE (version archive): %v", err))
+	} else {
+		streamLine(sw, fmt.Sprintf("NOTE: indexed this build under %s (versions.json)", s.cfg.Pserver.VersionsDir))
+	}
 	streamLine(sw, `{"ok":true}`)
+}
+
+func (s *Server) handleBinaryVersions(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	snap, err := s.vers.Snapshot()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) handleRolloutAll(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	var req struct {
+		Semver  string `json:"semver"`
+		Restart bool   `json:"restart"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.vers.ApplyAllPalaces(s.reg, req.Semver, req.Restart); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "semver": req.Semver, "restart": req.Restart})
+}
+
+func (s *Server) handlePalacePserverVersion(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	var req struct {
+		Semver  string `json:"semver"`
+		Restart bool   `json:"restart"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if err := s.vers.ApplyPalaceVersion(s.reg, name, req.Semver, req.Restart); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "semver": req.Semver, "restart": req.Restart})
 }
 
 // --- nginx -------------------------------------------------------------------
 
 func (s *Server) handleNginxStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	status := s.nginx.Status()
 	writeJSON(w, http.StatusOK, status)
 }
 
 func (s *Server) handleNginxRegen(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	sw, ok := sseWriter(w)
 	if !ok {
 		// Fallback to synchronous for non-streaming clients
@@ -237,14 +477,119 @@ func (s *Server) handleNginxRegen(w http.ResponseWriter, r *http.Request) {
 	streamLine(sw, `{"ok":true}`)
 }
 
+func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	if r.Method == http.MethodGet {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"genScript":         s.cfg.Nginx.GenScript,
+			"regenInterval":     s.cfg.Nginx.RegenInterval.String(),
+			"mediaHost":         s.cfg.Nginx.MediaHost,
+			"certDir":           s.cfg.Nginx.CertDir,
+			"edgeScheme":        s.cfg.Nginx.EdgeScheme,
+			"matchScheme":       s.cfg.Nginx.MatchScheme,
+			"reverseProxyMedia": config.ReverseProxyMediaBase(s.cfg.Nginx.EdgeScheme, s.cfg.Nginx.MediaHost),
+		})
+		return
+	}
+
+	var req struct {
+		MediaHost    string `json:"mediaHost"`
+		CertDir      string `json:"certDir"`
+		EdgeScheme   string `json:"edgeScheme"`
+		MatchScheme  string `json:"matchScheme"`
+		RestartAll   bool   `json:"restartAll"`
+		RewriteUnits *bool  `json:"rewriteUnits"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if strings.TrimSpace(req.MediaHost) == "" {
+		writeError(w, http.StatusBadRequest, "mediaHost is required")
+		return
+	}
+
+	prevBase := config.ReverseProxyMediaBase(s.cfg.Nginx.EdgeScheme, s.cfg.Nginx.MediaHost)
+
+	s.cfg.Nginx.MediaHost = strings.TrimSpace(req.MediaHost)
+	s.cfg.Nginx.CertDir = strings.TrimSpace(req.CertDir)
+
+	es := strings.ToLower(strings.TrimSpace(req.EdgeScheme))
+	if es == "" {
+		es = "https"
+	}
+	if es != "http" && es != "https" && es != "dual" {
+		writeError(w, http.StatusBadRequest, "edgeScheme must be http, https, or dual")
+		return
+	}
+	s.cfg.Nginx.EdgeScheme = es
+
+	ms := strings.ToLower(strings.TrimSpace(req.MatchScheme))
+	if ms == "" {
+		ms = "both"
+	}
+	if ms != "http" && ms != "https" && ms != "both" {
+		writeError(w, http.StatusBadRequest, "matchScheme must be http, https, or both")
+		return
+	}
+	s.cfg.Nginx.MatchScheme = ms
+
+	s.cfg.ApplyDefaults()
+
+	newBase := config.ReverseProxyMediaBase(s.cfg.Nginx.EdgeScheme, s.cfg.Nginx.MediaHost)
+
+	rewrite := true
+	if req.RewriteUnits != nil {
+		rewrite = *req.RewriteUnits
+	}
+
+	if err := s.cfg.Save(s.configPath); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"ok":                true,
+		"reverseProxyMedia": newBase,
+		"unitsRewritten":    false,
+		"restartAll":        req.RestartAll,
+	}
+
+	if rewrite && prevBase != newBase {
+		if err := s.instances.RewriteReverseProxyMedia(newBase); err != nil {
+			writeError(w, http.StatusInternalServerError, "saved config but systemd units: "+err.Error())
+			return
+		}
+		resp["unitsRewritten"] = true
+	}
+
+	s.nginx.Trigger()
+
+	if req.RestartAll {
+		if err := s.instances.RestartAll(); err != nil {
+			resp["restartWarning"] = err.Error()
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // --- bootstrap ---------------------------------------------------------------
 
 func (s *Server) handleBootstrapStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	statuses := s.boot.CheckStatus()
 	writeJSON(w, http.StatusOK, statuses)
 }
 
 func (s *Server) handleBootstrapRun(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
 	var opts bootstrap.Options
 	if err := json.NewDecoder(r.Body).Decode(&opts); err != nil && r.ContentLength > 0 {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -262,6 +607,361 @@ func (s *Server) handleBootstrapRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	streamLine(sw, `{"ok":true,"done":true}`)
+}
+
+// --- palace server root (pserver.pat + *.json beside the script) ------------
+
+const maxPalaceServerFile = 8 << 20
+
+type serverRootEntry struct {
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	IsText bool   `json:"isText"`
+}
+
+func (s *Server) palaceDataDir(palaceName string) (string, error) {
+	inst, err := s.instances.Get(palaceName)
+	if err != nil {
+		return "", err
+	}
+	dd := inst.DataDir
+	if dd == "" {
+		_, _, _, dDir, dErr := instance.DiscoverFromUnit(palaceName)
+		if dErr == nil {
+			dd = dDir
+		}
+	}
+	if dd == "" {
+		return "", fmt.Errorf("no data directory for palace %q", palaceName)
+	}
+	return filepath.Clean(dd), nil
+}
+
+func allowedServerRootName(base string) bool {
+	if base == "" || strings.ContainsRune(base, filepath.Separator) {
+		return false
+	}
+	if strings.Contains(base, "..") {
+		return false
+	}
+	if base == "pserver.pat" {
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(base), ".json")
+}
+
+func (s *Server) handlePalaceServerRoot(w http.ResponseWriter, r *http.Request, palaceName string) {
+	if !canAccessPalace(r.Context(), palaceName) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+		return
+	}
+	dir, err := s.palaceDataDir(palaceName)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]serverRootEntry, 0)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		n := e.Name()
+		if !allowedServerRootName(n) {
+			continue
+		}
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+		low := strings.ToLower(n)
+		isText := strings.HasSuffix(low, ".json") || strings.HasSuffix(low, ".pat")
+		out = append(out, serverRootEntry{Name: n, Size: fi.Size(), IsText: isText})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"palace": palaceName, "dir": dir, "files": out})
+}
+
+func (s *Server) handlePalaceServerFile(w http.ResponseWriter, r *http.Request, palaceName, fileName string) {
+	if !canAccessPalace(r.Context(), palaceName) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+		return
+	}
+	base := filepath.Base(fileName)
+	if base != fileName || !allowedServerRootName(base) {
+		writeError(w, http.StatusBadRequest, "file name not allowed")
+		return
+	}
+	dir, err := s.palaceDataDir(palaceName)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	fullPath := filepath.Join(dir, base)
+	rel, err := filepath.Rel(dir, fullPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	b, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeError(w, http.StatusNotFound, "file not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if len(b) > maxPalaceServerFile {
+		writeError(w, http.StatusRequestEntityTooLarge, "file too large")
+		return
+	}
+
+	if r.URL.Query().Get("inline") == "1" {
+		low := strings.ToLower(base)
+		ct := mime.TypeByExtension(filepath.Ext(base))
+		if ct == "" {
+			switch {
+			case strings.HasSuffix(low, ".json"):
+				ct = "application/json; charset=utf-8"
+			case strings.HasSuffix(low, ".pat"):
+				ct = "text/plain; charset=utf-8"
+			default:
+				ct = "application/octet-stream"
+			}
+		}
+		w.Header().Set("Content-Type", ct)
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, base))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
+		return
+	}
+
+	if r.URL.Query().Get("download") == "1" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, base))
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
+		return
+	}
+
+	low := strings.ToLower(base)
+	textish := strings.HasSuffix(low, ".json") || strings.HasSuffix(low, ".pat")
+	if textish && utf8.Valid(b) {
+		writeJSON(w, http.StatusOK, map[string]any{"name": base, "size": len(b), "content": string(b)})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":     base,
+		"size":     len(b),
+		"encoding": "base64",
+		"content":  base64.StdEncoding.EncodeToString(b),
+	})
+}
+
+func (s *Server) resolvePalaceUnixHome(palaceName string) (string, error) {
+	inst, err := s.instances.Get(palaceName)
+	if err != nil {
+		return "", err
+	}
+	u := strings.TrimSpace(inst.User)
+	if u == "" {
+		u = palaceName
+	}
+	candidate := filepath.Join("/home", u)
+	if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
+		return filepath.Clean(candidate), nil
+	}
+	if inst.DataDir != "" {
+		dd := filepath.Clean(inst.DataDir)
+		parent := filepath.Dir(dd)
+		if fi, err := os.Stat(parent); err == nil && fi.IsDir() && strings.HasPrefix(parent, "/home/") {
+			return filepath.Clean(parent), nil
+		}
+	}
+	lu, _, _, dd, dErr := instance.DiscoverFromUnit(palaceName)
+	if dErr == nil {
+		if lu != "" {
+			c2 := filepath.Join("/home", lu)
+			if fi, err := os.Stat(c2); err == nil && fi.IsDir() {
+				return filepath.Clean(c2), nil
+			}
+		}
+		if dd != "" {
+			p := filepath.Dir(filepath.Clean(dd))
+			if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+				return filepath.Clean(p), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("could not resolve Unix home directory for palace %q", palaceName)
+}
+
+func (s *Server) handlePalaceHomeBackup(w http.ResponseWriter, r *http.Request, palaceName string) {
+	if !canAccessPalace(r.Context(), palaceName) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+		return
+	}
+	homeAbs, err := s.resolvePalaceUnixHome(palaceName)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	fi, err := os.Stat(homeAbs)
+	if err != nil || !fi.IsDir() {
+		writeError(w, http.StatusNotFound, "home directory not accessible")
+		return
+	}
+
+	safe := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, palaceName)
+	if safe == "" {
+		safe = "palace"
+	}
+
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-home-backup.tar.gz"`, safe))
+
+	gzw, err := gzip.NewWriterLevel(w, gzip.BestCompression)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer gzw.Close()
+
+	tw := tar.NewWriter(gzw)
+	defer tw.Close()
+
+	_ = filepath.WalkDir(homeAbs, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		rel, err := filepath.Rel(homeAbs, path)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+
+		link := ""
+		if d.Type()&fs.ModeSymlink != 0 {
+			link, err = os.Readlink(path)
+			if err != nil {
+				return nil
+			}
+		}
+
+		hdr, err := tar.FileInfoHeader(info, link)
+		if err != nil {
+			return nil
+		}
+		hdr.Name = filepath.ToSlash(rel)
+		if info.IsDir() && hdr.Name != "" && !strings.HasSuffix(hdr.Name, "/") {
+			hdr.Name += "/"
+		}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+
+		if d.Type()&fs.ModeSymlink != 0 || info.IsDir() {
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		_, copyErr := io.Copy(tw, f)
+		closeErr := f.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+}
+
+const maxPatUploadBytes = 32 << 20
+
+// handlePalacePatUpload accepts multipart field "file", writes data-dir/pserver.pat atomically, then restarts the palace unit.
+func (s *Server) handlePalacePatUpload(w http.ResponseWriter, r *http.Request, palaceName string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !canAccessPalace(r.Context(), palaceName) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+		return
+	}
+	dir, err := s.palaceDataDir(palaceName)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if err := r.ParseMultipartForm(maxPatUploadBytes); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid multipart or file too large")
+		return
+	}
+	fhs := r.MultipartForm.File["file"]
+	if len(fhs) != 1 {
+		writeError(w, http.StatusBadRequest, "exactly one file field \"file\" required")
+		return
+	}
+	fh := fhs[0]
+	src, err := fh.Open()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not read upload")
+		return
+	}
+	defer src.Close()
+
+	dest := filepath.Join(dir, "pserver.pat")
+	if err := writeFileAtomic(dest, io.LimitReader(src, maxPatUploadBytes)); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := s.instances.Restart(palaceName); err != nil {
+		writeError(w, http.StatusInternalServerError, "pat saved but restart failed: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "restarted": true})
+}
+
+func writeFileAtomic(dest string, src io.Reader) error {
+	tmp := dest + ".partial." + strconv.FormatInt(time.Now().UnixNano(), 10)
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(f, src); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // --- registry entry helper ---------------------------------------------------

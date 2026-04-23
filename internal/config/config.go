@@ -24,6 +24,8 @@ type Pserver struct {
 	TemplateDir string `json:"templateDir"`
 	InstallPath string `json:"installPath"`
 	SdistURL    string `json:"sdistUrl"`
+	// VersionsDir stores archived pserver builds (from version.txt after each update) and versions.json.
+	VersionsDir string `json:"versionsDir"`
 }
 
 type Nginx struct {
@@ -95,6 +97,11 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// ApplyDefaults fills empty nginx/manager/pserver fields (call after patching config in memory).
+func (c *Config) ApplyDefaults() {
+	c.applyDefaults()
+}
+
 func (c *Config) applyDefaults() {
 	if c.Manager.Port == 0 {
 		c.Manager.Port = 3000
@@ -111,6 +118,9 @@ func (c *Config) applyDefaults() {
 	if c.Pserver.InstallPath == "" {
 		c.Pserver.InstallPath = "/usr/local/bin/pserver"
 	}
+	if c.Pserver.VersionsDir == "" {
+		c.Pserver.VersionsDir = "/var/lib/palace-manager/pserver-versions"
+	}
 	if c.Pserver.SdistURL == "" {
 		c.Pserver.SdistURL = defaultSdistURL()
 	}
@@ -123,8 +133,9 @@ func (c *Config) applyDefaults() {
 	if c.Nginx.MediaHost == "" {
 		c.Nginx.MediaHost = "media.thepalace.app"
 	}
+	// Certbot stores certs under /etc/letsencrypt/live/<certificate-name>/ which matches the hostname we request.
 	if c.Nginx.CertDir == "" {
-		c.Nginx.CertDir = "/etc/letsencrypt/live/thepalace.app"
+		c.Nginx.CertDir = fmt.Sprintf("/etc/letsencrypt/live/%s", c.Nginx.MediaHost)
 	}
 	if c.Nginx.EdgeScheme == "" {
 		c.Nginx.EdgeScheme = "https"

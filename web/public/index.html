@@ -40,6 +40,7 @@
   .badge-inactive { background: rgba(255,255,255,.06); color: var(--muted); }
   .badge-failed { background: rgba(241,107,107,.15); color: var(--red); }
   .badge-unknown { background: rgba(240,192,96,.1); color: var(--yellow); }
+  .badge-unregistered { background: rgba(240,192,96,.14); color: var(--yellow); font-weight: 600; }
   .badge-ok { background: rgba(95,212,160,.15); color: var(--green); }
   .palace-status { display: inline-flex; align-items: center; gap: 8px; }
   .status-dot {
@@ -95,6 +96,9 @@
   .login-box input:focus { outline: 2px solid var(--accent); }
   .login-box button.primary { width: 100%; padding: 9px; font-size: 14px; margin-top: 6px; border-radius: 8px; }
   #loginError { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
+  #passwordGate { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 210; align-items: center; justify-content: center; flex-direction: column; gap: 8px; }
+  #passwordGate.visible { display: flex; }
+  #passwordGateError { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
   #logoutBtn { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
   #logoutBtn:hover { background: var(--border); color: var(--text); }
   .modal-bg.open { display: flex; }
@@ -108,6 +112,53 @@
   #provisionResult .res-body { font-size: 13px; line-height: 1.6; color: var(--text); }
   #provisionResult .res-note { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
   #provisionResult code { background: #090b10; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+  .modal-lead { font-size: 13px; line-height: 1.55; color: var(--text); margin-bottom: 10px; }
+  .modal-lead code { font-size: 12px; background: #090b10; padding: 2px 7px; border-radius: 4px; }
+  .remove-option-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
+  .remove-option {
+    display: flex; gap: 12px; align-items: flex-start;
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    cursor: pointer; transition: border-color .12s, background .12s;
+  }
+  .remove-option:has(input:checked) { border-color: var(--accent); background: rgba(124,106,247,.07); }
+  .remove-option:hover { border-color: rgba(124,106,247,.4); }
+  .remove-option input { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
+  .remove-option-body { flex: 1; min-width: 0; }
+  .remove-option-label { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  .remove-option-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .remove-option-desc code { font-size: 11px; background: #090b10; padding: 1px 5px; border-radius: 4px; }
+  .modal-bg.modal-stacked { z-index: 120; }
+  .media-dropzone {
+    position: relative;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-height: 76px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg);
+    transition: border-color .15s, background .15s;
+  }
+  .media-dropzone.media-drop-active {
+    border-color: var(--accent);
+    background: rgba(124,106,247,.08);
+  }
+  .media-dropzone-hint { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
+  .media-dropzone-hint label.choose-files { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  .media-dropzone-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .media-file-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  #mediaMessageBody.error { color: var(--red); }
 </style>
 </head>
 <body>
@@ -129,15 +180,38 @@
   </div>
 </div>
 
+<div id="passwordGate">
+  <div class="login-box">
+    <h2>Set a new password</h2>
+    <p class="sub">Replace the default password before using the manager. At least 10 characters.</p>
+    <div class="field">
+      <label>Current password</label>
+      <input id="passwordGateCurrent" type="password" autocomplete="current-password" />
+    </div>
+    <div class="field">
+      <label>New password</label>
+      <input id="passwordGateNew" type="password" autocomplete="new-password" />
+    </div>
+    <div class="field">
+      <label>Confirm new password</label>
+      <input id="passwordGateNew2" type="password" autocomplete="new-password" />
+    </div>
+    <button class="primary" type="button" onclick="submitPasswordChange()">Save password</button>
+    <div id="passwordGateError"></div>
+  </div>
+</div>
+
 <header>
   <h1>Palace Manager</h1>
   <span class="version">v0.1.0</span>
   <nav>
-    <button class="active" onclick="showTab('palaces',this)">Palaces</button>
-    <button onclick="showTab('update',this)">Update Binary</button>
-    <button onclick="showTab('nginx',this)">Nginx</button>
-    <button onclick="showTab('setup',this)">Host Setup</button>
-    <button id="logoutBtn" onclick="doLogout()">Sign out</button>
+    <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
+    <button type="button" id="navServerFiles" onclick="showTab('server-files',this)">Server files</button>
+    <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none">Users</button>
+    <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Update Binary</button>
+    <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Nginx</button>
+    <button type="button" id="navSetup" onclick="showTab('setup',this)" style="display:none">Host Setup</button>
+    <button type="button" id="logoutBtn" onclick="doLogout()">Sign out</button>
   </nav>
 </header>
 
@@ -148,13 +222,68 @@
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <h2>Palace Instances</h2>
-      <button class="primary" onclick="openProvisionModal()">+ New Palace</button>
+      <button type="button" class="primary" id="btnNewPalace" onclick="openProvisionModal()" style="display:none">+ New Palace</button>
     </div>
     <table id="palaceTable">
       <thead><tr>
-        <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>User</th><th>Actions</th>
+        <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>Pserver</th><th>User</th><th>Media</th><th>Actions</th>
       </tr></thead>
-      <tbody id="palaceBody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+      <tbody id="palaceBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== SERVER FILES (pserver.pat + root JSON) ===== -->
+<div id="tab-server-files" class="tab">
+  <div class="card">
+    <h2>Server files</h2>
+    <p style="color:var(--muted);margin-bottom:12px;font-size:13px;line-height:1.5;">
+      Browse <code>pserver.pat</code> and JSON files in each palace data directory (same folder as the running script).
+      For uploads, rename, delete, and search in <code>media/</code>, use <strong>Media</strong> on the Palaces tab — Palace Manager reads your palman systemd unit (<code>-m …</code>) and edits that folder on disk directly (no public media URL required).
+    </p>
+    <div class="form-row">
+      <div class="field">
+        <label>Palace</label>
+        <select id="sfPalace" style="min-width:220px;" onchange="loadServerFileList()"></select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button type="button" onclick="loadServerFilesPalaces(); loadServerFileList();">Refresh</button>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button type="button" class="primary" onclick="openPatUploadModal()">Upload pserver.pat…</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>File</th><th>Size</th><th>Actions</th></tr></thead>
+      <tbody id="sfFilesBody"><tr><td colspan="3" class="empty">Select a palace.</td></tr></tbody>
+    </table>
+    <div id="sfViewerWrap" style="margin-top:18px;display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+        <strong id="sfViewerTitle" style="font-size:13px;"></strong>
+        <div class="actions">
+          <button type="button" id="sfDownloadBtn" onclick="downloadServerFileBlob()">Download</button>
+        </div>
+      </div>
+      <textarea id="sfContent" readonly style="width:100%;min-height:300px;background:#090b10;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--text);line-height:1.45;"></textarea>
+      <p id="sfBinaryNote" style="display:none;color:var(--muted);font-size:12px;margin-top:8px;">Binary content is shown base64-encoded in JSON; use Download for the raw file.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== USERS TAB ===== -->
+<div id="tab-users" class="tab">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2>Users</h2>
+      <button type="button" class="primary" onclick="openUserModal(null)">+ User</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Username</th><th>Role</th><th>Palaces</th><th>Must change pwd</th><th></th>
+      </tr></thead>
+      <tbody id="usersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -173,10 +302,83 @@
     </div>
     <div id="updateStream" class="stream"></div>
   </div>
+
+  <div class="card" id="rolloutCard">
+    <h2>Rollouts &amp; pinned binaries</h2>
+    <p style="color:var(--muted);margin-bottom:12px;font-size:13px;line-height:1.45;">
+      Each successful <strong>Update Binary</strong> archives <code>pserver</code> by semver from <code>version.txt</code> under the versions directory (below).
+      Choose <strong>latest</strong> to use the shared install at <code>/usr/local/bin/pserver</code>, or pin a palace to an archived build. Applying patches the systemd unit and updates the registry; optionally restart so the service loads the binary immediately.
+    </p>
+    <p id="rolloutMeta" style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;"></p>
+
+    <div class="form-row" style="align-items:center;margin-bottom:16px;">
+      <div class="field">
+        <label>Set every palace to</label>
+        <select id="rolloutAllSemver"></select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <label style="flex-direction:row;align-items:center;gap:6px;width:auto;"><input type="checkbox" id="rolloutAllRestart" /> Restart after apply</label>
+      </div>
+      <button class="primary" type="button" onclick="rolloutApplyAll()">Apply to all palaces</button>
+      <button type="button" onclick="loadRolloutPanel()">Refresh</button>
+    </div>
+
+    <table id="rolloutTable">
+      <thead><tr>
+        <th>Palace</th><th>Current pin</th><th>Target</th><th></th>
+      </tr></thead>
+      <tbody id="rolloutBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ===== NGINX TAB ===== -->
 <div id="tab-nginx" class="tab">
+  <div class="card" id="nginxSettingsCard">
+    <h2>Media proxy &amp; TLS edge</h2>
+    <p style="color:var(--muted);font-size:13px;line-height:1.45;margin-bottom:14px;">
+      These settings mirror <code>/etc/palace-manager/config.json</code> (<code>nginx.edgeScheme</code>, <code>matchScheme</code>, etc.).
+      The computed URL is passed to each <code>pserver</code> as <code>--reverseproxymedia</code>. Changing between <strong>http</strong> and <strong>https</strong> rewrites every <code>palman-*.service</code> unit; restart palaces so running processes publish the new public media URL (same as toggling TLS on the nginx edge).
+    </p>
+    <div class="form-row">
+      <div class="field">
+        <label>Media hostname</label>
+        <input id="ngxMediaHost" type="text" autocomplete="off" placeholder="media.example.com" />
+      </div>
+      <div class="field">
+        <label>Edge scheme</label>
+        <select id="ngxEdgeScheme" title="nginx terminates TLS on 443 for https/dual; http serves on port 80 only">
+          <option value="https">HTTPS (Let’s Encrypt)</option>
+          <option value="http">HTTP only</option>
+          <option value="dual">HTTPS + HTTP (dual listeners)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Match scheme</label>
+        <select id="ngxMatchScheme" title="Which scheme(s) in mediaserverurl.txt nginx accepts when mapping paths">
+          <option value="both">both</option>
+          <option value="http">http</option>
+          <option value="https">https</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field" style="flex:2;min-width:280px;">
+        <label>Cert directory (for HTTPS / dual)</label>
+        <input id="ngxCertDir" type="text" autocomplete="off" placeholder="/etc/letsencrypt/live/..." />
+      </div>
+    </div>
+    <p id="ngxComputedRp" style="font-size:13px;color:var(--muted);margin-bottom:12px;min-height:20px;"></p>
+    <div class="form-row" style="align-items:center;margin-bottom:10px;">
+      <label style="flex-direction:row;align-items:center;gap:8px;width:auto;"><input type="checkbox" id="ngxRestartAll" /> Restart all palace services after save</label>
+    </div>
+    <div class="form-row">
+      <button type="button" class="primary" onclick="saveNginxSettings()">Save &amp; apply</button>
+      <button type="button" onclick="loadNginxSettingsForm()">Revert</button>
+    </div>
+    <div id="ngxSettingsNote" style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.45;"></div>
+  </div>
   <div class="card" id="nginxStatusCard">
     <h2>Nginx Media Proxy</h2>
     <div class="nginx-info" id="nginxInfo"><span style="color:var(--muted)">Loading...</span></div>
@@ -191,7 +393,7 @@
 <div id="tab-setup" class="tab">
   <div class="card">
     <h2>Host Setup Wizard</h2>
-    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">Run these steps once on a fresh host to configure nginx, obtain a Let's Encrypt certificate, and prepare palace-manager. Each step is idempotent.</p>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">Run these steps once on a fresh host to configure nginx, optionally obtain a Let's Encrypt certificate (HTTPS edge), and prepare palace-manager. Each step is idempotent.</p>
     <div class="step-list" id="stepList">
       <span style="color:var(--muted)">Loading...</span>
     </div>
@@ -199,6 +401,14 @@
       <div class="field">
         <label>Media Hostname</label>
         <input id="setupHost" type="text" placeholder="media.example.com" />
+      </div>
+      <div class="field">
+        <label>Media edge</label>
+        <select id="setupEdgeScheme">
+          <option value="https">HTTPS (Let’s Encrypt)</option>
+          <option value="http">HTTP only (skip certificate)</option>
+          <option value="dual">HTTPS + HTTP (dual)</option>
+        </select>
       </div>
       <div class="field">
         <label>Email (for Let's Encrypt)</label>
@@ -253,12 +463,233 @@
   </div>
 </div>
 
+<!-- Media Modal (filesystem —m directory) -->
+<div class="modal-bg" id="mediaModal">
+  <div class="modal" style="max-width:940px;width:96%;max-height:92vh;display:flex;flex-direction:column;">
+    <h3 id="mediaModalTitle">Media</h3>
+    <p id="mediaModalPath" style="font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-all;"></p>
+    <p id="mediaRefsNote" style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.45;display:none;"></p>
+    <div class="form-row" style="flex-wrap:wrap;align-items:stretch;">
+      <div class="field" style="flex:1;min-width:200px;">
+        <label>Search</label>
+        <input type="search" id="mediaSearch" placeholder="Filter by path…" style="width:100%;max-width:none;" oninput="scheduleMediaSearch()" />
+      </div>
+      <div class="field" style="flex:2;min-width:280px;">
+        <label>Upload</label>
+        <div id="mediaDropZone" class="media-dropzone">
+          <input type="file" id="mediaUploadInput" class="media-file-sr-only" multiple />
+          <p class="media-dropzone-hint" id="mediaUploadHint"><span id="mediaUploadHintLine">Drag and drop files here (multiple ok) or <label class="choose-files" for="mediaUploadInput">choose files</label>.</span></p>
+          <div class="media-dropzone-toolbar">
+            <button type="button" class="primary" onclick="uploadMediaFiles()">Upload</button>
+            <button type="button" onclick="refreshMediaModal()">Refresh</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-height:260px;max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;">
+      <table style="font-size:12px;">
+        <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Room</th><th>Door</th><th></th></tr></thead>
+        <tbody id="mediaTableBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-footer"><button type="button" onclick="closeMediaModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- Media: notice / error (stacked above media modal) -->
+<div class="modal-bg modal-stacked" id="mediaMessageModal">
+  <div class="modal" style="min-width:360px;max-width:480px;">
+    <h3 id="mediaMessageTitle">Notice</h3>
+    <p id="mediaMessageBody" style="font-size:13px;line-height:1.55;margin-bottom:12px;"></p>
+    <div class="modal-footer">
+      <button type="button" class="primary" onclick="closeMediaMessageModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Media: rename -->
+<div class="modal-bg modal-stacked" id="mediaRenameModal">
+  <div class="modal" style="min-width:420px;">
+    <h3>Rename file</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">From <code id="mediaRenameFromDisplay"></code></p>
+    <div class="field">
+      <label>New name or path</label>
+      <input id="mediaRenameInput" type="text" autocomplete="off" style="width:100%;max-width:none;" />
+    </div>
+    <div id="mediaRenameError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeMediaRenameModal()">Cancel</button>
+      <button type="button" class="primary" onclick="submitMediaRename()">Rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- Media: delete confirm -->
+<div class="modal-bg modal-stacked" id="mediaDeleteModal">
+  <div class="modal" style="min-width:400px;">
+    <h3>Delete file</h3>
+    <p style="font-size:13px;line-height:1.55;margin-bottom:12px;">
+      Remove <strong id="mediaDeletePathDisplay"></strong> from media? This cannot be undone.
+    </p>
+    <div id="mediaDeleteError" style="color:var(--red);font-size:13px;min-height:18px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeMediaDeleteModal()">Cancel</button>
+      <button type="button" class="danger" onclick="submitMediaDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- Log Modal -->
 <div class="modal-bg" id="logModal">
   <div class="modal" style="max-width:800px;">
     <h3 id="logModalTitle">Logs</h3>
     <div id="logContent" class="stream" style="max-height:460px;"></div>
-    <div class="modal-footer"><button onclick="closeLogModal()">Close</button></div>
+    <div class="modal-footer"><button type="button" onclick="closeLogModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-bg" id="userModal">
+  <div class="modal" style="min-width:420px;">
+    <h3 id="userModalTitle">Add user</h3>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Username</label>
+      <input id="userName" type="text" autocomplete="off" style="width:100%;" />
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label id="userPassLabel">Password</label>
+      <input id="userPass" type="password" autocomplete="new-password" style="width:100%;" />
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Role</label>
+      <select id="userRole" style="width:100%;" onchange="toggleUserPalacesField()">
+        <option value="tenant">tenant</option>
+        <option value="admin">admin</option>
+      </select>
+    </div>
+    <div class="field" id="userPalacesRow" style="margin-bottom:12px;">
+      <label>Allowed palaces (comma-separated)</label>
+      <input id="userPalaces" type="text" placeholder="palace1, palace2" style="width:100%;" />
+    </div>
+    <div id="userModalError" style="color:var(--red);font-size:13px;margin-bottom:8px;min-height:18px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeUserModal()">Cancel</button>
+      <button type="button" class="primary" onclick="saveUserModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Remove palace (admin) -->
+<div class="modal-bg" id="removePalaceModal">
+  <div class="modal" style="min-width:440px;max-width:540px;">
+    <h3>Remove palace</h3>
+    <p class="modal-lead">You are about to remove <code id="removePalaceNameDisplay"></code> from Palace Manager.</p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:4px;">Pick how far removal should go. The request runs as soon as you confirm.</p>
+    <div class="remove-option-list">
+      <label class="remove-option">
+        <input type="radio" name="removePalacePurge" value="false" checked onchange="syncRemovePalaceSubmitStyle()" />
+        <div class="remove-option-body">
+          <div class="remove-option-label">Unregister only</div>
+          <div class="remove-option-desc">Stop the service, disable the systemd unit, and drop this palace from the manager (including nginx routing). The Linux account and files in its home directory stay on the host.</div>
+        </div>
+      </label>
+      <label class="remove-option">
+        <input type="radio" name="removePalacePurge" value="true" onchange="syncRemovePalaceSubmitStyle()" />
+        <div class="remove-option-body">
+          <div class="remove-option-label">Unregister and delete the Linux account</div>
+          <div class="remove-option-desc">Same as unregister, plus remove the Linux user for this palace and delete their home directory. Suitable when you are done with that account entirely. This cannot be undone.</div>
+        </div>
+      </label>
+    </div>
+    <div id="removePalaceError" style="color:var(--red);font-size:13px;margin-top:12px;min-height:18px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeRemovePalaceModal()">Cancel</button>
+      <button type="button" class="primary" id="removePalaceSubmit" onclick="confirmRemovePalace()">Remove palace</button>
+    </div>
+  </div>
+</div>
+
+<!-- Register orphan unit (admin) -->
+<div class="modal-bg" id="registerPalaceModal">
+  <div class="modal" style="min-width:460px;max-width:560px;">
+    <h3>Register palace</h3>
+    <p class="modal-lead">Add <code id="registerPalaceTitleName"></code> back into <code>/etc/palace-manager/registry.json</code> using details from the existing <code>palman-</code> systemd unit.</p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;">TCP/HTTP defaults are parsed from <code>ExecStart</code> when possible. Adjust if you changed the unit by hand.</p>
+    <div class="form-row">
+      <div class="field">
+        <label>TCP port</label>
+        <input id="registerTcp" type="number" min="1" max="65535" placeholder="9999" />
+      </div>
+      <div class="field">
+        <label>HTTP port</label>
+        <input id="registerHttp" type="number" min="1" max="65535" placeholder="8080" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field" style="flex:1;min-width:200px;">
+        <label>Linux user</label>
+        <input id="registerLinuxUser" type="text" autocomplete="off" style="width:100%;max-width:none;" placeholder="matches User= in unit" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field" style="flex:1;">
+        <label>Data directory</label>
+        <input id="registerDataDir" type="text" autocomplete="off" style="width:100%;max-width:none;" placeholder="/home/&lt;user&gt;/palace" />
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;margin-bottom:12px;">
+      <input type="checkbox" id="registerEnableNow" checked />
+      Enable unit on boot and start now (<code>systemctl enable --now</code>)
+    </label>
+    <div id="registerPalaceError" style="color:var(--red);font-size:13px;min-height:18px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeRegisterPalaceModal()">Cancel</button>
+      <button type="button" class="primary" id="registerPalaceSubmit" onclick="confirmRegisterPalace()">Register</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete user -->
+<div class="modal-bg" id="deleteUserModal">
+  <div class="modal" style="min-width:400px;max-width:480px;">
+    <h3>Delete user</h3>
+    <p style="font-size:13px;line-height:1.55;color:var(--text);margin-bottom:12px;">
+      Permanently delete <strong id="deleteUserNameDisplay"></strong>? They will lose access immediately and cannot sign in again.
+    </p>
+    <div id="deleteUserError" style="color:var(--red);font-size:13px;margin-bottom:8px;min-height:18px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeDeleteUserModal()">Cancel</button>
+      <button type="button" class="danger" id="deleteUserSubmit" onclick="confirmDeleteUser()">Delete user</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload pserver.pat (restart required) -->
+<div class="modal-bg" id="patUploadModal">
+  <div class="modal" style="min-width:420px;max-width:520px;">
+    <h3>Replace pserver.pat</h3>
+    <p id="patUploadPalaceLabel" style="font-size:13px;margin-bottom:12px;"></p>
+    <div id="patUploadStepWarn" style="background:rgba(240,192,96,.1);border:1px solid rgba(240,192,96,.35);border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+      <p style="font-size:13px;line-height:1.55;color:var(--text);margin:0;">
+        Uploading a new <code>pserver.pat</code> does not apply until <strong>pserver restarts</strong>.
+        If you continue, Palace Manager will save the file and <strong>restart this palace immediately</strong> (players disconnect briefly).
+      </p>
+    </div>
+    <div id="patUploadStepConfirm" style="margin-bottom:14px;">
+      <button type="button" class="primary" onclick="patUploadShowPicker()">Continue</button>
+      <button type="button" onclick="closePatUploadModal()" style="margin-left:8px;">Cancel</button>
+    </div>
+    <div id="patUploadStepUpload" style="display:none;">
+      <div class="field" style="margin-bottom:12px;">
+        <label>File</label>
+        <input type="file" id="patUploadFile" accept=".pat,.txt" style="width:100%;max-width:none;font-size:13px;" />
+      </div>
+      <div id="patUploadError" style="color:var(--red);font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+      <div class="modal-footer" style="margin-top:8px;padding:0;">
+        <button type="button" onclick="closePatUploadModal()">Cancel</button>
+        <button type="button" class="primary" id="patUploadSubmitBtn" onclick="submitPatUpload()">Upload and restart palace</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -268,6 +699,16 @@ const $ = id => document.getElementById(id);
 // Basic Auth credentials kept in memory for the session.
 // sessionStorage survives page refreshes but not tab close.
 let AUTH_HEADER = sessionStorage.getItem('pm_auth') || '';
+let SESSION = null;
+let EDIT_USER = null;
+let REMOVE_PALACE_NAME = null;
+let DELETE_USER_NAME = null;
+let REGISTER_PALACE_NAME = null;
+/** @type {string} */
+let SF_PALACE = '';
+/** @type {string} */
+let SF_FILE = '';
+let PAT_UPLOAD_NAME = '';
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
@@ -275,12 +716,92 @@ function headers() {
   return h;
 }
 
+/** Authorization only (for binary GETs that should not send JSON Content-Type). */
+function authHeaders() {
+  const h = {};
+  if (AUTH_HEADER) h['Authorization'] = AUTH_HEADER;
+  return h;
+}
+
 function showLogin() {
+  $('passwordGate').classList.remove('visible');
   $('loginScreen').classList.add('visible');
   $('loginUser').focus();
 }
 function hideLogin() {
   $('loginScreen').classList.remove('visible');
+}
+
+function showPasswordGate() {
+  $('loginScreen').classList.remove('visible');
+  $('passwordGate').classList.add('visible');
+  $('passwordGateError').textContent = '';
+  $('passwordGateCurrent').value = '';
+  $('passwordGateNew').value = '';
+  $('passwordGateNew2').value = '';
+  $('passwordGateCurrent').focus();
+}
+
+function hidePasswordGate() {
+  $('passwordGate').classList.remove('visible');
+}
+
+function applySessionUI() {
+  const admin = SESSION && SESSION.role === 'admin';
+  ['navUpdate', 'navNginx', 'navSetup', 'navUsers', 'btnNewPalace'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = admin ? '' : 'none';
+  });
+}
+
+async function refreshSession() {
+  const res = await fetch('/api/session', { headers: headers() });
+  if (!res.ok) return false;
+  SESSION = await res.json();
+  applySessionUI();
+  return true;
+}
+
+async function afterSessionData(data) {
+  SESSION = data;
+  applySessionUI();
+  if (data.mustChangePassword) {
+    showPasswordGate();
+    return;
+  }
+  hidePasswordGate();
+  loadPalaces();
+}
+
+async function submitPasswordChange() {
+  $('passwordGateError').textContent = '';
+  const current = $('passwordGateCurrent').value;
+  const a = $('passwordGateNew').value;
+  const b = $('passwordGateNew2').value;
+  if (!current) { $('passwordGateError').textContent = 'Enter your current password.'; return; }
+  if (a.length < 10) { $('passwordGateError').textContent = 'New password must be at least 10 characters.'; return; }
+  if (a !== b) { $('passwordGateError').textContent = 'New passwords do not match.'; return; }
+  try {
+    const res = await fetch('/api/session/password', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ current, new: a }),
+    });
+    if (res.status === 401) {
+      $('passwordGateError').textContent = 'Current password incorrect.';
+      return;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      $('passwordGateError').textContent = err.error || ('HTTP ' + res.status);
+      return;
+    }
+    hidePasswordGate();
+    await refreshSession();
+    loadPalaces();
+  } catch (e) {
+    $('passwordGateError').textContent = 'Connection error: ' + e.message;
+  }
 }
 
 async function doLogin() {
@@ -293,15 +814,20 @@ async function doLogin() {
   const testHeaders = { 'Authorization': 'Basic ' + encoded, 'Content-Type': 'application/json' };
 
   try {
-    const res = await fetch('/api/palaces', { headers: testHeaders });
+    const res = await fetch('/api/session', { headers: testHeaders });
     if (res.status === 401) {
       $('loginError').textContent = 'Invalid username or password.';
       return;
     }
+    if (!res.ok) {
+      $('loginError').textContent = 'HTTP ' + res.status;
+      return;
+    }
+    const data = await res.json();
     AUTH_HEADER = 'Basic ' + encoded;
     sessionStorage.setItem('pm_auth', AUTH_HEADER);
     hideLogin();
-    loadPalaces();
+    await afterSessionData(data);
   } catch(e) {
     $('loginError').textContent = 'Connection error: ' + e.message;
   }
@@ -309,13 +835,17 @@ async function doLogin() {
 
 function doLogout() {
   AUTH_HEADER = '';
+  SESSION = null;
   sessionStorage.removeItem('pm_auth');
+  hidePasswordGate();
   showLogin();
 }
 
-// Enter key submits the login form.
+// Enter key submits login or password gate.
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && $('loginScreen').classList.contains('visible')) doLogin();
+  if (e.key !== 'Enter') return;
+  if ($('loginScreen').classList.contains('visible')) doLogin();
+  else if ($('passwordGate').classList.contains('visible')) submitPasswordChange();
 });
 
 // Tab switching
@@ -325,8 +855,680 @@ function showTab(name, btn) {
   $('tab-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'palaces') loadPalaces();
-  if (name === 'nginx') loadNginxStatus();
-  if (name === 'setup') loadBootstrapStatus();
+  if (name === 'server-files') loadServerFilesPalaces().then(() => loadServerFileList());
+  if (name === 'users') loadUsers();
+  if (name === 'update') loadRolloutPanel();
+  if (name === 'nginx') { loadNginxSettingsForm(); loadNginxStatus(); }
+  if (name === 'setup') { loadBootstrapStatus(); loadSetupEdgeFromSettings(); }
+}
+
+// ----- Users (admin UI) -----
+function toggleUserPalacesField() {
+  const admin = $('userRole').value === 'admin';
+  $('userPalacesRow').style.display = admin ? 'none' : '';
+}
+
+function openUserModal(record) {
+  EDIT_USER = record ? record.username : null;
+  $('userModalError').textContent = '';
+  $('userModalTitle').textContent = EDIT_USER ? ('Edit user — ' + EDIT_USER) : 'Add user';
+  $('userName').value = EDIT_USER || '';
+  $('userName').disabled = !!EDIT_USER;
+  $('userPass').value = '';
+  $('userPassLabel').textContent = EDIT_USER ? 'New password (optional)' : 'Password';
+  if (record) {
+    $('userRole').value = record.role || 'tenant';
+    $('userPalaces').value = (record.palaces || []).join(', ');
+  } else {
+    $('userRole').value = 'tenant';
+    $('userPalaces').value = '';
+  }
+  toggleUserPalacesField();
+  $('userModal').classList.add('open');
+}
+
+function closeUserModal() {
+  $('userModal').classList.remove('open');
+  EDIT_USER = null;
+}
+
+async function saveUserModal() {
+  $('userModalError').textContent = '';
+  const name = $('userName').value.trim();
+  const role = $('userRole').value;
+  const raw = $('userPalaces').value.trim();
+  const palaces = raw === '' ? [] : raw.split(',').map(s => s.trim()).filter(Boolean);
+  const pass = $('userPass').value;
+
+  try {
+    if (!EDIT_USER) {
+      if (!name || !pass) {
+        $('userModalError').textContent = 'Username and password required.';
+        return;
+      }
+      if (role === 'tenant' && palaces.length === 0) {
+        $('userModalError').textContent = 'Tenant needs at least one palace.';
+        return;
+      }
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ username: name, password: pass, role, palaces }),
+      });
+      const errBody = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        $('userModalError').textContent = errBody.error || ('HTTP ' + res.status);
+        return;
+      }
+    } else {
+      const body = { role };
+      if (role === 'tenant') body.palaces = palaces;
+      if (pass) body.password = pass;
+      const res = await fetch('/api/users/' + encodeURIComponent(EDIT_USER), {
+        method: 'PATCH',
+        headers: headers(),
+        body: JSON.stringify(body),
+      });
+      const errBody = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        $('userModalError').textContent = errBody.error || ('HTTP ' + res.status);
+        return;
+      }
+    }
+    closeUserModal();
+    loadUsers();
+  } catch (e) {
+    $('userModalError').textContent = e.message;
+  }
+}
+
+function openDeleteUserModal(username) {
+  DELETE_USER_NAME = username;
+  $('deleteUserNameDisplay').textContent = username;
+  $('deleteUserError').textContent = '';
+  $('deleteUserSubmit').disabled = false;
+  $('deleteUserModal').classList.add('open');
+}
+
+function closeDeleteUserModal() {
+  $('deleteUserModal').classList.remove('open');
+  DELETE_USER_NAME = null;
+}
+
+async function confirmDeleteUser() {
+  const username = DELETE_USER_NAME;
+  if (!username) return;
+  $('deleteUserError').textContent = '';
+  const btn = $('deleteUserSubmit');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/users/' + encodeURIComponent(username), {
+      method: 'DELETE',
+      headers: headers(),
+    });
+    const errBody = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('deleteUserError').textContent = errBody.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    closeDeleteUserModal();
+    loadUsers();
+  } catch (e) {
+    $('deleteUserError').textContent = e.message;
+    btn.disabled = false;
+  }
+}
+
+async function loadUsers() {
+  const tbody = $('usersBody');
+  try {
+    const res = await fetch('/api/users', { headers: headers() });
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">HTTP ${res.status}</td></tr>`;
+      return;
+    }
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No users.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(u => {
+      const pj = JSON.stringify(u).replace(/</g, '\\u003c');
+      return `<tr>
+        <td><strong>${esc(u.username)}</strong></td>
+        <td><code>${esc(u.role)}</code></td>
+        <td style="max-width:280px;font-size:12px;">${esc((u.palaces || []).join(', ') || (u.role === 'admin' ? '—' : ''))}</td>
+        <td>${u.mustChangePassword ? 'yes' : 'no'}</td>
+        <td><div class="actions">
+          <button type="button" onclick='openUserModal(${pj})'>Edit</button>
+          <button type="button" class="danger" onclick='openDeleteUserModal(${JSON.stringify(u.username)})'>Delete</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+let MEDIA_MODAL_NAME = '';
+/** @type {File[] | null} */
+let MEDIA_PENDING_UPLOAD_FILES = null;
+let MEDIA_RENAME_FROM = '';
+let MEDIA_DELETE_PATH = '';
+let mediaSearchDebounce = null;
+
+function getMediaUploadFiles() {
+  if (MEDIA_PENDING_UPLOAD_FILES && MEDIA_PENDING_UPLOAD_FILES.length) return MEDIA_PENDING_UPLOAD_FILES;
+  const inp = $('mediaUploadInput');
+  if (!inp || !inp.files || inp.files.length === 0) return [];
+  return Array.from(inp.files);
+}
+
+function updateMediaUploadHint() {
+  const line = $('mediaUploadHintLine');
+  if (!line) return;
+  const n = getMediaUploadFiles().length;
+  if (n === 0) {
+    line.innerHTML = 'Drag and drop files here (multiple ok) or <label class="choose-files" for="mediaUploadInput">choose files</label>.';
+  } else {
+    line.textContent = `${n} file${n === 1 ? '' : 's'} ready — drag more or choose files, then Upload.`;
+  }
+}
+
+function clearMediaPendingUpload() {
+  MEDIA_PENDING_UPLOAD_FILES = null;
+  const inp = $('mediaUploadInput');
+  if (inp) inp.value = '';
+  updateMediaUploadHint();
+}
+
+function openMediaMessageModal(title, body, isError) {
+  $('mediaMessageTitle').textContent = title || 'Notice';
+  const b = $('mediaMessageBody');
+  b.textContent = body || '';
+  b.classList.toggle('error', !!isError);
+  $('mediaMessageModal').classList.add('open');
+}
+
+function closeMediaMessageModal() {
+  $('mediaMessageModal').classList.remove('open');
+}
+
+function openMediaRenameModal(fromPath) {
+  MEDIA_RENAME_FROM = fromPath;
+  $('mediaRenameFromDisplay').textContent = fromPath;
+  $('mediaRenameError').textContent = '';
+  const base = fromPath.includes('/') ? fromPath.slice(fromPath.lastIndexOf('/') + 1) : fromPath;
+  const inp = $('mediaRenameInput');
+  inp.value = base;
+  $('mediaRenameModal').classList.add('open');
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+}
+
+function closeMediaRenameModal() {
+  $('mediaRenameModal').classList.remove('open');
+  MEDIA_RENAME_FROM = '';
+}
+
+async function submitMediaRename() {
+  const name = MEDIA_MODAL_NAME;
+  const fromPath = MEDIA_RENAME_FROM;
+  const to = ($('mediaRenameInput').value || '').trim();
+  $('mediaRenameError').textContent = '';
+  if (!name || !fromPath) return;
+  if (!to) {
+    $('mediaRenameError').textContent = 'Enter a new name or path.';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/media/rename`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ from: fromPath, to }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('mediaRenameError').textContent = data.error || ('HTTP ' + res.status);
+      return;
+    }
+    closeMediaRenameModal();
+    refreshMediaModal();
+  } catch (e) {
+    $('mediaRenameError').textContent = e.message;
+  }
+}
+
+function openMediaDeleteModal(relPath) {
+  MEDIA_DELETE_PATH = relPath;
+  $('mediaDeletePathDisplay').textContent = relPath;
+  $('mediaDeleteError').textContent = '';
+  $('mediaDeleteModal').classList.add('open');
+}
+
+function closeMediaDeleteModal() {
+  $('mediaDeleteModal').classList.remove('open');
+  MEDIA_DELETE_PATH = '';
+}
+
+async function submitMediaDelete() {
+  const name = MEDIA_MODAL_NAME;
+  const relPath = MEDIA_DELETE_PATH;
+  $('mediaDeleteError').textContent = '';
+  if (!name || !relPath) return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/media/file?name=` + encodeURIComponent(relPath), {
+      method: 'DELETE',
+      headers: headers(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('mediaDeleteError').textContent = data.error || ('HTTP ' + res.status);
+      return;
+    }
+    closeMediaDeleteModal();
+    refreshMediaModal();
+  } catch (e) {
+    $('mediaDeleteError').textContent = e.message;
+  }
+}
+
+(function initMediaUploadDropzone() {
+  const zone = $('mediaDropZone');
+  const inp = $('mediaUploadInput');
+  if (!zone || !inp) return;
+  zone.addEventListener('dragenter', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    zone.classList.add('media-drop-active');
+  });
+  zone.addEventListener('dragleave', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.relatedTarget != null && zone.contains(/** @type {Node} */ (ev.relatedTarget))) return;
+    zone.classList.remove('media-drop-active');
+  });
+  zone.addEventListener('dragover', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.dataTransfer.dropEffect = 'copy';
+  });
+  zone.addEventListener('drop', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    zone.classList.remove('media-drop-active');
+    const dt = ev.dataTransfer;
+    if (!dt || !dt.files || dt.files.length === 0) return;
+    const incoming = Array.from(dt.files);
+    const cur = MEDIA_PENDING_UPLOAD_FILES ? MEDIA_PENDING_UPLOAD_FILES.slice() : (inp.files && inp.files.length ? Array.from(inp.files) : []);
+    const next = cur.concat(incoming);
+    MEDIA_PENDING_UPLOAD_FILES = next;
+    inp.value = '';
+    updateMediaUploadHint();
+  });
+  inp.addEventListener('change', () => {
+    MEDIA_PENDING_UPLOAD_FILES = null;
+    updateMediaUploadHint();
+  });
+})();
+
+(function initMediaRenameEnter() {
+  const inp = $('mediaRenameInput');
+  if (!inp) return;
+  inp.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      submitMediaRename();
+    }
+  });
+})();
+
+function scheduleMediaSearch() {
+  clearTimeout(mediaSearchDebounce);
+  mediaSearchDebounce = setTimeout(() => refreshMediaModal(), 280);
+}
+
+function openPalaceMediaModal(palaceName) {
+  MEDIA_MODAL_NAME = palaceName;
+  $('mediaModalTitle').textContent = 'Media — ' + palaceName;
+  $('mediaModalPath').textContent = '';
+  $('mediaRefsNote').style.display = 'none';
+  $('mediaRefsNote').textContent = '';
+  $('mediaSearch').value = '';
+  clearMediaPendingUpload();
+  $('mediaTableBody').innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+  $('mediaModal').classList.add('open');
+  refreshMediaModal();
+}
+
+function closeMediaModal() {
+  $('mediaModal').classList.remove('open');
+  MEDIA_MODAL_NAME = '';
+}
+
+async function refreshMediaModal() {
+  const name = MEDIA_MODAL_NAME;
+  const tbody = $('mediaTableBody');
+  if (!name) return;
+  const q = $('mediaSearch').value.trim();
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/media/files?q=` + encodeURIComponent(q), { headers: headers() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">${esc(data.error || ('HTTP ' + res.status))}</td></tr>`;
+      $('mediaModalPath').textContent = '';
+      return;
+    }
+    $('mediaModalPath').textContent = data.media_dir ? ('Folder: ' + data.media_dir) : '';
+    if (data.refs_note) {
+      $('mediaRefsNote').textContent = data.refs_note;
+      $('mediaRefsNote').style.display = '';
+    }
+    const files = data.files || [];
+    if (files.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No files match.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = files.map(f => {
+      const nm = JSON.stringify(f.name);
+      const sz = f.is_dir ? '—' : formatBytes(f.size);
+      const actions = f.is_dir ? ''
+        : `<button type="button" onclick='downloadMediaRel(${nm})'>Download</button> ` +
+          `<button type="button" onclick='openMediaRenameModal(${nm})'>Rename</button> ` +
+          `<button type="button" class="danger" onclick='openMediaDeleteModal(${nm})'>Delete</button>`;
+      return `<tr>
+        <td style="max-width:280px;word-break:break-all;"><code>${esc(f.name)}</code></td>
+        <td>${esc(f.file_type || '')}</td>
+        <td>${esc(sz)}</td>
+        <td style="font-size:11px;color:var(--muted);">${esc(f.used_in_room || '—')}</td>
+        <td style="font-size:11px;color:var(--muted);">${esc(f.used_in_door || '—')}</td>
+        <td><div class="actions">${actions}</div></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function uploadMediaFiles() {
+  const name = MEDIA_MODAL_NAME;
+  const files = getMediaUploadFiles();
+  if (!name) return;
+  if (!files.length) {
+    openMediaMessageModal('No files selected', 'Drag files into the upload area, or use choose files, then click Upload.', false);
+    return;
+  }
+  const fd = new FormData();
+  for (let i = 0; i < files.length; i++) fd.append('file', files[i]);
+  try {
+    const h = { ...headers() };
+    delete h['Content-Type'];
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/media/upload`, { method: 'POST', headers: h, body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      openMediaMessageModal('Upload failed', data.error || ('HTTP ' + res.status), true);
+      return;
+    }
+    clearMediaPendingUpload();
+    refreshMediaModal();
+  } catch (e) {
+    openMediaMessageModal('Upload failed', e.message, true);
+  }
+}
+
+async function downloadMediaRel(relPath) {
+  const name = MEDIA_MODAL_NAME;
+  if (!name) return;
+  try {
+    const url = `/api/palaces/${encodeURIComponent(name)}/media/download?name=` + encodeURIComponent(relPath);
+    const res = await fetch(url, { headers: headers() });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      openMediaMessageModal('Download failed', data.error || ('HTTP ' + res.status), true);
+      return;
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = relPath.split('/').pop() || 'file';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  } catch (e) {
+    openMediaMessageModal('Download failed', e.message, true);
+  }
+}
+
+async function loadServerFilesPalaces() {
+  const sel = $('sfPalace');
+  try {
+    const res = await fetch('/api/palaces', { headers: headers() });
+    if (!res.ok) return;
+    const rows = await res.json();
+    const prev = sel.value || SF_PALACE;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      sel.innerHTML = '<option value="">— no palaces —</option>';
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    sel.innerHTML = rows.map(p =>
+      `<option value="${attrEsc(p.name)}">${esc(p.name)}</option>`
+    ).join('');
+    const pick = prev && rows.some(r => r.name === prev) ? prev : rows[0].name;
+    sel.value = pick;
+    SF_PALACE = pick;
+  } catch (_) {}
+}
+
+async function loadServerFileList() {
+  const sel = $('sfPalace');
+  const name = sel.value;
+  const tbody = $('sfFilesBody');
+  $('sfViewerWrap').style.display = 'none';
+  $('sfContent').value = '';
+  $('sfBinaryNote').style.display = 'none';
+  SF_FILE = '';
+  SF_PALACE = name || '';
+  if (!name) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">No palace selected.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="3" class="empty">Loading…</td></tr>';
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/server-files`, { headers: headers() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty">${esc(data.error || ('HTTP ' + res.status))}</td></tr>`;
+      return;
+    }
+    const files = data.files || [];
+    if (files.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty">No matching files (pserver.pat or *.json in palace root).</td></tr>';
+      return;
+    }
+    tbody.innerHTML = files.map(f => {
+      const fn = JSON.stringify(f.name);
+      const nm = JSON.stringify(name);
+      const sz = typeof f.size === 'number' ? formatBytes(f.size) : '—';
+      return `<tr>
+        <td><code>${esc(f.name)}</code></td>
+        <td>${esc(sz)}</td>
+        <td class="actions">
+          <button type="button" onclick="openServerFileInBrowser(${nm}, ${fn})">View</button>
+          <button type="button" onclick="downloadServerFileDirect(${nm}, ${fn})">Download</button>
+          <button type="button" onclick="viewServerFile(${nm}, ${fn})">Editor</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KiB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MiB';
+}
+
+function openPatUploadModal() {
+  const name = $('sfPalace').value;
+  if (!name) {
+    alert('Select a palace first.');
+    return;
+  }
+  PAT_UPLOAD_NAME = name;
+  $('patUploadPalaceLabel').innerHTML = 'Palace: <strong>' + esc(name) + '</strong>';
+  $('patUploadError').textContent = '';
+  $('patUploadFile').value = '';
+  $('patUploadStepConfirm').style.display = '';
+  $('patUploadStepUpload').style.display = 'none';
+  const btn = $('patUploadSubmitBtn');
+  if (btn) btn.disabled = false;
+  $('patUploadModal').classList.add('open');
+}
+
+function patUploadShowPicker() {
+  $('patUploadStepConfirm').style.display = 'none';
+  $('patUploadStepUpload').style.display = 'block';
+}
+
+function closePatUploadModal() {
+  $('patUploadModal').classList.remove('open');
+  PAT_UPLOAD_NAME = '';
+  $('patUploadStepConfirm').style.display = '';
+  $('patUploadStepUpload').style.display = 'none';
+}
+
+async function submitPatUpload() {
+  const name = PAT_UPLOAD_NAME;
+  const inp = $('patUploadFile');
+  if (!name || !inp.files || inp.files.length === 0) {
+    $('patUploadError').textContent = 'Choose a file.';
+    return;
+  }
+  $('patUploadError').textContent = '';
+  const btn = $('patUploadSubmitBtn');
+  btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('file', inp.files[0]);
+    const h = { ...headers() };
+    delete h['Content-Type'];
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/pat-upload`, { method: 'POST', headers: h, body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('patUploadError').textContent = data.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    closePatUploadModal();
+    loadPalaces();
+    if ($('tab-server-files').classList.contains('active')) {
+      loadServerFileList();
+    }
+  } catch (e) {
+    $('patUploadError').textContent = e.message;
+    btn.disabled = false;
+  }
+}
+
+async function openServerFileInBrowser(palaceName, fileName) {
+  try {
+    const url = `/api/palaces/${encodeURIComponent(palaceName)}/server-files/${encodeURIComponent(fileName)}?inline=1`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || ('HTTP ' + res.status));
+      return;
+    }
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    window.open(objUrl, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(objUrl), 120000);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function downloadServerFileDirect(palaceName, fileName) {
+  try {
+    const url = `/api/palaces/${encodeURIComponent(palaceName)}/server-files/${encodeURIComponent(fileName)}?download=1`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || ('HTTP ' + res.status));
+      return;
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function viewServerFile(palaceName, fileName) {
+  SF_PALACE = palaceName;
+  SF_FILE = fileName;
+  $('sfViewerWrap').style.display = 'block';
+  $('sfViewerTitle').textContent = fileName;
+  $('sfContent').value = 'Loading…';
+  $('sfBinaryNote').style.display = 'none';
+  $('sfDownloadBtn').disabled = false;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(palaceName)}/server-files/${encodeURIComponent(fileName)}`, { headers: headers() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('sfContent').value = data.error || ('HTTP ' + res.status);
+      return;
+    }
+    if (data.encoding === 'base64') {
+      $('sfContent').value = data.content || '';
+      $('sfBinaryNote').style.display = 'block';
+    } else {
+      let text = typeof data.content === 'string' ? data.content : JSON.stringify(data, null, 2);
+      if (fileName.toLowerCase().endsWith('.json')) {
+        try {
+          text = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (_) { /* leave raw */ }
+      }
+      $('sfContent').value = text;
+    }
+  } catch (e) {
+    $('sfContent').value = 'Error: ' + e.message;
+  }
+}
+
+async function downloadServerFileBlob() {
+  if (!SF_PALACE || !SF_FILE) return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SF_PALACE)}/server-files/${encodeURIComponent(SF_FILE)}?download=1`, { headers: authHeaders() });
+    if (!res.ok) {
+      alert('Download failed: HTTP ' + res.status);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = SF_FILE;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 // ===== Palaces =====
@@ -347,53 +1549,226 @@ async function loadPalaces() {
   const tbody = $('palaceBody');
   try {
     const res = await fetch('/api/palaces', { headers: headers() });
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">No palaces found. Provision one to get started.</td></tr>';
+    if (res.status === 403) {
+      const d = await res.json().catch(() => ({}));
+      if (d.code === 'password_change_required') {
+        SESSION = SESSION || {};
+        SESSION.mustChangePassword = true;
+        showPasswordGate();
+        return;
+      }
+    }
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">Could not load palaces (HTTP ${res.status})</td></tr>`;
       return;
     }
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No palaces found. Provision one to get started.</td></tr>';
+      return;
+    }
+    const canAdmin = SESSION && SESSION.role === 'admin';
     tbody.innerHTML = data.map(p => {
       const { dotClass, title } = palaceStatusDot(p.status);
+      const nm = JSON.stringify(p.name);
+      const unregistered = canAdmin && p.registered === false;
+      const nameCell = unregistered
+        ? `<strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Known systemd unit only — not in registry yet">Not registered</span>`
+        : `<strong>${esc(p.name)}</strong>`;
+      const pserv = unregistered ? '—' : `<code>${esc(p.pserverVersion || 'latest')}</code>`;
+      const removeBtn = canAdmin
+        ? `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`
+        : '';
+      const registerBtn = unregistered
+        ? `<button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>`
+        : '';
+      const logsBtn = unregistered
+        ? `<button type="button" disabled title="Registry entry required for log path">Logs</button>`
+        : `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
+      const mediaBtn = unregistered
+        ? `<button type="button" disabled title="Registry entry required">Media</button>`
+        : `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
+      const backupBtn = unregistered
+        ? `<button type="button" disabled title="Registry entry required">Backup</button>`
+        : `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Backup</button>`;
       return `
       <tr>
-        <td><strong>${esc(p.name)}</strong></td>
+        <td>${nameCell}</td>
         <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
+        <td>${pserv}</td>
         <td><code>${esc(p.user || p.name)}</code></td>
+        <td><div class="actions">${mediaBtn}${backupBtn}</div></td>
         <td>
           <div class="actions">
-            <button onclick="palaceAction('${esc(p.name)}','start')">Start</button>
-            <button onclick="palaceAction('${esc(p.name)}','stop')">Stop</button>
-            <button onclick="palaceAction('${esc(p.name)}','restart')">Restart</button>
-            <button onclick="viewLogs('${esc(p.name)}')">Logs</button>
-            <button class="danger" onclick="deletePalace('${esc(p.name)}')">Remove</button>
+            ${registerBtn}
+            <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
+            <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
+            <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
+            ${logsBtn}
+            ${removeBtn}
           </div>
         </td>
       </tr>`;
     }).join('');
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${esc(e.message)}</td></tr>`;
   }
 }
 
 async function palaceAction(name, action) {
-  await fetch(`/api/palaces/${name}/${action}`, { method: 'POST', headers: headers() });
+  await fetch(`/api/palaces/${encodeURIComponent(name)}/${action}`, { method: 'POST', headers: headers() });
   setTimeout(loadPalaces, 800);
 }
 
-async function deletePalace(name) {
-  if (!confirm(`Remove palace "${name}" from the manager?\n\nThis stops the service and disables its systemd unit.`)) {
-    return;
+async function downloadPalaceHomeBackup(name) {
+  if (!name) return;
+  const url = `/api/palaces/${encodeURIComponent(name)}/home-backup`;
+  try {
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || ('HTTP ' + res.status));
+      return;
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    let fname = `${name}-home-backup.tar.gz`;
+    const m = /filename="([^"]+)"/.exec(cd);
+    if (m) fname = m[1];
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  } catch (e) {
+    alert(e.message);
   }
-  if (!confirm(
-    `Also delete Linux user "${name}" and their home directory?\n\n` +
-      `OK — remove palace and delete user/home\nCancel — cancel (nothing is changed)`
-  )) {
-    return;
+}
+
+async function openRegisterPalaceModal(name) {
+  REGISTER_PALACE_NAME = name;
+  $('registerPalaceTitleName').textContent = name;
+  $('registerPalaceError').textContent = '';
+  $('registerTcp').value = '';
+  $('registerHttp').value = '';
+  $('registerLinuxUser').value = '';
+  $('registerDataDir').value = '';
+  $('registerEnableNow').checked = true;
+  $('registerPalaceSubmit').disabled = false;
+  $('registerPalaceModal').classList.add('open');
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/discover`, { headers: headers() });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('registerPalaceError').textContent = d.error || ('HTTP ' + res.status);
+      return;
+    }
+    if (d.tcpPort) $('registerTcp').value = String(d.tcpPort);
+    if (d.httpPort) $('registerHttp').value = String(d.httpPort);
+    if (d.linuxUser) $('registerLinuxUser').value = d.linuxUser;
+    if (d.dataDir) $('registerDataDir').value = d.dataDir;
+  } catch (e) {
+    $('registerPalaceError').textContent = e.message;
   }
-  await fetch(`/api/palaces/${encodeURIComponent(name)}?purge=true`, { method: 'DELETE', headers: headers() });
-  loadPalaces();
+}
+
+function closeRegisterPalaceModal() {
+  $('registerPalaceModal').classList.remove('open');
+  REGISTER_PALACE_NAME = null;
+}
+
+async function confirmRegisterPalace() {
+  const name = REGISTER_PALACE_NAME;
+  if (!name) return;
+  $('registerPalaceError').textContent = '';
+  const btn = $('registerPalaceSubmit');
+  btn.disabled = true;
+  try {
+    const tcp = parseInt($('registerTcp').value, 10);
+    const httpPort = parseInt($('registerHttp').value, 10);
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/register`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        tcpPort: Number.isFinite(tcp) ? tcp : 0,
+        httpPort: Number.isFinite(httpPort) ? httpPort : 0,
+        linuxUser: $('registerLinuxUser').value.trim(),
+        dataDir: $('registerDataDir').value.trim(),
+        enableNow: $('registerEnableNow').checked,
+      }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('registerPalaceError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    if (out.enableWarning) {
+      alert('Palace registered, but systemd reported: ' + out.enableWarning);
+    }
+    closeRegisterPalaceModal();
+    loadPalaces();
+  } catch (e) {
+    $('registerPalaceError').textContent = e.message;
+    btn.disabled = false;
+  }
+}
+
+function openRemovePalaceModal(name) {
+  REMOVE_PALACE_NAME = name;
+  $('removePalaceNameDisplay').textContent = name;
+  $('removePalaceError').textContent = '';
+  document.querySelector('input[name="removePalacePurge"][value="false"]').checked = true;
+  syncRemovePalaceSubmitStyle();
+  $('removePalaceSubmit').disabled = false;
+  $('removePalaceModal').classList.add('open');
+}
+
+function closeRemovePalaceModal() {
+  $('removePalaceModal').classList.remove('open');
+  REMOVE_PALACE_NAME = null;
+}
+
+function syncRemovePalaceSubmitStyle() {
+  const purge = document.querySelector('input[name="removePalacePurge"]:checked').value === 'true';
+  const btn = $('removePalaceSubmit');
+  btn.classList.toggle('danger', purge);
+  btn.classList.toggle('primary', !purge);
+  btn.textContent = purge ? 'Remove & delete account' : 'Remove palace';
+}
+
+async function confirmRemovePalace() {
+  const name = REMOVE_PALACE_NAME;
+  if (!name) return;
+  const purge = document.querySelector('input[name="removePalacePurge"]:checked').value === 'true';
+  $('removePalaceError').textContent = '';
+  const btn = $('removePalaceSubmit');
+  btn.disabled = true;
+  try {
+    const q = purge ? '?purge=true' : '';
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}${q}`, {
+      method: 'DELETE',
+      headers: headers(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('removePalaceError').textContent = body.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      syncRemovePalaceSubmitStyle();
+      return;
+    }
+    closeRemovePalaceModal();
+    loadPalaces();
+  } catch (e) {
+    $('removePalaceError').textContent = e.message;
+    btn.disabled = false;
+    syncRemovePalaceSubmitStyle();
+  }
 }
 
 // Provision modal
@@ -549,9 +1924,184 @@ async function runUpdate(restartAll) {
   stream.textContent = '';
   const res = await fetch(`/api/update?restartAll=${restartAll}`, { method: 'POST', headers: headers() });
   await streamSSE(res, stream);
+  loadRolloutPanel();
+}
+
+function semverOptionsHTML(snap, selected) {
+  const opts = [];
+  opts.push(`<option value="latest"${selected === 'latest' ? ' selected' : ''}>latest (${esc(snap.installPath || '/usr/local/bin/pserver')})</option>`);
+  for (const v of snap.versions || []) {
+    const lab = `${esc(v.semver)} — ${esc(v.target || '?')} · ${esc(v.archivedAt || '')}`;
+    opts.push(`<option value="${attrEsc(v.semver)}"${selected === v.semver ? ' selected' : ''}>${lab}</option>`);
+  }
+  return opts.join('');
+}
+
+async function loadRolloutPanel() {
+  const meta = $('rolloutMeta');
+  const tbody = $('rolloutBody');
+  const allSel = $('rolloutAllSemver');
+  try {
+    const [vRes, pRes] = await Promise.all([
+      fetch('/api/binary-versions', { headers: headers() }),
+      fetch('/api/palaces', { headers: headers() }),
+    ]);
+    if (!vRes.ok) {
+      meta.textContent = 'Could not load binary versions.';
+      tbody.innerHTML = `<tr><td colspan="4" class="empty">HTTP ${vRes.status}</td></tr>`;
+      return;
+    }
+    const snap = await vRes.json();
+    const palaces = pRes.ok ? await pRes.json() : [];
+    const t = snap.template || {};
+    meta.innerHTML =
+      `<strong>Template</strong> (live): semver <code>${esc(t.semver || '—')}</code>, tag <code>${esc(t.tag || '—')}</code>, target <code>${esc(t.target || '—')}</code><br>` +
+      `<strong>Archive</strong>: <code>${esc(snap.versionsDir)}</code> · <code>versions.json</code> · shared binary <code>${esc(snap.installPath)}</code>`;
+
+    const commonSel = allSel ? allSel.value : 'latest';
+    if (allSel) {
+      allSel.innerHTML = semverOptionsHTML(snap, commonSel);
+    }
+
+    if (!Array.isArray(palaces) || palaces.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">No palaces yet. Provision one on the Palaces tab.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = palaces.map(p => {
+      const pin = !p.pserverVersion || p.pserverVersion === 'latest' ? 'latest' : p.pserverVersion;
+      const cur = esc(p.pserverVersion || 'latest');
+      const enc = encodeURIComponent(p.name);
+      const selHtml = semverOptionsHTML(snap, pin);
+      return `<tr data-pn="${enc}">
+        <td><strong>${esc(p.name)}</strong></td>
+        <td><code>${cur}</code></td>
+        <td>
+          <select class="rollout-sel" style="min-width:260px;">${selHtml}</select>
+          <label style="margin-left:10px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" class="rollout-restart"/> Restart</label>
+        </td>
+        <td><button type="button" onclick="rolloutApplyRow(this)">Apply</button></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    meta.textContent = '';
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function rolloutApplyRow(btn) {
+  const tr = btn.closest('tr');
+  if (!tr || !tr.dataset.pn) return;
+  const name = decodeURIComponent(tr.dataset.pn);
+  const sel = tr.querySelector('.rollout-sel');
+  const semver = sel ? sel.value : 'latest';
+  const restartEl = tr.querySelector('.rollout-restart');
+  const restart = restartEl ? restartEl.checked : false;
+  if (restart && !confirm(`Restart service for palace "${name}" after switching to "${semver}"?`)) {
+    return;
+  }
+  const body = JSON.stringify({ semver, restart });
+  const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/pserver-version`, {
+    method: 'POST',
+    headers: headers(),
+    body,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || `HTTP ${res.status}`);
+    return;
+  }
+  loadPalaces();
+  loadRolloutPanel();
+}
+
+async function rolloutApplyAll() {
+  const semver = $('rolloutAllSemver').value;
+  const restart = $('rolloutAllRestart').checked;
+  if (!confirm(`Set ALL palaces to "${semver}"${restart ? ' and restart every service' : ''}?`)) return;
+  const res = await fetch('/api/rollout', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ semver, restart }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || `HTTP ${res.status}`);
+    return;
+  }
+  loadPalaces();
+  loadRolloutPanel();
 }
 
 // ===== Nginx =====
+async function loadNginxSettingsForm() {
+  const note = $('ngxSettingsNote');
+  try {
+    const res = await fetch('/api/nginx/settings', { headers: headers() });
+    if (!res.ok) {
+      if (note) note.textContent = 'Could not load settings (HTTP ' + res.status + ').';
+      return;
+    }
+    const s = await res.json();
+    if ($('ngxMediaHost')) $('ngxMediaHost').value = s.mediaHost || '';
+    if ($('ngxEdgeScheme')) $('ngxEdgeScheme').value = s.edgeScheme || 'https';
+    if ($('ngxMatchScheme')) $('ngxMatchScheme').value = s.matchScheme || 'both';
+    if ($('ngxCertDir')) $('ngxCertDir').value = s.certDir || '';
+    const rp = $('ngxComputedRp');
+    if (rp) rp.innerHTML = 'Effective <code>--reverseproxymedia</code>: <strong>' + esc(s.reverseProxyMedia || '') + '</strong>';
+    if (note) note.textContent = '';
+  } catch (e) {
+    if (note) note.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function saveNginxSettings() {
+  const restartAll = $('ngxRestartAll') && $('ngxRestartAll').checked;
+  const q = restartAll
+    ? 'Save settings, rewrite all palman systemd units with the new --reverseproxymedia URL, regenerate nginx, and restart every palace service?'
+    : 'Save settings and rewrite systemd units + nginx config? Running pservers keep the old advertised URL until you restart each palace (or enable restart below and save again).';
+  if (!confirm(q)) return;
+  const note = $('ngxSettingsNote');
+  try {
+    const body = {
+      mediaHost: $('ngxMediaHost').value.trim(),
+      edgeScheme: $('ngxEdgeScheme').value,
+      matchScheme: $('ngxMatchScheme').value,
+      certDir: $('ngxCertDir').value.trim(),
+      restartAll,
+    };
+    const res = await fetch('/api/nginx/settings', {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || ('HTTP ' + res.status));
+      return;
+    }
+    let msg = 'Saved.';
+    if (data.unitsRewritten) msg += ' Systemd units updated.';
+    if (data.restartWarning) msg += ' Restart warning: ' + data.restartWarning;
+    else if (restartAll) msg += ' All palace services restarted.';
+    if (note) note.textContent = msg;
+    loadNginxSettingsForm();
+    loadNginxStatus();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function loadSetupEdgeFromSettings() {
+  try {
+    const res = await fetch('/api/nginx/settings', { headers: headers() });
+    if (!res.ok) return;
+    const s = await res.json();
+    const sel = $('setupEdgeScheme');
+    if (sel && s.edgeScheme) sel.value = s.edgeScheme;
+  } catch (_) {}
+}
+
 async function loadNginxStatus() {
   const info = $('nginxInfo');
   try {
@@ -620,6 +2170,7 @@ async function runBootstrap() {
     mediaHost: $('setupHost').value.trim() || undefined,
     email: $('setupEmail').value.trim() || undefined,
     staging: $('setupStaging').value === 'true',
+    edgeScheme: $('setupEdgeScheme') ? $('setupEdgeScheme').value : undefined,
   };
   const res = await fetch('/api/bootstrap/run', {
     method: 'POST',
@@ -673,6 +2224,10 @@ function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function attrEsc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
 function appendStreamLine(el, line) {
   const span = document.createElement('span');
   const lo = line.toLowerCase();
@@ -687,15 +2242,47 @@ function appendStreamLine(el, line) {
   el.appendChild(document.createTextNode('\n'));
 }
 
+document.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Escape') return;
+  if ($('mediaMessageModal').classList.contains('open')) {
+    closeMediaMessageModal();
+    ev.preventDefault();
+  } else if ($('mediaRenameModal').classList.contains('open')) {
+    closeMediaRenameModal();
+    ev.preventDefault();
+  } else if ($('mediaDeleteModal').classList.contains('open')) {
+    closeMediaDeleteModal();
+    ev.preventDefault();
+  } else if ($('mediaModal').classList.contains('open')) {
+    closeMediaModal();
+    ev.preventDefault();
+  } else if ($('patUploadModal').classList.contains('open')) {
+    closePatUploadModal();
+    ev.preventDefault();
+  } else if ($('deleteUserModal').classList.contains('open')) {
+    closeDeleteUserModal();
+    ev.preventDefault();
+  } else if ($('registerPalaceModal').classList.contains('open')) {
+    closeRegisterPalaceModal();
+    ev.preventDefault();
+  } else if ($('removePalaceModal').classList.contains('open')) {
+    closeRemovePalaceModal();
+    ev.preventDefault();
+  }
+});
+
 // Initial load — check auth before showing the UI.
 (async () => {
   if (!AUTH_HEADER) { showLogin(); return; }
-  const res = await fetch('/api/palaces', { headers: headers() }).catch(() => null);
+  const res = await fetch('/api/session', { headers: headers() }).catch(() => null);
   if (!res || res.status === 401) { showLogin(); return; }
-  loadPalaces();
+  const data = await res.json();
+  hideLogin();
+  await afterSessionData(data);
 })();
 setInterval(async () => {
   if ($('loginScreen').classList.contains('visible')) return;
+  if ($('passwordGate').classList.contains('visible')) return;
   loadPalaces();
 }, 15000);
 </script>

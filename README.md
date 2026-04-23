@@ -78,7 +78,7 @@ Run all of the following **as root**.
 ```bash
 # From your build machine:
 scp palace-manager-linux-arm64 root@YOUR_HOST:/tmp/palace-manager
-scp scripts/provision-palace.sh scripts/update-pserver.sh root@YOUR_HOST:/tmp/
+scp scripts/provision-palace.sh scripts/update-pserver.sh scripts/gen-media-nginx.sh root@YOUR_HOST:/tmp/
 scp config/config.json root@YOUR_HOST:/tmp/palace-manager-config.json
 scp deploy/palace-manager.service root@YOUR_HOST:/tmp/
 ```
@@ -95,6 +95,9 @@ install -m 0755 /tmp/palace-manager /usr/local/bin/palace-manager
 mkdir -p /usr/local/lib/palace-manager/scripts
 install -m 0755 /tmp/provision-palace.sh /usr/local/lib/palace-manager/scripts/provision-palace.sh
 install -m 0755 /tmp/update-pserver.sh   /usr/local/lib/palace-manager/scripts/update-pserver.sh
+
+# Nginx media generator (referenced by config nginx.genScript)
+install -m 0755 /tmp/gen-media-nginx.sh /usr/local/bin/gen-media-nginx.sh
 
 # Write default config (only if one doesn't exist)
 mkdir -p /etc/palace-manager
@@ -201,6 +204,14 @@ palace-manager bootstrap --steps deps,cert
 ```
 
 The same flow is available through the web UI under **Host Setup**.
+
+### How TLS paths relate to palace URLs
+
+- **`gen-media-nginx.sh` does not read certificate paths from `mediaserverurl.txt`.** Those files tell nginx how to proxy path segments to each palace’s internal HTTP URL. TLS is configured separately via **`nginx.mediaHost`** and **`nginx.certDir`** in `/etc/palace-manager/config.json`.
+- **`palace-manager` always writes the media vhost to** `/etc/nginx/sites-enabled/100-palace-manager-media.conf` **(fixed name)** so it stays the same regardless of hostname; **`server_name`** inside the file still comes from **`nginx.mediaHost`**.
+- **`certDir` must contain the PEMs for `mediaHost`.** Defaults now set `certDir` to `/etc/letsencrypt/live/<mediaHost>/`, matching what Certbot creates when you request a certificate for that hostname.
+- **`config.json` is updated only when the `config` bootstrap step runs** (after the earlier steps succeed). If **`cert`** fails (e.g. DNS `NXDOMAIN`), the wizard stops and the on-disk config can still have old placeholders — nginx regen then points at certs that were never issued. Fix DNS (or use **`edgeScheme`: `http`** for local HTTP-only testing), complete Host Setup through **`config`**, then use **Regen Now** again.
+- **Certificate renewal:** Certbot ships a **systemd timer** on Debian/Ubuntu (`certbot.timer`) — not a cron line. The bootstrap **`hook`** step installs a **deploy hook** that runs `systemctl reload nginx` after a successful renew so new certs are picked up without manual restarts.
 
 ---
 

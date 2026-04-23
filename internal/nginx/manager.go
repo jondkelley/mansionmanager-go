@@ -98,6 +98,7 @@ func (m *Manager) regen(w io.Writer) error {
 	}
 	if m.cfg.MediaHost != "" {
 		args = append(args, "--media-host", m.cfg.MediaHost)
+		args = append(args, "--nginx-conf", MediaProxySiteConf)
 	}
 
 	cmd := exec.Command(m.cfg.GenScript, args...)

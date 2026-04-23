@@ -17,6 +17,7 @@ echo "  Installing scripts..."
 mkdir -p /usr/local/lib/palace-manager/scripts
 install -m 0755 "${SCRIPT_DIR}/provision-palace.sh" /usr/local/lib/palace-manager/scripts/provision-palace.sh
 install -m 0755 "${SCRIPT_DIR}/update-pserver.sh"   /usr/local/lib/palace-manager/scripts/update-pserver.sh
+install -m 0755 "${SCRIPT_DIR}/gen-media-nginx.sh" /usr/local/bin/gen-media-nginx.sh
 
 # ── 3. Config ────────────────────────────────────────────────────────────────
 mkdir -p /etc/palace-manager
@@ -45,7 +46,7 @@ if [ ! -f /etc/palace-manager/config.json ]; then
     "genScript": "/usr/local/bin/gen-media-nginx.sh",
     "regenInterval": "2m",
     "mediaHost": "media.thepalace.app",
-    "certDir": "/etc/letsencrypt/live/thepalace.app",
+    "certDir": "/etc/letsencrypt/live/media.thepalace.app",
     "edgeScheme": "https",
     "matchScheme": "both"
   }
@@ -109,5 +110,5 @@ echo "  Password: ${ADMIN_PASS}"
 echo "========================================"
 echo ""
 echo "Open the URL above in your browser to manage Palace servers."
-echo "To change the password, edit /etc/palace-manager/config.json"
-echo "and run: systemctl restart palace-manager"
+echo "Credentials live in /etc/palace-manager/users.json (hashed)."
+echo "Use the manager UI (Users tab) or edit that file, then: systemctl restart palace-manager"

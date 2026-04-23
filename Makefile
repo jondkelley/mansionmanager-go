@@ -13,6 +13,7 @@ install: build
 	mkdir -p $(SCRIPTS)
 	install -m 0755 scripts/provision-palace.sh $(SCRIPTS)/provision-palace.sh
 	install -m 0755 scripts/update-pserver.sh $(SCRIPTS)/update-pserver.sh
+	install -m 0755 scripts/gen-media-nginx.sh /usr/local/bin/gen-media-nginx.sh
 	mkdir -p /etc/palace-manager
 
 # Cross-compile and deploy to a remote host.

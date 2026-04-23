@@ -2,6 +2,7 @@ package registry
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -16,6 +17,8 @@ type Palace struct {
 	HTTPPort      int       `json:"httpPort"`
 	DataDir       string    `json:"dataDir"`
 	ProvisionedAt time.Time `json:"provisionedAt"`
+	// PserverVersion is a pinned archived semver (e.g. "0.3.5") or empty for the shared "latest" install path.
+	PserverVersion string `json:"pserverVersion,omitempty"`
 }
 
 type Registry struct {
@@ -69,6 +72,20 @@ func (r *Registry) Add(p Palace) error {
 	}
 	r.Palaces = append(r.Palaces, p)
 	return r.saveUnlocked()
+}
+
+// UpdatePserverVersion sets the pserver binary pin for a palace (empty = use shared "latest" at installPath).
+func (r *Registry) UpdatePserverVersion(name, pserverVersion string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i := range r.Palaces {
+		if r.Palaces[i].Name == name {
+			r.Palaces[i].PserverVersion = pserverVersion
+			return r.saveUnlocked()
+		}
+	}
+	return fmt.Errorf("palace %q not found in registry", name)
 }
 
 func (r *Registry) Remove(name string) error {
