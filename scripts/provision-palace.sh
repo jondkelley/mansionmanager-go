@@ -282,8 +282,14 @@ if $FROM_TEMPLATE; then
   fi
   echo "  → shared binary: ${PALACE_TEMPLATE_DIR}/pserver → ${PSERVER_BIN}"
   run install -m 0755 "${PALACE_TEMPLATE_DIR}/pserver" "${PSERVER_BIN}"
-  if [[ -f "${PALACE_TEMPLATE_DIR}/ratbot" ]]; then
-    echo "  → ratbot → ${PALACE_DATA_DIR}/ratbot"
+  # Upstream sdist ships ratbot/ (trivia .db files) beside pserver.pat — same layout pserver expects.
+  if [[ -d "${PALACE_TEMPLATE_DIR}/ratbot" ]]; then
+    echo "  → ratbot/ → ${PALACE_DATA_DIR}/ratbot/"
+    run mkdir -p "${PALACE_DATA_DIR}/ratbot"
+    run rsync -a "${PALACE_TEMPLATE_DIR}/ratbot/" "${PALACE_DATA_DIR}/ratbot/"
+    run chown -R "${PALACE_USER}:${PALACE_USER}" "${PALACE_DATA_DIR}/ratbot"
+  elif [[ -f "${PALACE_TEMPLATE_DIR}/ratbot" ]]; then
+    echo "  → ratbot (file) → ${PALACE_DATA_DIR}/ratbot"
     run install -m 0755 -o "${PALACE_USER}" -g "${PALACE_USER}" "${PALACE_TEMPLATE_DIR}/ratbot" "${PALACE_DATA_DIR}/ratbot"
   else
     echo "  (no ratbot in template — skipped)"
