@@ -1,3 +1,5 @@
-palace-manager
+# Local build output only — must be anchored so cmd/palace-manager/ stays tracked.
+/palace-manager
+/palace-manager-*
 *.exe
 dist/
