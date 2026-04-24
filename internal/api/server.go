@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"palace-manager/internal/authstore"
 	"palace-manager/internal/bootstrap"
@@ -23,6 +24,8 @@ import (
 type Server struct {
 	cfg        *config.Config
 	configPath string
+	version    string
+	gitHash    string
 	instances  *instance.Manager
 	prov       *provisioner.Provisioner
 	nginx      *nginx.Manager
@@ -32,11 +35,14 @@ type Server struct {
 	unreg      *unregistered.Store
 	authStore  *authstore.Store
 	mux        *http.ServeMux
+	updateCache *releaseCache
 }
 
 func New(
 	cfg *config.Config,
 	configPath string,
+	version string,
+	gitHash string,
 	instances *instance.Manager,
 	prov *provisioner.Provisioner,
 	nginxMgr *nginx.Manager,
@@ -47,17 +53,20 @@ func New(
 	authStore *authstore.Store,
 ) *Server {
 	s := &Server{
-		cfg:        cfg,
-		configPath: configPath,
-		instances:  instances,
-		prov:       prov,
-		nginx:      nginxMgr,
-		boot:       bootRunner,
-		reg:        reg,
-		vers:       vers,
-		unreg:      unreg,
-		authStore:  authStore,
-		mux:        http.NewServeMux(),
+		cfg:         cfg,
+		configPath:  configPath,
+		version:     version,
+		gitHash:     gitHash,
+		instances:   instances,
+		prov:        prov,
+		nginx:       nginxMgr,
+		boot:        bootRunner,
+		reg:         reg,
+		vers:        vers,
+		unreg:       unreg,
+		authStore:   authStore,
+		mux:         http.NewServeMux(),
+		updateCache: &releaseCache{ttl: 30 * time.Minute},
 	}
 	s.routes()
 	return s
@@ -141,6 +150,13 @@ func (s *Server) routes() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
+	s.mux.Handle("/api/nginx/dns-check", auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handleNginxDNSCheck(w, r)
+	})))
 
 	// Bootstrap
 	s.mux.Handle("/api/bootstrap/status", auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,6 +181,10 @@ func (s *Server) routes() {
 		}
 		s.handleHostLogrotateEnableAll(w, r)
 	})))
+
+	// Manager self-update
+	s.mux.Handle("/api/manager/version", auth(http.HandlerFunc(s.handleManagerVersion)))
+	s.mux.Handle("/api/manager/update", auth(http.HandlerFunc(s.handleManagerSelfUpdate)))
 }
 
 func (s *Server) routePalaces(w http.ResponseWriter, r *http.Request) {

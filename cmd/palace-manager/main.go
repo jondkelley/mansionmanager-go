@@ -25,8 +25,14 @@ import (
 )
 
 // Set at link time for release builds:
-//   go build -ldflags "-X main.version=1.2.3" ./cmd/palace-manager
+//
+//	go build -ldflags "-X main.version=1.2.3 -X main.gitHash=abc1234 -X main.defaultGithubRepo=owner/repo" ./cmd/palace-manager
 var version = "dev"
+var gitHash = ""
+
+// defaultGithubRepo is baked in at build time from ${{ github.repository }} so that
+// official releases can check for updates without any manual config.
+var defaultGithubRepo = ""
 
 func main() {
 	if len(os.Args) > 1 {
@@ -66,6 +72,11 @@ func runServe() {
 	if *port != 0 {
 		cfg.Manager.Port = *port
 	}
+	// Fall back to the repo baked in at build time so official releases have
+	// the self-update feature enabled without any manual config.json edit.
+	if cfg.Manager.GithubRepo == "" && defaultGithubRepo != "" {
+		cfg.Manager.GithubRepo = defaultGithubRepo
+	}
 
 	reg, err := registry.Load(registry.DefaultPath)
 	if err != nil {
@@ -92,14 +103,18 @@ func runServe() {
 	bootRunner := bootstrap.NewRunner(cfg)
 	vers := versionstore.New(cfg)
 
-	srv := api.New(cfg, *configPath, instMgr, prov, nginxMgr, bootRunner, reg, vers, unregStore, userStore)
+	srv := api.New(cfg, *configPath, version, gitHash, instMgr, prov, nginxMgr, bootRunner, reg, vers, unregStore, userStore)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go nginxMgr.Start(ctx)
 
 	addr := srv.Addr()
-	log.Printf("palace-manager %s listening on http://%s", version, addr)
+	buildLabel := version
+	if gitHash != "" {
+		buildLabel += " (" + gitHash + ")"
+	}
+	log.Printf("palace-manager %s listening on http://%s", buildLabel, addr)
 
 	httpSrv := &http.Server{
 		Addr:    addr,

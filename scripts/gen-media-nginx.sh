@@ -102,7 +102,8 @@ fi
 # ---------------------------------------------------------------------------
 # Scan palace directories → locations[path] = upstream
 # ---------------------------------------------------------------------------
-declare -A locations  # sha1_path → internal_upstream
+declare -A locations  # path → internal_upstream
+LOCATION_COUNT=0
 
 prefix_ok() {
   local ext="$1" want="$2"
@@ -156,6 +157,7 @@ for media_file in "${MEDIA_FILES[@]}"; do
 
   echo "FOUND ${media_file}: /$path_segment/ → $upstream"
   locations["/$path_segment/"]="$upstream"
+  LOCATION_COUNT=$((LOCATION_COUNT + 1))
 done
 
 SCAN_DESC=$(
@@ -166,7 +168,7 @@ SCAN_DESC=$(
   fi
 )
 
-if [[ ${#locations[@]} -eq 0 ]]; then
+if [[ $LOCATION_COUNT -eq 0 ]]; then
   echo "No matching palace instances found under ${SCAN_DESC} — nothing to generate." >&2
   exit 0
 fi

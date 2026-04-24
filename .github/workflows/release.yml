@@ -46,6 +46,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
           ASSET_ARCH: ${{ matrix.asset_suffix }}
+          PALACE_MANAGER_GITHUB_REPO: ${{ github.repository }}
         run: ./scripts/package-release.sh
 
       - uses: actions/upload-artifact@v4

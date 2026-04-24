@@ -21,9 +21,11 @@ install -m 0755 "${SCRIPT_DIR}/gen-media-nginx.sh" /usr/local/bin/gen-media-ngin
 
 # ── 3. Config ────────────────────────────────────────────────────────────────
 mkdir -p /etc/palace-manager
+GITHUB_REPO="${PALACE_MANAGER_GITHUB_REPO:-}"
+
 if [ ! -f /etc/palace-manager/config.json ]; then
   echo "  Generating config with random password..."
-  ADMIN_PASS=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20)
+  ADMIN_PASS=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20 || true)
   install -m 0600 /dev/null /etc/palace-manager/config.json
   cat > /etc/palace-manager/config.json <<EOF
 {
@@ -32,7 +34,8 @@ if [ ! -f /etc/palace-manager/config.json ]; then
     "host": "0.0.0.0",
     "username": "admin",
     "password": "${ADMIN_PASS}",
-    "theme": "basic"
+    "theme": "basic",
+    "githubRepo": "${GITHUB_REPO}"
   },
   "scripts": {
     "provision": "/usr/local/lib/palace-manager/scripts/provision-palace.sh",
@@ -55,24 +58,40 @@ if [ ! -f /etc/palace-manager/config.json ]; then
 EOF
 else
   echo "  Config exists — keeping it (password unchanged)"
-  # Migrate host from 127.0.0.1 to 0.0.0.0 if still set to the old default.
-  python3 - <<'PYEOF'
-import json, sys
+  # Migrate: host 127.0.0.1 → 0.0.0.0; add githubRepo if missing and we know it.
+  GITHUB_REPO_ESC="${GITHUB_REPO}"
+  python3 - <<PYEOF
+import json
 path = '/etc/palace-manager/config.json'
+github_repo = '${GITHUB_REPO_ESC}'
 with open(path) as f:
     d = json.load(f)
+changed = False
 if d.get('manager', {}).get('host') == '127.0.0.1':
     d['manager']['host'] = '0.0.0.0'
+    changed = True
+    print('  Migrated host: 127.0.0.1 \u2192 0.0.0.0')
+if github_repo and not d.get('manager', {}).get('githubRepo'):
+    d.setdefault('manager', {})['githubRepo'] = github_repo
+    changed = True
+    print(f'  Set githubRepo: {github_repo}')
+if changed:
     with open(path, 'w') as f:
         json.dump(d, f, indent=2)
-    print('  Migrated host: 127.0.0.1 → 0.0.0.0')
 PYEOF
   ADMIN_PASS=$(python3 -c "import json,sys; d=json.load(open('/etc/palace-manager/config.json')); print(d.get('manager',{}).get('password','(see config.json)'))" 2>/dev/null || echo "(see /etc/palace-manager/config.json)")
 fi
 
 # ── 4. Systemd unit ──────────────────────────────────────────────────────────
+SERVICE_SRC="${SCRIPT_DIR}/palace-manager.service"
+if [[ ! -f "${SERVICE_SRC}" ]]; then
+  echo "  ERROR: missing ${SERVICE_SRC}" >&2
+  echo "  install.sh must run from a full release tree (same directory as palace-manager.service)." >&2
+  echo "  Official install: extract the release .tar.gz and run: sudo bash install.sh ./palace-manager" >&2
+  exit 1
+fi
 echo "  Installing systemd unit..."
-cp "${SCRIPT_DIR}/palace-manager.service" /etc/systemd/system/palace-manager.service
+cp "${SERVICE_SRC}" /etc/systemd/system/palace-manager.service
 systemctl daemon-reload
 
 # ── 5. Enable & start ────────────────────────────────────────────────────────

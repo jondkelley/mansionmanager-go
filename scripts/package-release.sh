@@ -71,8 +71,22 @@ fi
 
 echo "=== packaging ${BINARY_NAME} ${VERSION} (${GOOS}/${GOARCH}${GOARM:+ GOARM=${GOARM}}) → dist/${ARCHIVE} ==="
 
+GIT_HASH="$(git -C "${ROOT}" rev-parse --short HEAD 2>/dev/null || true)"
+DEFAULT_REPO="${PALACE_MANAGER_GITHUB_REPO:-}"
+
+LDFLAGS="-s -w -X main.version=${VERSION}"
+if [[ -n "${GIT_HASH}" ]]; then
+  LDFLAGS="${LDFLAGS} -X main.gitHash=${GIT_HASH}"
+fi
+if [[ -n "${DEFAULT_REPO}" ]]; then
+  LDFLAGS="${LDFLAGS} -X main.defaultGithubRepo=${DEFAULT_REPO}"
+fi
+
+echo "    git hash: ${GIT_HASH:-<unknown>}"
+echo "    default repo: ${DEFAULT_REPO:-<not set>}"
+
 cd "${ROOT}"
-go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "${STAGE}/${BINARY_NAME}" ./cmd/palace-manager
+go build -trimpath -ldflags "${LDFLAGS}" -o "${STAGE}/${BINARY_NAME}" ./cmd/palace-manager
 
 cp "${ROOT}/deploy/install.sh" "${STAGE}/"
 cp "${ROOT}/deploy/palace-manager.service" "${STAGE}/"

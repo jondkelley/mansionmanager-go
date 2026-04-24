@@ -11,6 +11,9 @@ func (s *Server) handleUIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
-		"theme": s.cfg.Manager.Theme,
+		"theme":      s.cfg.Manager.Theme,
+		"version":    normaliseVersion(s.version),
+		"gitHash":    s.gitHash,
+		"githubRepo": s.cfg.Manager.GithubRepo,
 	})
 }

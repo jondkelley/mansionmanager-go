@@ -660,6 +660,20 @@ func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleNginxDNSCheck resolves ?host= and reports whether it points at this machine.
+func (s *Server) handleNginxDNSCheck(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	host := strings.TrimSpace(r.URL.Query().Get("host"))
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "host query parameter required")
+		return
+	}
+	result := bootstrap.CheckDNS(host)
+	writeJSON(w, http.StatusOK, result)
+}
+
 // --- bootstrap ---------------------------------------------------------------
 
 func (s *Server) handleBootstrapStatus(w http.ResponseWriter, r *http.Request) {

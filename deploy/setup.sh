@@ -5,7 +5,7 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy/setup.sh | sudo bash -s -- OWNER/REPO
 #   curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy/setup.sh | sudo bash -s -- OWNER/REPO v1.2.3
-#
+#   curl -fsSL https://raw.githubusercontent.com/jondkelley/mansionmanager-go/main/deploy/setup.sh \| sudo PALACE_MANAGER_GITHUB_REPO=jondkelley/mansionmanager-go bash -s
 # Args:
 #   $1  GitHub owner/repo (required unless PALACE_MANAGER_GITHUB_REPO is set).
 #   $2  Version tag or bare semver (optional). Default: latest GitHub release.
@@ -111,7 +111,7 @@ if [[ "${SUMS_OK}" -eq 1 ]]; then
 fi
 
 tar -xzf "${TMP}/${ASSET}" -C "${TMP}"
-bash "${TMP}/install.sh" "${TMP}/palace-manager"
+PALACE_MANAGER_GITHUB_REPO="${REPO}" bash "${TMP}/install.sh" "${TMP}/palace-manager"
 rm -rf "${TMP}"
 trap - EXIT
 

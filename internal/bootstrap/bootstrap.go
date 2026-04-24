@@ -307,6 +307,63 @@ func advisoryDNSCheck(host string) (StepState, string) {
 	return StateOK, fmt.Sprintf("%s resolves to %v", host, addrs)
 }
 
+// DNSCheckResult is returned by CheckDNS.
+type DNSCheckResult struct {
+	Host       string   `json:"host"`
+	Match      bool     `json:"match"`
+	ResolvedTo []string `json:"resolvedTo"`
+	ServerIP   string   `json:"serverIP,omitempty"`
+	Warning    string   `json:"warning,omitempty"`
+	LookupErr  string   `json:"lookupError,omitempty"`
+}
+
+// CheckDNS resolves host and reports whether any resolved address belongs to
+// a local network interface or this machine's public IP.
+func CheckDNS(host string) DNSCheckResult {
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return DNSCheckResult{Host: host, Match: false, LookupErr: err.Error()}
+	}
+
+	addrSet := make(map[string]bool, len(addrs))
+	for _, a := range addrs {
+		addrSet[a] = true
+	}
+
+	// Check every local interface address first (works when the public IP is
+	// bound directly, e.g. bare-metal or most VPS providers).
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		ifAddrs, _ := iface.Addrs()
+		for _, a := range ifAddrs {
+			var ip net.IP
+			switch v := a.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip != nil && addrSet[ip.String()] {
+				return DNSCheckResult{Host: host, Match: true, ResolvedTo: addrs}
+			}
+		}
+	}
+
+	// Fallback: fetch public IP (handles NAT / cloud with 1:1 NAT).
+	publicIP, _ := fetchPublicIP()
+	if publicIP != "" && addrSet[publicIP] {
+		return DNSCheckResult{Host: host, Match: true, ResolvedTo: addrs, ServerIP: publicIP}
+	}
+
+	return DNSCheckResult{
+		Host:       host,
+		Match:      false,
+		ResolvedTo: addrs,
+		ServerIP:   publicIP,
+		Warning:    fmt.Sprintf("%s resolves to %v but no address matches this machine", host, addrs),
+	}
+}
+
 func fetchPublicIP() (string, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get("https://api.ipify.org")

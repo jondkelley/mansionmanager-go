@@ -15,6 +15,9 @@ type Manager struct {
 	Password string `json:"password"`
 	// Theme selects the web UI palette: "basic" (light, default) or "metal" (original brushed dark chrome).
 	Theme string `json:"theme"`
+	// GithubRepo is the "owner/repo" for self-update downloads (e.g. "jondkelley/mansionmanager-go").
+	// Leave empty to disable the self-update UI.
+	GithubRepo string `json:"githubRepo"`
 }
 
 type Scripts struct {
