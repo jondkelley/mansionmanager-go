@@ -67,7 +67,7 @@ go build -trimpath -ldflags "-s -w -X main.version=1.2.3" -o palace-manager ./cm
 
 Pushing a **semantic version tag** `v*` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). It cross-compiles for Linux **amd64**, **arm64**, **armv7** (`GOARM=7`), and **386**, uploads one tarball per architecture plus **`SHA256SUMS`**, and creates or updates the matching [GitHub Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
-If this Go module lives in a **monorepo subdirectory** (for example `mansionmanager-go/palaceserver-js/`), CI looks for **`go.mod` plus `cmd/palace-manager`** at the checkout root **or** in any **immediate** child directory and runs builds from there. Deeper nesting is not auto-detected; flatten or add your own `working-directory` in the workflow.
+This repository is a **single Go module** at the root (`go.mod` and `cmd/palace-manager` here).
 
 ### Publish a version
 

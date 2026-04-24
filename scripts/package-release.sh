@@ -21,7 +21,7 @@ VERSION="${TAG#v}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Module root: parent of scripts/, or immediate child (monorepo: repo/palaceserver-js/...).
+# Module root: parent of scripts/ (this repo), or PALACE_MANAGER_ROOT relative to git top.
 resolve_root() {
   if [[ -n "${PALACE_MANAGER_ROOT:-}" ]]; then
     local forced="${PALACE_MANAGER_ROOT}"
@@ -49,13 +49,6 @@ resolve_root() {
     echo "${up}"
     return
   fi
-  local d
-  for d in "${up}"/*; do
-    if [[ -f "${d}/go.mod" && -d "${d}/cmd/palace-manager" ]]; then
-      echo "$(cd "${d}" && pwd)"
-      return
-    fi
-  done
   echo ""
 }
 
