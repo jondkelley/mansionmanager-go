@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -823,7 +824,7 @@ func (s *Server) ensurePalaceYPInPrefs(name string) error {
 	if merged == content {
 		return nil
 	}
-	return writeFileAtomic(path, strings.NewReader(merged))
+	return writeFileAtomicAs(path, p.User, strings.NewReader(merged))
 }
 
 func allowedServerRootName(base string) bool {
@@ -1079,7 +1080,7 @@ func (s *Server) handlePalaceServerFileSave(w http.ResponseWriter, r *http.Reque
 		toWrite = merged
 	}
 
-	if err := writeFileAtomic(fullPath, strings.NewReader(toWrite)); err != nil {
+	if err := writeFileAtomicAs(fullPath, s.palaceLinuxUser(palaceName), strings.NewReader(toWrite)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1232,7 +1233,7 @@ func (s *Server) handlePalaceServerPrefsSave(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	fullPath := filepath.Join(dir, "pserver.prefs")
-	if err := writeFileAtomic(fullPath, strings.NewReader(merged)); err != nil {
+	if err := writeFileAtomicAs(fullPath, s.palaceLinuxUser(palaceName), strings.NewReader(merged)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1410,7 +1411,7 @@ func (s *Server) handlePalacePatUpload(w http.ResponseWriter, r *http.Request, p
 	defer src.Close()
 
 	dest := filepath.Join(dir, "pserver.pat")
-	if err := writeFileAtomic(dest, io.LimitReader(src, maxPatUploadBytes)); err != nil {
+	if err := writeFileAtomicAs(dest, s.palaceLinuxUser(palaceName), io.LimitReader(src, maxPatUploadBytes)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1447,6 +1448,43 @@ func writeFileAtomic(dest string, src io.Reader) error {
 		return err
 	}
 	return nil
+}
+
+// chownPath changes the owner of path to linuxUser (best-effort; no-op on lookup failure).
+// The manager runs as root; this ensures files written to palace data dirs are owned by
+// the unprivileged palace user so pserver can write them at runtime.
+func chownPath(path, linuxUser string) error {
+	if linuxUser == "" {
+		return nil
+	}
+	u, err := user.Lookup(linuxUser)
+	if err != nil {
+		return err
+	}
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+	return os.Chown(path, uid, gid)
+}
+
+// writeFileAtomicAs writes dest atomically then chowns it to linuxUser.
+func writeFileAtomicAs(dest, linuxUser string, src io.Reader) error {
+	if err := writeFileAtomic(dest, src); err != nil {
+		return err
+	}
+	_ = chownPath(dest, linuxUser) // best-effort; don't fail the write on chown error
+	return nil
+}
+
+// palaceLinuxUser returns the Linux username that owns the palace data dir.
+func (s *Server) palaceLinuxUser(palaceName string) string {
+	if p, ok := s.reg.Get(palaceName); ok && p.User != "" {
+		return p.User
+	}
+	if inst, err := s.instances.Get(palaceName); err == nil && inst.User != "" {
+		return inst.User
+	}
+	u, _, _, _, _ := instance.DiscoverFromUnit(palaceName)
+	return u
 }
 
 // --- registry entry helper ---------------------------------------------------
