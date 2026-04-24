@@ -19,6 +19,9 @@ type Palace struct {
 	ProvisionedAt time.Time `json:"provisionedAt"`
 	// PserverVersion is a pinned archived semver (e.g. "0.3.5") or empty for the shared "latest" install path.
 	PserverVersion string `json:"pserverVersion,omitempty"`
+	// YPHost / YPPort are written to pserver.prefs as YPMYEXTADDR / YPMYEXTPORT for directory registration.
+	YPHost string `json:"ypHost,omitempty"`
+	YPPort int    `json:"ypPort,omitempty"`
 }
 
 type Registry struct {

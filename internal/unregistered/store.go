@@ -22,6 +22,8 @@ type Record struct {
 	HTTPPort       int       `json:"httpPort"`
 	DataDir        string    `json:"dataDir"`
 	PserverVersion string    `json:"pserverVersion,omitempty"`
+	YPHost         string    `json:"ypHost,omitempty"`
+	YPPort         int       `json:"ypPort,omitempty"`
 	UnregisteredAt time.Time `json:"unregisteredAt"`
 }
 
@@ -69,6 +71,8 @@ func (s *Store) UpsertFromPalace(p registry.Palace, at time.Time) error {
 		HTTPPort:       p.HTTPPort,
 		DataDir:        p.DataDir,
 		PserverVersion: p.PserverVersion,
+		YPHost:         p.YPHost,
+		YPPort:         p.YPPort,
 		UnregisteredAt: at.UTC(),
 	}
 	found := false

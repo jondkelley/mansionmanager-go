@@ -22,6 +22,7 @@ import (
 	"palace-manager/internal/config"
 	"palace-manager/internal/instance"
 	"palace-manager/internal/provisioner"
+	"palace-manager/internal/pserverprefs"
 	"palace-manager/internal/registry"
 )
 
@@ -56,6 +57,18 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 
 func pathParam(r *http.Request, prefix string) string {
 	return strings.TrimPrefix(r.URL.Path, prefix)
+}
+
+// resolveYPPort chooses the directory-listing port: when ypHost is set and ypPort is zero,
+// the palace TCP listen port is used (common when the public port matches the server port).
+func resolveYPPort(ypHost string, ypPort, tcpFallback int) int {
+	if strings.TrimSpace(ypHost) == "" {
+		return 0
+	}
+	if ypPort > 0 {
+		return ypPort
+	}
+	return tcpFallback
 }
 
 // sseWriter wraps a ResponseWriter for Server-Sent Events streaming.
@@ -156,6 +169,8 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		Name     string `json:"name"`
 		TCPPort  int    `json:"tcpPort"`
 		HTTPPort int    `json:"httpPort"`
+		YPHost   string `json:"ypHost"`
+		YPPort   int    `json:"ypPort"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -194,10 +209,13 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result != nil {
-		entry := provisioner.RegistryEntry(req.Name, result)
+		ypPort := resolveYPPort(req.YPHost, req.YPPort, req.TCPPort)
+		entry := provisioner.RegistryEntry(req.Name, result, req.YPHost, ypPort)
 		entry.ProvisionedAt = time.Now()
 		if err := s.reg.Add(entry); err != nil {
 			streamLine(sw, fmt.Sprintf("WARNING: could not update registry: %v", err))
+		} else if err := s.ensurePalaceYPInPrefs(req.Name); err != nil {
+			streamLine(sw, fmt.Sprintf("WARNING: could not sync pserver.prefs YP lines: %v", err))
 		}
 		// Async: queue gen-media scan + nginx reload without blocking this handler path.
 		go func() { s.nginx.Trigger() }()
@@ -211,6 +229,10 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePalaceAction(w http.ResponseWriter, r *http.Request, name, action string) {
 	if !canAccessPalace(r.Context(), name) {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+		return
+	}
+	if err := s.ensurePalaceYPInPrefs(name); err != nil {
+		writeError(w, http.StatusInternalServerError, "prefs: "+err.Error())
 		return
 	}
 	var err error
@@ -315,6 +337,8 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 		DataDir   string `json:"dataDir"`
 		LinuxUser string `json:"linuxUser"`
 		EnableNow bool   `json:"enableNow"`
+		YPHost    string `json:"ypHost"`
+		YPPort    int    `json:"ypPort"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -367,12 +391,19 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
+	ypHost := strings.TrimSpace(req.YPHost)
+	ypPort := resolveYPPort(req.YPHost, req.YPPort, tcp)
+	if ypHost == "" {
+		ypPort = 0
+	}
 	entry := registry.Palace{
 		Name:          name,
 		User:          user,
 		TCPPort:       tcp,
 		HTTPPort:      httpPort,
 		DataDir:       dd,
+		YPHost:        ypHost,
+		YPPort:        ypPort,
 		ProvisionedAt: time.Now(),
 	}
 	if s.unreg != nil {
@@ -386,6 +417,10 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 	}
 	if s.unreg != nil {
 		_ = s.unreg.Remove(name)
+	}
+	if err := s.ensurePalaceYPInPrefs(name); err != nil {
+		writeError(w, http.StatusInternalServerError, "registered but prefs: "+err.Error())
+		return
 	}
 	s.nginx.Trigger()
 
@@ -731,6 +766,52 @@ func (s *Server) palaceDataDir(palaceName string) (string, error) {
 	return filepath.Clean(dd), nil
 }
 
+func (s *Server) mergedPrefsWithRegistry(palaceName, userContent string) (string, error) {
+	p, ok := s.reg.Get(palaceName)
+	if !ok {
+		return userContent, nil
+	}
+	return pserverprefs.MergeYPAnnounce(userContent, p.YPHost, p.YPPort), nil
+}
+
+// ensurePalaceYPInPrefs rewrites YPMYEXTADDR / YPMYEXTPORT in pserver.prefs from registry values.
+func (s *Server) ensurePalaceYPInPrefs(name string) error {
+	p, ok := s.reg.Get(name)
+	if !ok {
+		return nil
+	}
+	dd := strings.TrimSpace(p.DataDir)
+	if dd == "" {
+		if inst, err := s.instances.Get(name); err == nil {
+			dd = strings.TrimSpace(inst.DataDir)
+		}
+	}
+	if dd == "" {
+		if _, _, _, dDir, err := instance.DiscoverFromUnit(name); err == nil {
+			dd = dDir
+		}
+	}
+	if dd == "" {
+		return nil
+	}
+	path := filepath.Join(dd, "pserver.prefs")
+	var content string
+	b, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		content = string(b)
+	case os.IsNotExist(err):
+		content = ""
+	default:
+		return err
+	}
+	merged := pserverprefs.MergeYPAnnounce(content, p.YPHost, p.YPPort)
+	if merged == content {
+		return nil
+	}
+	return writeFileAtomic(path, strings.NewReader(merged))
+}
+
 func allowedServerRootName(base string) bool {
 	if base == "" || strings.ContainsRune(base, filepath.Separator) {
 		return false
@@ -969,12 +1050,22 @@ func (s *Server) handlePalaceServerFileSave(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "content must be valid UTF-8")
 		return
 	}
-	if len(req.Content) > maxPatUploadBytes {
+	if len(req.Content) > maxPalaceServerFile {
 		writeError(w, http.StatusRequestEntityTooLarge, "content too large")
 		return
 	}
 
-	if err := writeFileAtomic(fullPath, strings.NewReader(req.Content)); err != nil {
+	toWrite := req.Content
+	if base == "pserver.prefs" {
+		merged, err := s.mergedPrefsWithRegistry(palaceName, req.Content)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		toWrite = merged
+	}
+
+	if err := writeFileAtomic(fullPath, strings.NewReader(toWrite)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -983,6 +1074,159 @@ func (s *Server) handlePalaceServerFileSave(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "file": base, "restarted": true})
+}
+
+// handlePalacePrefsForm returns structured fields + unknown tail for the intelligent prefs editor.
+func (s *Server) handlePalacePrefsForm(w http.ResponseWriter, r *http.Request, palaceName string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !canAccessPalace(r.Context(), palaceName) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+		return
+	}
+	dir, err := s.palaceDataDir(palaceName)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	path := filepath.Join(dir, "pserver.prefs")
+	var content string
+	if b, err := os.ReadFile(path); err == nil {
+		content = string(b)
+	} else if os.IsNotExist(err) {
+		content = ""
+	} else {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	st, unk, warns := pserverprefs.ParsePrefState(content)
+	dto := pserverprefs.StateToDTO(st)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"form":        dto,
+		"unknownTail": unk,
+		"warnings":    warns,
+		"schema":      "prefs-form v1 — directives aligned with mansionsource-go internal/script/prefs.go",
+	})
+}
+
+// handlePalaceServerPrefsSave updates registry YP fields (admin only), merges YP lines into prefs, writes, restarts.
+// Body may use mode "raw" with "content", or mode "form" with "form" and "unknownTail".
+func (s *Server) handlePalaceServerPrefsSave(w http.ResponseWriter, r *http.Request, palaceName string) {
+	if r.Method != http.MethodPut {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !canAccessPalace(r.Context(), palaceName) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+		return
+	}
+	var req struct {
+		Mode              string               `json:"mode"`
+		Content           string               `json:"content"`
+		Form              pserverprefs.PrefsFormDTO `json:"form"`
+		UnknownTail       string               `json:"unknownTail"`
+		YPHost            string               `json:"ypHost"`
+		YPPort            int                  `json:"ypPort"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	mode := strings.ToLower(strings.TrimSpace(req.Mode))
+	if mode == "" {
+		if req.Content != "" {
+			mode = "raw"
+		} else {
+			mode = "form"
+		}
+	}
+
+	var outContent string
+	switch mode {
+	case "raw":
+		if !utf8.ValidString(req.Content) {
+			writeError(w, http.StatusBadRequest, "content must be valid UTF-8")
+			return
+		}
+		if len(req.Content) > maxPalaceServerFile {
+			writeError(w, http.StatusRequestEntityTooLarge, "content too large")
+			return
+		}
+		outContent = req.Content
+	case "form":
+		dir, err := s.palaceDataDir(palaceName)
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		path := filepath.Join(dir, "pserver.prefs")
+		var existing string
+		if b, err := os.ReadFile(path); err == nil {
+			existing = string(b)
+		} else if os.IsNotExist(err) {
+			existing = ""
+		} else {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		oldState, _, _ := pserverprefs.ParsePrefState(existing)
+		mergedState := pserverprefs.MergeDTO(req.Form, oldState)
+		outContent = pserverprefs.RenderWithUnknown(mergedState, req.UnknownTail)
+		if !utf8.ValidString(outContent) {
+			writeError(w, http.StatusBadRequest, "generated content must be valid UTF-8")
+			return
+		}
+		if len(outContent) > maxPalaceServerFile {
+			writeError(w, http.StatusRequestEntityTooLarge, "content too large")
+			return
+		}
+	default:
+		writeError(w, http.StatusBadRequest, "mode must be raw or form")
+		return
+	}
+
+	id, ok := IdentityFrom(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if id.Role == authstore.RoleAdmin {
+		pal, ok := s.reg.Get(palaceName)
+		if ok {
+			pal.YPHost = strings.TrimSpace(req.YPHost)
+			pal.YPPort = resolveYPPort(req.YPHost, req.YPPort, pal.TCPPort)
+			if pal.YPHost == "" {
+				pal.YPPort = 0
+			}
+			if err := s.reg.Add(pal); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+	}
+	merged, err := s.mergedPrefsWithRegistry(palaceName, outContent)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	dir, err := s.palaceDataDir(palaceName)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	fullPath := filepath.Join(dir, "pserver.prefs")
+	if err := writeFileAtomic(fullPath, strings.NewReader(merged)); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.instances.Restart(palaceName); err != nil {
+		writeError(w, http.StatusInternalServerError, "saved prefs but restart failed: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "restarted": true})
 }
 
 func (s *Server) resolvePalaceUnixHome(palaceName string) (string, error) {
@@ -1154,6 +1398,11 @@ func (s *Server) handlePalacePatUpload(w http.ResponseWriter, r *http.Request, p
 	dest := filepath.Join(dir, "pserver.pat")
 	if err := writeFileAtomic(dest, io.LimitReader(src, maxPatUploadBytes)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := s.ensurePalaceYPInPrefs(palaceName); err != nil {
+		writeError(w, http.StatusInternalServerError, "prefs: "+err.Error())
 		return
 	}
 

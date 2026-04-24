@@ -167,12 +167,14 @@ func runScript[T any](script string, args, env []string, w io.Writer, extract fu
 }
 
 // RegistryEntry builds a registry.Palace from a ProvisionResult.
-func RegistryEntry(name string, r *ProvisionResult) registry.Palace {
+func RegistryEntry(name string, r *ProvisionResult, ypHost string, ypPort int) registry.Palace {
 	return registry.Palace{
 		Name:     name,
 		User:     r.User,
 		TCPPort:  r.TCPPort,
 		HTTPPort: r.HTTPPort,
 		DataDir:  r.DataDir,
+		YPHost:   strings.TrimSpace(ypHost),
+		YPPort:   ypPort,
 	}
 }

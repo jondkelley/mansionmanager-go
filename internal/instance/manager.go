@@ -36,6 +36,8 @@ type Instance struct {
 	PserverVersion string `json:"pserverVersion,omitempty"` // pinned semver, or omitted/"latest"
 	Registered     bool   `json:"registered"`               // false = systemd unit exists but not in palace-manager registry
 	MediaDir       string `json:"mediaDir,omitempty"`       // absolute path from palman unit -m (or …/media)
+	YPHost         string `json:"ypHost,omitempty"`         // directory announce host → YPMYEXTADDR
+	YPPort         int    `json:"ypPort,omitempty"`         // directory announce port → YPMYEXTPORT
 }
 
 type systemdUnit struct {
@@ -78,6 +80,8 @@ func (m *Manager) List() ([]Instance, error) {
 			inst.TCPPort = p.TCPPort
 			inst.HTTPPort = p.HTTPPort
 			inst.DataDir = p.DataDir
+			inst.YPHost = p.YPHost
+			inst.YPPort = p.YPPort
 			if !p.ProvisionedAt.IsZero() {
 				inst.ProvisionedAt = p.ProvisionedAt.Format("2006-01-02T15:04:05Z")
 			}
@@ -104,6 +108,8 @@ func (m *Manager) List() ([]Instance, error) {
 				TCPPort:    p.TCPPort,
 				HTTPPort:   p.HTTPPort,
 				DataDir:    p.DataDir,
+				YPHost:     p.YPHost,
+				YPPort:     p.YPPort,
 				UnitName:   u,
 				// list-units + glob sometimes omits loaded units; ask systemd directly.
 				Status: queryUnitStatus(u),
@@ -129,6 +135,8 @@ func (m *Manager) List() ([]Instance, error) {
 				TCPPort:        rec.TCPPort,
 				HTTPPort:       rec.HTTPPort,
 				DataDir:        rec.DataDir,
+				YPHost:         rec.YPHost,
+				YPPort:         rec.YPPort,
 				Registered:     false,
 				UnitName:       u,
 				Status:         queryUnitStatus(u),

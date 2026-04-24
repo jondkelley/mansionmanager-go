@@ -211,6 +211,10 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handleRegisterPalace(w, r, name)
 	case (action == "start" || action == "stop" || action == "restart") && r.Method == http.MethodPost:
 		s.handlePalaceAction(w, r, name, action)
+	case action == "prefs-form" && r.Method == http.MethodGet:
+		s.handlePalacePrefsForm(w, r, name)
+	case action == "server-prefs" && r.Method == http.MethodPut:
+		s.handlePalaceServerPrefsSave(w, r, name)
 	case action == "pserver-version" && r.Method == http.MethodPost:
 		s.handlePalacePserverVersion(w, r, name)
 	case action == "media/files" && r.Method == http.MethodGet:

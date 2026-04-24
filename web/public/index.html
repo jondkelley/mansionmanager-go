@@ -365,7 +365,56 @@
     box-shadow: var(--metal-edge), 0 16px 48px rgba(0,0,0,.5);
   }
   .modal h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
-  .modal-footer { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-footer { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+  #palaceSettingsModal .modal {
+    max-width: 840px;
+    display: flex;
+    flex-direction: column;
+    max-height: 92vh;
+  }
+  .prefs-modal-scroll {
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+    padding-right: 6px;
+    margin-right: -4px;
+  }
+  details.prefs-sec {
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px 12px;
+    background: var(--panel-b);
+  }
+  details.prefs-sec > summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    list-style: none;
+  }
+  details.prefs-sec > summary::-webkit-details-marker { display: none; }
+  .prefs-hint {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.45;
+    margin: 4px 0 10px;
+  }
+  .prefs-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+  .prefs-mode-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  #palaceSettingsWarnings {
+    font-size: 12px;
+    color: var(--yellow);
+    margin-bottom: 10px;
+    line-height: 1.45;
+  }
   #provisionResult { display: none; margin-top: 14px; padding: 14px 16px; border-radius: 8px; border: 1px solid; }
   #provisionResult.success { border-color: rgba(95,212,160,.35); background: rgba(95,212,160,.07); }
   #provisionResult.failure { border-color: rgba(241,107,107,.35); background: rgba(241,107,107,.07); }
@@ -829,6 +878,17 @@
           <input id="pHTTP" type="number" placeholder="8080" />
         </div>
       </div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:8px;">Directory listing (optional): host and port announced to the directory server — stored in <code>pserver.prefs</code> as <code>YPMYEXTADDR</code> / <code>YPMYEXTPORT</code> (same as mansionsource-go). Leave host blank to skip.</p>
+      <div class="form-row">
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>YP host (public hostname)</label>
+          <input id="pYPHost" type="text" placeholder="e.g. mypalace.example.com" style="width:100%;max-width:none;" />
+        </div>
+        <div class="field">
+          <label>YP port</label>
+          <input id="pYPPort" type="number" min="0" max="65535" placeholder="defaults to TCP port" />
+        </div>
+      </div>
     </div>
     <div id="provisionStream" class="stream" style="min-height:80px;"></div>
     <div id="provisionResult"></div>
@@ -1043,6 +1103,17 @@
         <input id="registerDataDir" type="text" autocomplete="off" style="width:100%;max-width:none;" placeholder="/home/&lt;user&gt;/palace" />
       </div>
     </div>
+    <p style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:8px;">Directory listing (optional): <code>YPMYEXTADDR</code> / <code>YPMYEXTPORT</code> in <code>pserver.prefs</code>.</p>
+    <div class="form-row">
+      <div class="field" style="flex:1;min-width:200px;">
+        <label>YP host</label>
+        <input id="registerYPHost" type="text" autocomplete="off" style="width:100%;max-width:none;" placeholder="public hostname" />
+      </div>
+      <div class="field">
+        <label>YP port</label>
+        <input id="registerYPPort" type="number" min="0" max="65535" placeholder="TCP port if blank" />
+      </div>
+    </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;margin-bottom:12px;">
       <input type="checkbox" id="registerEnableNow" checked />
       Enable unit on boot and start now (<code>systemctl enable --now</code>)
@@ -1051,6 +1122,104 @@
     <div class="modal-footer">
       <button type="button" onclick="closeRegisterPalaceModal()">Cancel</button>
       <button type="button" class="primary" id="registerPalaceSubmit" onclick="confirmRegisterPalace()">Register</button>
+    </div>
+  </div>
+</div>
+
+<!-- Palace settings (structured pserver.prefs + YP) -->
+<div class="modal-bg" id="palaceSettingsModal">
+  <div class="modal" style="width:96%;">
+    <h3 id="palaceSettingsTitle">Palace settings</h3>
+    <p id="palaceSettingsLead" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;"></p>
+
+    <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text);">Server preferences (<code>pserver.prefs</code>)</p>
+    <div class="prefs-mode-row">
+      <label><input type="radio" name="palaceSettingsEditMode" id="palaceSettingsModeForm" value="form" checked onchange="syncPalaceSettingsMode()" /> Structured form</label>
+      <label><input type="radio" name="palaceSettingsEditMode" id="palaceSettingsModeRaw" value="raw" onchange="syncPalaceSettingsMode()" /> Raw text file</label>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;line-height:1.45;"><strong>Structured form</strong> gives fields for <code>SERVERNAME</code>, occupancy, permissions, chat logging, etc. <strong>Raw text</strong> is the on-disk file. Default is the form.</p>
+    <div id="palaceSettingsWarnings" style="display:none;"></div>
+
+    <div id="palaceSettingsYPAdmin" style="display:none;">
+      <p style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text);">Public directory listing</p>
+      <div class="form-row">
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>Directory host (<code>YPMYEXTADDR</code>)</label>
+          <input id="palaceSettingsYPHost" type="text" placeholder="e.g. palace.example.com" style="width:100%;max-width:none;" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Directory port (<code>YPMYEXTPORT</code>)</label>
+          <input id="palaceSettingsYPPort" type="number" min="0" max="65535" placeholder="uses TCP port if blank" />
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.45;">Stored in the manager registry and merged into <code>pserver.prefs</code> on save and before start/stop/restart.</p>
+    </div>
+    <div id="palaceSettingsYPTenant" style="display:none;font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;"></div>
+
+    <div id="palaceSettingsStructured" class="prefs-modal-scroll">
+      <p class="prefs-hint">Fields match directives parsed by <strong>mansionsource-go</strong> (<code>internal/script/prefs.go</code>). Wizard/god promotion passwords are managed elsewhere. <code>PERMISSIONS</code>, <code>SERVEROPTIONS</code>, <code>PICFOLDER</code>, <code>AUTOPURGE</code>, <code>SAVESESSIONKEYS</code>, <code>NOAUTOREGISTER</code>, <code>HTTP_URL</code>, and <code>AUTOANNOUNCE</code> are left as on disk when you use this form; use <strong>Raw text file</strong> to change those.</p>
+
+      <details class="prefs-sec" open>
+        <summary>Server identity &amp; listing</summary>
+        <div class="form-row">
+          <div class="field" style="flex:1;min-width:200px;"><label>Server name (<code>SERVERNAME</code>)</label><input id="psfServerName" type="text" style="width:100%;max-width:none;" autocomplete="off" /></div>
+          <div class="field" style="flex:1;min-width:200px;"><label>Sysop (<code>SYSOP</code>)</label><input id="psfSysop" type="text" style="width:100%;max-width:none;" /></div>
+        </div>
+        <div class="form-row">
+          <div class="field" style="flex:1;"><label>URL (<code>URL</code>)</label><input id="psfURL" type="text" style="width:100%;max-width:none;" /></div>
+          <div class="field" style="flex:1;"><label>Website (<code>WEBSITE</code>)</label><input id="psfWebsite" type="text" style="width:100%;max-width:none;" /></div>
+        </div>
+        <div class="field" style="margin-bottom:10px;"><label>Short description (<code>BLURB</code>)</label><input id="psfBlurb" type="text" style="width:100%;max-width:none;" /></div>
+        <div class="field" style="margin-bottom:10px;"><label>Message of the day (<code>MOTD</code>)</label><textarea id="psfMOTD" rows="3" style="width:100%;max-width:none;font-family:inherit;font-size:13px;"></textarea></div>
+        <div class="field"><label>Announcement (<code>ANNOUNCEMENT</code>)</label><input id="psfAnnouncement" type="text" style="width:100%;max-width:none;" /></div>
+      </details>
+
+      <details class="prefs-sec" open>
+        <summary>Limits</summary>
+        <p class="prefs-hint" style="margin-top:0;">Occupancy, flood, and session limits only.</p>
+        <div class="form-row">
+          <div class="field"><label>Death penalty (min)</label><input id="psfDeathPenalty" type="number" /></div>
+          <div class="field"><label>Max occupancy</label><input id="psfMaxOcc" type="number" /></div>
+          <div class="field"><label>Room occupancy</label><input id="psfRoomOcc" type="number" /></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Min flood events</label><input id="psfMinFlood" type="number" /></div>
+          <div class="field"><label>Purge prop days</label><input id="psfPurgeDays" type="number" /></div>
+          <div class="field"><label>Recycle limit (<code>MAXSESSIONID</code>)</label><input id="psfRecycleLimit" type="number" /></div>
+        </div>
+      </details>
+
+      <details class="prefs-sec">
+        <summary>Chat logging</summary>
+        <div class="form-row">
+          <div class="field" style="flex:1;"><label>Types (<code>CHATLOG</code>)</label><input id="psfChatTypes" type="text" style="width:100%;max-width:none;" /></div>
+          <div class="field" style="flex:1;"><label>File (<code>CHATLOG_FILE</code>)</label><input id="psfChatFile" type="text" style="width:100%;max-width:none;" /></div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Format (<code>CHATLOG_FORMAT</code>)</label>
+            <select id="psfChatFormat"><option value="">(default)</option><option value="json">json</option><option value="csv">csv</option></select>
+          </div>
+          <label style="flex-direction:row;align-items:center;gap:6px;width:auto;margin-top:22px;"><input type="checkbox" id="psfChatNoWarn" /> <code>CHATLOG_NOWARN</code></label>
+        </div>
+      </details>
+
+      <details class="prefs-sec">
+        <summary>Comments &amp; unrecognized lines</summary>
+        <p class="prefs-hint">Lines the structured parser did not map (comments, legacy directives, etc.) are kept here verbatim so nothing is lost.</p>
+        <textarea id="palaceUnknownTail" spellcheck="false" rows="5" style="width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;"></textarea>
+      </details>
+    </div>
+
+    <div id="palaceSettingsRawWrap" class="prefs-modal-scroll" style="display:none;">
+      <p class="prefs-hint">Direct editing — same format as on disk. Registry directory host/port still apply on save for admins.</p>
+      <textarea id="palaceSettingsContent" spellcheck="false" style="min-height:280px;width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;line-height:1.4;"></textarea>
+    </div>
+
+    <div id="palaceSettingsError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closePalaceSettingsModal()">Cancel</button>
+      <button type="button" class="primary" id="palaceSettingsSaveBtn" onclick="savePalaceSettings()">Save &amp; restart</button>
     </div>
   </div>
 </div>
@@ -1110,6 +1279,8 @@ let EDIT_USER = null;
 let REMOVE_PALACE_NAME = null;
 let DELETE_USER_NAME = null;
 let REGISTER_PALACE_NAME = null;
+let SETTINGS_PALACE = null;
+let SETTINGS_RAW_SNAPSHOT = '';
 /** After unregister-only removal, scroll the unregistered panel into view once. */
 let SCROLL_UNREGISTER_PANEL = false;
 /** @type {string} */
@@ -2204,6 +2375,185 @@ async function confirmSfSave() {
 }
 
 // ===== Palaces =====
+function syncPalaceSettingsMode() {
+  const raw = $('palaceSettingsModeRaw').checked;
+  $('palaceSettingsStructured').style.display = raw ? 'none' : '';
+  $('palaceSettingsRawWrap').style.display = raw ? '' : 'none';
+}
+
+function populatePrefsFormFromDTO(f) {
+  if (!f) return;
+  $('psfServerName').value = f.serverName || '';
+  $('psfSysop').value = f.sysop || '';
+  $('psfURL').value = f.url || '';
+  $('psfWebsite').value = f.website || '';
+  $('psfMOTD').value = f.motd || '';
+  $('psfBlurb').value = f.blurb || '';
+  $('psfAnnouncement').value = f.announcement || '';
+  $('psfDeathPenalty').value = f.deathPenalty != null && f.deathPenalty !== '' ? String(f.deathPenalty) : '';
+  $('psfMaxOcc').value = f.maxOccupancy != null && f.maxOccupancy !== '' ? String(f.maxOccupancy) : '';
+  $('psfRoomOcc').value = f.roomOccupancy != null && f.roomOccupancy !== '' ? String(f.roomOccupancy) : '';
+  $('psfMinFlood').value = f.minFloodEvents != null && f.minFloodEvents !== '' ? String(f.minFloodEvents) : '';
+  $('psfPurgeDays').value = f.purgePropDays != null && f.purgePropDays !== '' ? String(f.purgePropDays) : '';
+  $('psfRecycleLimit').value = f.recycleLimit != null && f.recycleLimit !== '' ? String(f.recycleLimit) : '';
+  $('psfChatTypes').value = f.chatLogTypes || '';
+  $('psfChatFile').value = f.chatLogFile || '';
+  const cf = (f.chatLogFormat || '').toLowerCase();
+  $('psfChatFormat').value = cf === 'csv' ? 'csv' : cf === 'json' ? 'json' : '';
+  $('psfChatNoWarn').checked = !!f.chatLogNoWarn;
+}
+
+function collectPrefsFormDTO() {
+  const num = id => {
+    const v = parseInt($(id).value, 10);
+    return Number.isFinite(v) ? v : 0;
+  };
+  return {
+    serverName: $('psfServerName').value,
+    sysop: $('psfSysop').value,
+    url: $('psfURL').value,
+    website: $('psfWebsite').value,
+    motd: $('psfMOTD').value,
+    blurb: $('psfBlurb').value,
+    announcement: $('psfAnnouncement').value,
+    deathPenalty: num('psfDeathPenalty'),
+    maxOccupancy: num('psfMaxOcc'),
+    roomOccupancy: num('psfRoomOcc'),
+    minFloodEvents: num('psfMinFlood'),
+    purgePropDays: num('psfPurgeDays'),
+    recycleLimit: num('psfRecycleLimit'),
+    chatLogTypes: $('psfChatTypes').value,
+    chatLogFile: $('psfChatFile').value,
+    chatLogFormat: $('psfChatFormat').value || '',
+    chatLogNoWarn: $('psfChatNoWarn').checked,
+  };
+}
+
+async function openPalaceSettingsModal(name) {
+  SETTINGS_PALACE = name;
+  SETTINGS_RAW_SNAPSHOT = '';
+  $('palaceSettingsError').textContent = '';
+  $('palaceSettingsSaveBtn').disabled = false;
+  $('palaceSettingsTitle').textContent = 'Palace settings — ' + name;
+  $('palaceSettingsLead').textContent = '';
+  $('palaceSettingsContent').value = '';
+  $('palaceUnknownTail').value = '';
+  $('palaceSettingsWarnings').style.display = 'none';
+  $('palaceSettingsWarnings').textContent = '';
+  $('palaceSettingsModeForm').checked = true;
+  syncPalaceSettingsMode();
+
+  const canAdmin = SESSION && SESSION.role === 'admin';
+  $('palaceSettingsYPAdmin').style.display = canAdmin ? 'block' : 'none';
+  $('palaceSettingsYPTenant').style.display = canAdmin ? 'none' : 'block';
+  $('palaceSettingsYPTenant').textContent = '';
+  $('palaceSettingsModal').classList.add('open');
+
+  try {
+    const [pres, pform, fres] = await Promise.all([
+      fetch(`/api/palaces/${encodeURIComponent(name)}`, { headers: headers() }),
+      fetch(`/api/palaces/${encodeURIComponent(name)}/prefs-form`, { headers: headers() }),
+      fetch(`/api/palaces/${encodeURIComponent(name)}/server-files/pserver.prefs`, { headers: headers() }),
+    ]);
+    const pd = await pres.json().catch(() => ({}));
+    const formData = await pform.json().catch(() => ({}));
+    const rawFile = await fres.json().catch(() => ({}));
+
+    if (!pres.ok) {
+      $('palaceSettingsError').textContent = pd.error || ('HTTP ' + pres.status);
+      return;
+    }
+    const dd = pd.dataDir || '';
+    $('palaceSettingsLead').textContent = dd ? ('Data directory: ' + dd) : '';
+    if (canAdmin) {
+      $('palaceSettingsYPHost').value = pd.ypHost || '';
+      $('palaceSettingsYPPort').value = pd.ypPort ? String(pd.ypPort) : '';
+    } else {
+      const h = pd.ypHost ? esc(pd.ypHost) : '(not set)';
+      const pt = pd.ypPort ? esc(String(pd.ypPort)) : '(not set)';
+      $('palaceSettingsYPTenant').innerHTML =
+        'Directory host/port (<code>YPMYEXTADDR</code> / <code>YPMYEXTPORT</code>) are set by the administrator: <strong>' + h + '</strong> : <strong>' + pt + '</strong>. They are merged on save.';
+    }
+
+    if (pform.ok && formData.form) {
+      populatePrefsFormFromDTO(formData.form);
+      $('palaceUnknownTail').value = formData.unknownTail || '';
+      if (Array.isArray(formData.warnings) && formData.warnings.length) {
+        $('palaceSettingsWarnings').style.display = '';
+        $('palaceSettingsWarnings').textContent = 'Parse notes: ' + formData.warnings.map(esc).join(' · ');
+      }
+    } else if (!pform.ok) {
+      $('palaceSettingsError').textContent = formData.error || ('prefs-form HTTP ' + pform.status);
+    }
+
+    if (fres.ok && rawFile.content !== undefined && rawFile.content !== null) {
+      SETTINGS_RAW_SNAPSHOT = typeof rawFile.content === 'string' ? rawFile.content : '';
+      $('palaceSettingsContent').value = SETTINGS_RAW_SNAPSHOT;
+    } else if (fres.status === 404) {
+      SETTINGS_RAW_SNAPSHOT = '; pserver.prefs — save to create on disk\n';
+      $('palaceSettingsContent').value = SETTINGS_RAW_SNAPSHOT;
+    } else if (!fres.ok && pform.ok) {
+      $('palaceSettingsContent').value = SETTINGS_RAW_SNAPSHOT;
+    }
+  } catch (e) {
+    $('palaceSettingsError').textContent = e.message || String(e);
+  }
+}
+
+function closePalaceSettingsModal() {
+  $('palaceSettingsModal').classList.remove('open');
+  SETTINGS_PALACE = null;
+  SETTINGS_RAW_SNAPSHOT = '';
+}
+
+async function savePalaceSettings() {
+  const name = SETTINGS_PALACE;
+  if (!name) return;
+  $('palaceSettingsError').textContent = '';
+  const canAdmin = SESSION && SESSION.role === 'admin';
+  const rawMode = $('palaceSettingsModeRaw').checked;
+
+  let body;
+  if (rawMode) {
+    body = {
+      mode: 'raw',
+      content: $('palaceSettingsContent').value,
+    };
+  } else {
+    body = {
+      mode: 'form',
+      form: collectPrefsFormDTO(),
+      unknownTail: $('palaceUnknownTail').value,
+    };
+  }
+  if (canAdmin) {
+    body.ypHost = $('palaceSettingsYPHost').value.trim();
+    const pp = parseInt($('palaceSettingsYPPort').value, 10);
+    body.ypPort = Number.isFinite(pp) ? pp : 0;
+  }
+
+  const btn = $('palaceSettingsSaveBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/server-prefs`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceSettingsError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    closePalaceSettingsModal();
+    loadPalaces();
+  } catch (e) {
+    $('palaceSettingsError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
 function palaceStatusDot(status) {
   if (status === 'active') {
     return { dotClass: 'status-dot-running', title: 'Service running' };
@@ -2250,6 +2600,7 @@ async function loadPalaces() {
         const { dotClass, title } = palaceStatusDot(p.status);
         const nm = JSON.stringify(p.name);
         const removeBtn = `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`;
+        const orphanSettingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
         return `
       <tr>
         <td><strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Not in registry yet">Not registered</span></td>
@@ -2263,6 +2614,7 @@ async function loadPalaces() {
             <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
             <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
             <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
+            ${orphanSettingsBtn}
             ${removeBtn}
           </div>
         </td>
@@ -2295,6 +2647,7 @@ async function loadPalaces() {
         ? `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`
         : '';
       const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
+      const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
       const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
       const backupBtn = `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Backup</button>`;
       return `
@@ -2311,6 +2664,7 @@ async function loadPalaces() {
             <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
             <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
             <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
+            ${settingsBtn}
             ${logsBtn}
             ${removeBtn}
           </div>
@@ -2368,6 +2722,8 @@ async function openRegisterPalaceModal(name) {
   $('registerHttp').value = '';
   $('registerLinuxUser').value = '';
   $('registerDataDir').value = '';
+  $('registerYPHost').value = '';
+  $('registerYPPort').value = '';
   $('registerEnableNow').checked = true;
   $('registerPalaceSubmit').disabled = false;
   $('registerPalaceModal').classList.add('open');
@@ -2410,6 +2766,8 @@ async function confirmRegisterPalace() {
         linuxUser: $('registerLinuxUser').value.trim(),
         dataDir: $('registerDataDir').value.trim(),
         enableNow: $('registerEnableNow').checked,
+        ypHost: $('registerYPHost').value.trim(),
+        ypPort: (function(){ const n = parseInt($('registerYPPort').value, 10); return Number.isFinite(n) ? n : 0; })(),
       }),
     });
     const out = await res.json().catch(() => ({}));
@@ -2503,7 +2861,7 @@ function closeProvisionModal() {
 }
 
 function _setProvisionRunning(running) {
-  ['pName','pTCP','pHTTP'].forEach(id => { $(id).disabled = running; });
+  ['pName','pTCP','pHTTP','pYPHost','pYPPort'].forEach(id => { const el = $(id); if (el) el.disabled = running; });
   const btn = $('provisionBtn');
   if (btn) { btn.disabled = running; btn.textContent = running ? 'Provisioning…' : 'Provision'; }
 }
@@ -2521,10 +2879,13 @@ async function doProvision() {
 
   _setProvisionRunning(true);
 
+  const ypHost = $('pYPHost').value.trim();
+  let ypPort = parseInt($('pYPPort').value, 10);
+  if (!Number.isFinite(ypPort)) ypPort = 0;
   const res = await fetch('/api/palaces', {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ name, tcpPort, httpPort })
+    body: JSON.stringify({ name, tcpPort, httpPort, ypHost, ypPort })
   });
 
   if (res.status === 412) {
@@ -2989,6 +3350,9 @@ document.addEventListener('keydown', (ev) => {
     ev.preventDefault();
   } else if ($('deleteUserModal').classList.contains('open')) {
     closeDeleteUserModal();
+    ev.preventDefault();
+  } else if ($('palaceSettingsModal').classList.contains('open')) {
+    closePalaceSettingsModal();
     ev.preventDefault();
   } else if ($('registerPalaceModal').classList.contains('open')) {
     closeRegisterPalaceModal();
