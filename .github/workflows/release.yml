@@ -58,18 +58,22 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: release-tarball-*
           merge-multiple: true
 
-      - name: Write SHA256SUMS
+      - name: Attach setup.sh and checksums
         run: |
           set -euo pipefail
+          cp deploy/setup.sh dist/setup.sh
+          chmod +x dist/setup.sh
           cd dist
           ls -la
-          sha256sum *.tar.gz > SHA256SUMS
+          sha256sum *.tar.gz setup.sh > SHA256SUMS
           cat SHA256SUMS
 
       - uses: softprops/action-gh-release@v2
@@ -78,4 +82,5 @@ jobs:
           generate_release_notes: true
           files: |
             dist/*.tar.gz
+            dist/setup.sh
             dist/SHA256SUMS

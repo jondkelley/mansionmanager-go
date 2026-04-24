@@ -55,7 +55,85 @@ cd palaceserver-js   # or wherever palace-manager lives
 go build -o palace-manager ./cmd/palace-manager
 ```
 
-### Cross-compile for a remote Linux host
+Release builds stamp the version with a link flag (what GitHub Actions use):
+
+```bash
+go build -trimpath -ldflags "-s -w -X main.version=1.2.3" -o palace-manager ./cmd/palace-manager
+```
+
+---
+
+## GitHub Releases (tag → binaries)
+
+Pushing a **semantic version tag** `v*` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). It cross-compiles for Linux **amd64**, **arm64**, **armv7** (`GOARM=7`), and **386**, uploads one tarball per architecture plus **`SHA256SUMS`**, and creates or updates the matching [GitHub Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+
+### Publish a version
+
+```bash
+git tag -a v1.2.3 -m "Release 1.2.3"
+git push origin v1.2.3
+```
+
+Use `vMAJOR.MINOR.PATCH` so the workflow matches the `v*` tag filter.
+
+### Release asset names
+
+Each tarball is named `palace-manager_<version>_linux_<arch>.tar.gz` (for example `palace-manager_1.2.3_linux_arm64.tar.gz`). It contains the `palace-manager` binary, [`deploy/install.sh`](deploy/install.sh), [`deploy/palace-manager.service`](deploy/palace-manager.service), and the helper scripts under the same layout [`deploy/push.sh`](deploy/push.sh) expects.
+
+---
+
+## Install from a GitHub release
+
+You need the GitHub **`owner/repo`** slug (for example `myorg/palaceserver-js`). Prebuilt artifacts are **Linux only**.
+
+### Option A — `make install-release` (from your laptop)
+
+Detects the remote CPU with `ssh user@host uname -m`, downloads the matching asset **on the server** (so your Mac never needs the tarball), and runs `install.sh`.
+
+```bash
+make install-release VERSION=1.2.3 HOST=root@your.server RELEASE_REPO=myorg/palaceserver-js
+```
+
+`VERSION` may be `1.2.3` or `v1.2.3`. If you omit `RELEASE_REPO` and this clone’s `origin` is a `github.com` remote, the script tries to infer `owner/repo` from `git remote get-url origin`.
+
+The remote host needs **`curl` or `wget`** and outbound HTTPS to `github.com`.
+
+### Option B — `deploy/setup.sh` on the server (self-install)
+
+Copy or pipe the script, then pass **`owner/repo`** and optionally a version (default: **latest** GitHub release):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/myorg/palaceserver-js/main/deploy/setup.sh | sudo bash -s -- myorg/palaceserver-js
+# pinned version:
+curl -fsSL https://raw.githubusercontent.com/myorg/palaceserver-js/main/deploy/setup.sh | sudo bash -s -- myorg/palaceserver-js v1.2.3
+```
+
+Equivalent without args:
+
+```bash
+export PALACE_MANAGER_GITHUB_REPO=myorg/palaceserver-js
+curl -fsSL https://raw.githubusercontent.com/myorg/palaceserver-js/main/deploy/setup.sh | sudo bash
+```
+
+If the release includes **`SHA256SUMS`**, the script verifies the tarball when possible.
+
+You can also download **`setup.sh`** from the same release page (it is attached to each release) and run `sudo bash setup.sh myorg/palaceserver-js` on the server so you do not depend on a fixed branch name in `raw.githubusercontent.com`.
+
+### Local release tarball (same layout as CI)
+
+```bash
+make dist TAG=v1.2.3
+# optional cross-compile:
+GOOS=linux GOARCH=arm64 make dist TAG=v1.2.3
+# linux/arm with armv7 filename (matches published armv7 asset):
+GOOS=linux GOARCH=arm GOARM=7 ASSET_ARCH=armv7 make dist TAG=v1.2.3
+```
+
+Artifacts appear under `dist/`.
+
+---
+
+## Cross-compile for a remote Linux host
 
 If your build machine is macOS (common for local dev):
 
@@ -395,5 +473,3 @@ curl -X POST http://127.0.0.1:3000/api/nginx/regen \
 curl http://127.0.0.1:3000/api/bootstrap/status \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
-# mansionmanager-go
-# mansionmanager-go
