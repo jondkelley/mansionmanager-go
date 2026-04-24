@@ -20,7 +20,51 @@ ASSET_ARCH="${ASSET_ARCH:-${GOARCH}}"
 VERSION="${TAG#v}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Module root: parent of scripts/, or immediate child (monorepo: repo/palaceserver-js/...).
+resolve_root() {
+  if [[ -n "${PALACE_MANAGER_ROOT:-}" ]]; then
+    local forced="${PALACE_MANAGER_ROOT}"
+    if [[ "${forced}" != /* ]]; then
+      local top
+      top="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
+      if [[ -n "${top}" ]]; then
+        forced="$(cd "${top}/${forced}" && pwd)"
+      else
+        forced="$(cd "${SCRIPT_DIR}/../${forced}" && pwd)"
+      fi
+    else
+      forced="$(cd "${forced}" && pwd)"
+    fi
+    if [[ ! -f "${forced}/go.mod" || ! -d "${forced}/cmd/palace-manager" ]]; then
+      echo "PALACE_MANAGER_ROOT must contain go.mod and cmd/palace-manager" >&2
+      exit 1
+    fi
+    echo "${forced}"
+    return
+  fi
+  local up
+  up="$(cd "${SCRIPT_DIR}/.." && pwd)"
+  if [[ -f "${up}/go.mod" && -d "${up}/cmd/palace-manager" ]]; then
+    echo "${up}"
+    return
+  fi
+  local d
+  for d in "${up}"/*; do
+    if [[ -f "${d}/go.mod" && -d "${d}/cmd/palace-manager" ]]; then
+      echo "$(cd "${d}" && pwd)"
+      return
+    fi
+  done
+  echo ""
+}
+
+ROOT="$(resolve_root)"
+if [[ -z "${ROOT}" ]]; then
+  echo "Could not find go.mod + cmd/palace-manager. Run from the module tree, or set PALACE_MANAGER_ROOT." >&2
+  exit 1
+fi
+
 STAGE="$(mktemp -d)"
 BINARY_NAME="palace-manager"
 ARCHIVE="palace-manager_${VERSION}_${GOOS}_${ASSET_ARCH}.tar.gz"

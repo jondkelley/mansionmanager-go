@@ -35,11 +35,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Locate palace-manager module
+        id: locate
+        run: |
+          set -euo pipefail
+          if [[ -f go.mod && -d cmd/palace-manager ]]; then
+            echo "module-root=." >> "${GITHUB_OUTPUT}"
+            echo "go-mod-path=go.mod" >> "${GITHUB_OUTPUT}"
+          else
+            found=0
+            for d in */; do
+              [[ -d "${d}" ]] || continue
+              d="${d%/}"
+              if [[ -f "${d}/go.mod" && -d "${d}/cmd/palace-manager" ]]; then
+                echo "module-root=${d}" >> "${GITHUB_OUTPUT}"
+                echo "go-mod-path=${d}/go.mod" >> "${GITHUB_OUTPUT}"
+                found=1
+                break
+              fi
+            done
+            if [[ "${found}" -ne 1 ]]; then
+              echo "No go.mod + cmd/palace-manager at repo root or in a top-level subdirectory." >&2
+              ls -la >&2
+              exit 1
+            fi
+          fi
+
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ steps.locate.outputs.go-mod-path }}
 
       - name: Build release tarball
+        working-directory: ${{ steps.locate.outputs.module-root }}
         env:
           TAG: ${{ github.ref_name }}
           GOOS: ${{ matrix.goos }}
@@ -60,6 +87,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Locate palace-manager module
+        id: locate
+        run: |
+          set -euo pipefail
+          if [[ -f go.mod && -d cmd/palace-manager ]]; then
+            echo "module-root=." >> "${GITHUB_OUTPUT}"
+          else
+            found=0
+            for d in */; do
+              [[ -d "${d}" ]] || continue
+              d="${d%/}"
+              if [[ -f "${d}/go.mod" && -d "${d}/cmd/palace-manager" ]]; then
+                echo "module-root=${d}" >> "${GITHUB_OUTPUT}"
+                found=1
+                break
+              fi
+            done
+            if [[ "${found}" -ne 1 ]]; then
+              echo "No palace-manager module found" >&2
+              ls -la >&2
+              exit 1
+            fi
+          fi
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -69,7 +120,8 @@ jobs:
       - name: Attach setup.sh and checksums
         run: |
           set -euo pipefail
-          cp deploy/setup.sh dist/setup.sh
+          MOD="${{ steps.locate.outputs.module-root }}"
+          cp "${MOD}/deploy/setup.sh" dist/setup.sh
           chmod +x dist/setup.sh
           cd dist
           ls -la

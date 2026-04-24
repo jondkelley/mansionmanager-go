@@ -12,12 +12,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Locate palace-manager module
+        id: locate
+        run: |
+          set -euo pipefail
+          if [[ -f go.mod && -d cmd/palace-manager ]]; then
+            echo "module-root=." >> "${GITHUB_OUTPUT}"
+            echo "go-mod-path=go.mod" >> "${GITHUB_OUTPUT}"
+          else
+            found=0
+            for d in */; do
+              [[ -d "${d}" ]] || continue
+              d="${d%/}"
+              if [[ -f "${d}/go.mod" && -d "${d}/cmd/palace-manager" ]]; then
+                echo "module-root=${d}" >> "${GITHUB_OUTPUT}"
+                echo "go-mod-path=${d}/go.mod" >> "${GITHUB_OUTPUT}"
+                found=1
+                break
+              fi
+            done
+            if [[ "${found}" -ne 1 ]]; then
+              echo "No go.mod + cmd/palace-manager at repo root or in a top-level subdirectory." >&2
+              ls -la >&2
+              exit 1
+            fi
+          fi
+
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ steps.locate.outputs.go-mod-path }}
 
       - name: Test
+        working-directory: ${{ steps.locate.outputs.module-root }}
         run: go test ./...
 
       - name: Build
+        working-directory: ${{ steps.locate.outputs.module-root }}
         run: go build -o /tmp/palace-manager ./cmd/palace-manager
