@@ -280,6 +280,13 @@ func (s *Server) routes() {
 		}
 		s.handlePserverUpdateStatus(w, r)
 	})))
+
+	// pserver self-service endpoints — no Basic Auth; authenticated via servhash.txt.
+	// These allow pserver instances running on this machine to trigger upgrades and
+	// rollbacks in-game without needing to expose manager credentials to the palace process.
+	s.mux.Handle("/api/pserver/version-check", http.HandlerFunc(s.handlePserverVersionCheck))
+	s.mux.Handle("/api/pserver/upgrade", http.HandlerFunc(s.handlePserverSelfUpgrade))
+	s.mux.Handle("/api/pserver/rollback", http.HandlerFunc(s.handlePserverSelfRollback))
 }
 
 func (s *Server) routePalaces(w http.ResponseWriter, r *http.Request) {
