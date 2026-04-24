@@ -189,6 +189,24 @@
   .badge-failed { background: rgba(241,107,107,.15); color: var(--red); }
   .badge-unknown { background: rgba(240,192,96,.1); color: var(--yellow); }
   .badge-unregistered { background: rgba(240,192,96,.14); color: var(--yellow); font-weight: 600; }
+  .badge-tracking-latest { background: rgba(95,212,160,.14); color: var(--green); }
+  .badge-pinned { background: rgba(255,255,255,.07); color: var(--muted); }
+  /* pserver update status banner */
+  .pserver-update-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .pserver-update-banner-ok      { background: rgba(95,212,160,.08);  border: 1px solid rgba(95,212,160,.25);  color: var(--green); }
+  .pserver-update-banner-running { background: rgba(100,160,255,.08); border: 1px solid rgba(100,160,255,.25); color: #7aadff; }
+  .pserver-update-banner-error   { background: rgba(241,107,107,.08); border: 1px solid rgba(241,107,107,.25); color: var(--red); }
+  .pserver-update-banner-neutral { background: rgba(255,255,255,.04); border: 1px solid var(--border);         color: var(--muted); }
+  .pserver-update-banner-icon { font-size: 15px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
   .unregistered-palaces-box {
     margin-top: 20px;
     padding: 16px 18px;
@@ -767,23 +785,37 @@
   </div>
 
   <div class="card">
-    <h2>Update pserver Binary</h2>
-    <p style="color:var(--muted);margin-bottom:8px;font-size:13px;">Downloads the latest official pserver tarball, refreshes the template at <code>/root/palace-template</code>, and updates <code>/usr/local/bin/pserver</code>.</p>
-    <p style="background:rgba(240,192,96,.08);border:1px solid rgba(240,192,96,.25);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--yellow);margin-bottom:16px;">
-      <strong>First-time setup:</strong> run <em>Update Binary</em> before creating any Palace instances — it downloads the pserver template that provisioning depends on.
-    </p>
-    <div class="form-row">
-      <button class="primary" onclick="runUpdate(false)">Update Binary</button>
-      <button onclick="runUpdate(true)">Update + Restart All Palaces</button>
+    <h2>pserver Binary</h2>
+
+    <!-- Live status banner — populated by loadPserverUpdateStatus() -->
+    <div id="pserverUpdateBanner" class="pserver-update-banner pserver-update-banner-neutral">
+      <span class="pserver-update-banner-icon">↻</span>
+      <span>Checking update status…</span>
     </div>
-    <div id="updateStream" class="stream"></div>
+
+    <!-- Version + last-run row -->
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:14px;font-size:13px;">
+      <span>Installed: <code id="pserverCurrentVersion" style="color:var(--accent);">—</code></span>
+      <span style="color:var(--muted);" id="pserverLastRun"></span>
+    </div>
+
+    <div class="form-row" style="margin-bottom:0;">
+      <button class="primary" id="pserverPullBtn" onclick="runUpdate(false)">Pull Latest Now</button>
+      <button onclick="runUpdate(true)" title="Download the latest pserver and restart every active palace">Update + Restart All</button>
+    </div>
+    <div id="updateStream" class="stream" style="display:none;"></div>
+
+    <p style="background:rgba(240,192,96,.08);border:1px solid rgba(240,192,96,.25);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--yellow);margin-top:16px;margin-bottom:0;" id="pserverFirstTimeNote">
+      <strong>First-time setup:</strong> click <em>Pull Latest Now</em> before creating any Palace instances — it downloads the pserver template that provisioning depends on.
+    </p>
   </div>
 
   <div class="card" id="rolloutCard">
-    <h2>Rollouts &amp; pinned binaries</h2>
-    <p style="color:var(--muted);margin-bottom:12px;font-size:13px;line-height:1.45;">
-      Each successful <strong>Update Binary</strong> archives <code>pserver</code> by semver from <code>version.txt</code> under the versions directory (below).
-      Choose <strong>latest</strong> to use the shared install at <code>/usr/local/bin/pserver</code>, or pin a palace to an archived build. Applying patches the systemd unit and updates the registry; optionally restart so the service loads the binary immediately.
+    <h2>Version pins</h2>
+    <p style="color:var(--muted);margin-bottom:6px;font-size:13px;line-height:1.45;">
+      New palaces are automatically pinned to the pserver version that was current when they were created.
+      Set a palace to <strong>latest</strong> to always pick up the newest binary on restart — this is opt-in.
+      Each <em>Pull Latest</em> archives the new build so you can roll back to any earlier version.
     </p>
     <p id="rolloutMeta" style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;"></p>
 
@@ -796,13 +828,13 @@
         <label>&nbsp;</label>
         <label style="flex-direction:row;align-items:center;gap:6px;width:auto;"><input type="checkbox" id="rolloutAllRestart" /> Restart after apply</label>
       </div>
-      <button class="primary" type="button" onclick="rolloutApplyAll()">Apply to all palaces</button>
+      <button class="primary" type="button" onclick="rolloutApplyAll()">Apply to all</button>
       <button type="button" onclick="loadRolloutPanel()">Refresh</button>
     </div>
 
     <table id="rolloutTable">
       <thead><tr>
-        <th>Palace</th><th>Current pin</th><th>Target</th><th></th>
+        <th>Palace</th><th>Status</th><th>Change to</th><th></th>
       </tr></thead>
       <tbody id="rolloutBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
     </table>

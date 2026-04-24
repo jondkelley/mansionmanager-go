@@ -213,10 +213,33 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		ypPort := resolveYPPort(req.YPHost, req.YPPort, req.TCPPort)
 		entry := provisioner.RegistryEntry(req.Name, result, req.YPHost, ypPort)
 		entry.ProvisionedAt = time.Now()
+
+		// Auto-pin to the current template semver so this palace stays on a known-good
+		// build. The operator can later opt it into "latest" via the rollout panel.
+		if ti, err := s.vers.ReadTemplateInfo(); err == nil && ti != nil {
+			sem := ti.Semver
+			if sem == "" {
+				sem = ti.Tag
+			}
+			if sem != "" {
+				// Ensure the version is in the archive index (idempotent).
+				_ = s.vers.ArchiveFromTemplate()
+				entry.PserverVersion = sem
+			}
+		}
+
 		if err := s.reg.Add(entry); err != nil {
 			streamLine(sw, fmt.Sprintf("WARNING: could not update registry: %v", err))
-		} else if err := s.ensurePalaceYPInPrefs(req.Name); err != nil {
-			streamLine(sw, fmt.Sprintf("WARNING: could not sync pserver.prefs YP lines: %v", err))
+		} else {
+			// If we pinned to a semver, patch the systemd unit to use the archived binary.
+			if entry.PserverVersion != "" {
+				if err := s.vers.ApplyPalaceVersion(s.reg, req.Name, entry.PserverVersion, false); err != nil {
+					streamLine(sw, fmt.Sprintf("NOTE: pinned pserver version (%s) but could not patch unit: %v", entry.PserverVersion, err))
+				}
+			}
+			if err := s.ensurePalaceYPInPrefs(req.Name); err != nil {
+				streamLine(sw, fmt.Sprintf("WARNING: could not sync pserver.prefs YP lines: %v", err))
+			}
 		}
 		// Async: queue gen-media scan + nginx reload without blocking this handler path.
 		go func() { s.nginx.Trigger() }()
@@ -465,13 +488,38 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	restartAll := r.URL.Query().Get("restartAll") == "true"
 
+	// Reject if already running (background or another manual trigger).
+	st := s.pserverUpdate
+	st.mu.Lock()
+	if st.running {
+		st.mu.Unlock()
+		writeError(w, http.StatusConflict, "pserver update already in progress")
+		return
+	}
+	st.running = true
+	st.startedAt = time.Now()
+	st.mu.Unlock()
+
+	defer func() {
+		st.mu.Lock()
+		st.running = false
+		st.lastRun = time.Now()
+		st.mu.Unlock()
+	}()
+
 	sw, ok := sseWriter(w)
 	if !ok {
+		st.mu.Lock()
+		st.running = false
+		st.mu.Unlock()
 		writeError(w, http.StatusInternalServerError, "streaming not supported")
 		return
 	}
 
 	if _, err := s.prov.Update(restartAll, sw); err != nil {
+		st.mu.Lock()
+		st.lastErr = err.Error()
+		st.mu.Unlock()
 		streamLine(sw, fmt.Sprintf("ERROR: %v", err))
 		return
 	}
@@ -480,6 +528,19 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	} else {
 		streamLine(sw, fmt.Sprintf("NOTE: indexed this build under %s (versions.json)", s.cfg.Pserver.VersionsDir))
 	}
+
+	// Record success state.
+	if ti, err := s.vers.ReadTemplateInfo(); err == nil && ti != nil {
+		ver := ti.Semver
+		if ver == "" {
+			ver = ti.Tag
+		}
+		st.mu.Lock()
+		st.lastVersion = ver
+		st.lastErr = ""
+		st.mu.Unlock()
+	}
+
 	streamLine(sw, `{"ok":true}`)
 }
 

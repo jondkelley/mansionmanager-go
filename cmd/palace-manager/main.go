@@ -108,6 +108,7 @@ func runServe() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go nginxMgr.Start(ctx)
+	srv.Start(ctx)
 
 	addr := srv.Addr()
 	buildLabel := version

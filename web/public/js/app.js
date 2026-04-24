@@ -7,7 +7,7 @@ function showTab(name, btn) {
   if (name === 'palaces') loadPalaces();
   if (name === 'server-files') loadServerFilesPalaces().then(() => loadServerFileList());
   if (name === 'users') loadUsers();
-  if (name === 'update') { loadRolloutPanel(); loadManagerVersionInfo(); }
+  if (name === 'update') { loadPserverUpdateStatus(); loadRolloutPanel(); loadManagerVersionInfo(); }
   if (name === 'nginx') { loadNginxSettingsForm(); loadNginxStatus(); loadBootstrapStatus(); }
 }
 

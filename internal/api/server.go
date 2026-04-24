@@ -1,11 +1,15 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"palace-manager/internal/authstore"
@@ -20,22 +24,36 @@ import (
 	"palace-manager/web"
 )
 
+const pserverAutoUpdateInterval = 2 * time.Hour
+
+// pserverUpdateState tracks the running / last-completed state of pserver binary updates
+// (both background auto-updates and manual ones triggered via the UI).
+type pserverUpdateState struct {
+	mu          sync.Mutex
+	running     bool
+	startedAt   time.Time
+	lastRun     time.Time
+	lastVersion string // semver from last successful update
+	lastErr     string
+}
+
 // Server wires all dependencies into an http.Handler.
 type Server struct {
-	cfg        *config.Config
-	configPath string
-	version    string
-	gitHash    string
-	instances  *instance.Manager
-	prov       *provisioner.Provisioner
-	nginx      *nginx.Manager
-	boot       *bootstrap.Runner
-	reg        *registry.Registry
-	vers       *versionstore.Store
-	unreg      *unregistered.Store
-	authStore  *authstore.Store
-	mux        *http.ServeMux
-	updateCache *releaseCache
+	cfg           *config.Config
+	configPath    string
+	version       string
+	gitHash       string
+	instances     *instance.Manager
+	prov          *provisioner.Provisioner
+	nginx         *nginx.Manager
+	boot          *bootstrap.Runner
+	reg           *registry.Registry
+	vers          *versionstore.Store
+	unreg         *unregistered.Store
+	authStore     *authstore.Store
+	mux           *http.ServeMux
+	updateCache   *releaseCache
+	pserverUpdate *pserverUpdateState
 }
 
 func New(
@@ -53,23 +71,91 @@ func New(
 	authStore *authstore.Store,
 ) *Server {
 	s := &Server{
-		cfg:         cfg,
-		configPath:  configPath,
-		version:     version,
-		gitHash:     gitHash,
-		instances:   instances,
-		prov:        prov,
-		nginx:       nginxMgr,
-		boot:        bootRunner,
-		reg:         reg,
-		vers:        vers,
-		unreg:       unreg,
-		authStore:   authStore,
-		mux:         http.NewServeMux(),
-		updateCache: &releaseCache{ttl: 30 * time.Minute},
+		cfg:           cfg,
+		configPath:    configPath,
+		version:       version,
+		gitHash:       gitHash,
+		instances:     instances,
+		prov:          prov,
+		nginx:         nginxMgr,
+		boot:          bootRunner,
+		reg:           reg,
+		vers:          vers,
+		unreg:         unreg,
+		authStore:     authStore,
+		mux:           http.NewServeMux(),
+		updateCache:   &releaseCache{ttl: 30 * time.Minute},
+		pserverUpdate: &pserverUpdateState{},
 	}
 	s.routes()
 	return s
+}
+
+// Start launches background tasks (pserver auto-update loop). Call once after New.
+func (s *Server) Start(ctx context.Context) {
+	go s.pserverAutoUpdateLoop(ctx)
+}
+
+// pserverAutoUpdateLoop downloads the latest pserver binary every 2 hours silently.
+// Palaces that are set to "latest" automatically benefit on their next restart.
+func (s *Server) pserverAutoUpdateLoop(ctx context.Context) {
+	ticker := time.NewTicker(pserverAutoUpdateInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.runPserverUpdateJob(ctx)
+		}
+	}
+}
+
+// runPserverUpdateJob runs the pserver update script in the background and archives
+// the new binary. It is a no-op if an update is already in progress.
+func (s *Server) runPserverUpdateJob(ctx context.Context) {
+	st := s.pserverUpdate
+	st.mu.Lock()
+	if st.running {
+		st.mu.Unlock()
+		return
+	}
+	st.running = true
+	st.startedAt = time.Now()
+	st.mu.Unlock()
+
+	defer func() {
+		st.mu.Lock()
+		st.running = false
+		st.lastRun = time.Now()
+		st.mu.Unlock()
+	}()
+
+	if _, err := s.prov.Update(false, io.Discard); err != nil {
+		st.mu.Lock()
+		st.lastErr = err.Error()
+		st.mu.Unlock()
+		log.Printf("pserver auto-update: %v", err)
+		return
+	}
+
+	if err := s.vers.ArchiveFromTemplate(); err != nil {
+		log.Printf("pserver auto-update archive: %v", err)
+	}
+
+	ti, _ := s.vers.ReadTemplateInfo()
+	st.mu.Lock()
+	st.lastErr = ""
+	if ti != nil {
+		if ti.Semver != "" {
+			st.lastVersion = ti.Semver
+		} else if ti.Tag != "" {
+			st.lastVersion = ti.Tag
+		}
+	}
+	st.mu.Unlock()
+
+	log.Printf("pserver auto-update completed: %s", st.lastVersion)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +271,15 @@ func (s *Server) routes() {
 	// Manager self-update
 	s.mux.Handle("/api/manager/version", auth(http.HandlerFunc(s.handleManagerVersion)))
 	s.mux.Handle("/api/manager/update", auth(http.HandlerFunc(s.handleManagerSelfUpdate)))
+
+	// pserver update status
+	s.mux.Handle("/api/pserver/update-status", auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.handlePserverUpdateStatus(w, r)
+	})))
 }
 
 func (s *Server) routePalaces(w http.ResponseWriter, r *http.Request) {

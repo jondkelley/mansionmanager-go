@@ -383,3 +383,57 @@ func normaliseVersion(v string) string {
 	}
 	return v
 }
+
+// handlePserverUpdateStatus returns the current status of pserver binary updates:
+// whether an update is running, when it last ran, what version it installed, and the
+// auto-update interval.
+func (s *Server) handlePserverUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+
+	st := s.pserverUpdate
+	st.mu.Lock()
+	running := st.running
+	startedAt := st.startedAt
+	lastRun := st.lastRun
+	lastVersion := st.lastVersion
+	lastErr := st.lastErr
+	st.mu.Unlock()
+
+	// Also read the current template info so the UI always has the installed version
+	// even before the first manual/auto update via this server process.
+	if lastVersion == "" {
+		if ti, err := s.vers.ReadTemplateInfo(); err == nil && ti != nil {
+			if ti.Semver != "" {
+				lastVersion = ti.Semver
+			} else if ti.Tag != "" {
+				lastVersion = ti.Tag
+			}
+		}
+	}
+
+	type resp struct {
+		Running       bool    `json:"running"`
+		StartedAt     string  `json:"startedAt,omitempty"`
+		LastRun       string  `json:"lastRun,omitempty"`
+		LastVersion   string  `json:"lastVersion,omitempty"`
+		LastErr       string  `json:"lastErr,omitempty"`
+		IntervalHours float64 `json:"intervalHours"`
+	}
+
+	out := resp{
+		Running:       running,
+		LastVersion:   lastVersion,
+		LastErr:       lastErr,
+		IntervalHours: pserverAutoUpdateInterval.Hours(),
+	}
+	if running && !startedAt.IsZero() {
+		out.StartedAt = startedAt.UTC().Format(time.RFC3339)
+	}
+	if !lastRun.IsZero() {
+		out.LastRun = lastRun.UTC().Format(time.RFC3339)
+	}
+
+	writeJSON(w, http.StatusOK, out)
+}
