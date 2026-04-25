@@ -1,5 +1,6 @@
 let BACKUPS_MODAL_NAME = '';
 let BACKUPS_ACTIVE_TAB = 'pat';
+let BACKUPS_RESTORE_PENDING = null; // { palaceName, filename } or null
 
 function openPalaceBackupsModal(palaceName) {
   BACKUPS_MODAL_NAME = palaceName;
@@ -15,6 +16,7 @@ function openPalaceBackupsModal(palaceName) {
 function closeBackupsModal() {
   $('backupsModal').classList.remove('open');
   BACKUPS_MODAL_NAME = '';
+  hideBackupsRestoreConfirm();
   hideBackupsRestoreOverlay();
 }
 
@@ -26,6 +28,33 @@ function showBackupsRestoreOverlay() {
 function hideBackupsRestoreOverlay() {
   const o = $('backupsRestoreOverlay');
   if (o) o.classList.remove('open');
+}
+
+function hideBackupsRestoreConfirm() {
+  const o = $('backupsRestoreConfirmOverlay');
+  if (o) {
+    o.classList.remove('open');
+    o.setAttribute('aria-hidden', 'true');
+  }
+  BACKUPS_RESTORE_PENDING = null;
+  const btn = $('backupsRestoreConfirmOk');
+  if (btn) btn.disabled = false;
+}
+
+function showBackupsRestoreConfirm(palaceName, filename) {
+  BACKUPS_RESTORE_PENDING = { palaceName, filename };
+  const body = $('backupsRestoreConfirmBody');
+  if (body) {
+    body.textContent =
+      'Restore ' + filename + '? The palace service will stop, the live file will be replaced from the backup, then the service will start again.';
+  }
+  const o = $('backupsRestoreConfirmOverlay');
+  if (o) {
+    o.classList.add('open');
+    o.setAttribute('aria-hidden', 'false');
+  }
+  const ok = $('backupsRestoreConfirmOk');
+  if (ok) ok.focus();
 }
 
 async function refreshBackupsModal() {
@@ -80,7 +109,7 @@ function renderBackupsTableForTab(kind) {
     const sz = formatBackupSize(it.size);
     const dt = it.modTime ? esc(it.modTime) : '—';
     const dateTag = esc(it.dateTag || '');
-    return `<tr><td><code>${esc(it.filename)}</code></td><td>${dateTag}</td><td>${sz}</td><td style="font-size:11px;color:var(--muted);">${dt}</td><td><button type="button" onclick='restoreConfigBackup(${nm},${fn})'>Restore backup</button></td></tr>`;
+    return `<tr><td><code>${esc(it.filename)}</code></td><td>${dateTag}</td><td>${sz}</td><td style="font-size:11px;color:var(--muted);">${dt}</td><td><button type="button" onclick='openBackupsRestoreConfirm(${nm},${fn})'>Restore backup</button></td></tr>`;
   }).join('');
 }
 
@@ -126,8 +155,15 @@ function downloadPalaceBackupFromBackupsModal() {
   downloadPalaceHomeBackup(BACKUPS_MODAL_NAME);
 }
 
-async function restoreConfigBackup(palaceName, filename) {
-  if (!confirm('Restore this backup? The palace service will stop, the live file will be replaced from the backup, then the service will start again.')) return;
+function openBackupsRestoreConfirm(palaceName, filename) {
+  showBackupsRestoreConfirm(palaceName, filename);
+}
+
+async function executeRestoreConfigBackup() {
+  const pending = BACKUPS_RESTORE_PENDING;
+  if (!pending) return;
+  const { palaceName, filename } = pending;
+  hideBackupsRestoreConfirm();
   showBackupsRestoreOverlay();
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), 180000);

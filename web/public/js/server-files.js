@@ -9,6 +9,11 @@ async function openServerFilesModal(name) {
   $('sfBinaryNote').style.display = 'none';
   $('sfSaveBtn').style.display = 'none';
   $('serverFilesModal').classList.add('open');
+  if (window.sfPatHighlight) {
+    sfPatHighlight.init();
+    sfPatHighlight.setMode(false);
+    sfPatHighlight.resetExpand();
+  }
   await loadServerFileList();
 }
 
@@ -18,6 +23,10 @@ function closeServerFilesModal() {
   SF_FILE = '';
   SF_FILE_ENCODING = 'utf8';
   SF_ALLOW_SAVE = false;
+  if (window.sfPatHighlight) {
+    sfPatHighlight.setMode(false);
+    sfPatHighlight.resetExpand();
+  }
 }
 
 async function loadServerFileList() {
@@ -176,7 +185,7 @@ async function downloadServerFileDirect(palaceName, fileName) {
 async function viewServerFile(palaceName, fileName) {
   SF_PALACE = palaceName;
   SF_FILE = fileName;
-  $('sfViewerWrap').style.display = 'block';
+  $('sfViewerWrap').style.display = 'flex';
   $('sfViewerTitle').textContent = fileName;
   $('sfContent').value = 'Loading…';
   $('sfBinaryNote').style.display = 'none';
@@ -184,6 +193,7 @@ async function viewServerFile(palaceName, fileName) {
   $('sfSaveBtn').style.display = 'none';
   SF_FILE_ENCODING = 'utf8';
   SF_ALLOW_SAVE = false;
+  if (window.sfPatHighlight) sfPatHighlight.setMode(false);
   try {
     const res = await fetch(`/api/palaces/${encodeURIComponent(palaceName)}/server-files/${encodeURIComponent(fileName)}`, { headers: headers() });
     const data = await res.json().catch(() => ({}));
@@ -214,6 +224,9 @@ async function viewServerFile(palaceName, fileName) {
         } catch (_) { /* leave raw */ }
       }
       $('sfContent').value = text;
+      // Enable PAT/iptscrae syntax highlighting for .pat files
+      const isPat = fileName.toLowerCase().endsWith('.pat');
+      if (window.sfPatHighlight) sfPatHighlight.setMode(isPat);
     }
   } catch (e) {
     SF_ALLOW_SAVE = false;

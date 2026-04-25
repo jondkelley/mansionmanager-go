@@ -37,7 +37,7 @@ function hidePasswordGate() {
 function applySessionUI() {
   const admin = SESSION && SESSION.role === 'admin';
   const primaryAdmin = admin && !!SESSION.isPrimaryAdmin;
-  ['navUpdate', 'navNginx', 'navUsers', 'btnNewPalace'].forEach(id => {
+  ['navUpdate', 'navNginx', 'navUsers', 'navBans', 'btnNewPalace'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = admin ? '' : 'none';
   });

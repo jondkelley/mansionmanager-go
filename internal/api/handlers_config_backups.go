@@ -17,6 +17,9 @@ import (
 // Config backup filenames: <basename>-mm-dd-yy.bak (UTC date tag).
 const configBackupDateTagLayout = "01-02-06"
 
+// configBackupMaxKeep is the number of dated snapshots to retain per file (pserver.pat, pserver.prefs, serverprefs.json).
+const configBackupMaxKeep = 30
+
 var reConfigBackupFile = regexp.MustCompile(`^(pserver\.pat|pserver\.prefs|serverprefs\.json)-(\d{2}-\d{2}-\d{2})\.bak$`)
 
 type configBackupListItem struct {
@@ -202,7 +205,59 @@ func (s *Server) doPalaceConfigBackup(palaceName string, nowUTC time.Time) ([]st
 		}
 		created = append(created, filepath.Base(dst))
 	}
+	if err := pruneExcessConfigBackups(bdir); err != nil {
+		log.Printf("prune config backups [%s]: %v", palaceName, err)
+	}
 	return created, nil
+}
+
+// pruneExcessConfigBackups removes older dated .bak files so at most configBackupMaxKeep remain per base name.
+func pruneExcessConfigBackups(bdir string) error {
+	entries, err := os.ReadDir(bdir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	byBase := map[string][]string{}
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		name := ent.Name()
+		m := reConfigBackupFile.FindStringSubmatch(name)
+		if m == nil {
+			continue
+		}
+		base := m[1]
+		byBase[base] = append(byBase[base], name)
+	}
+	for _, files := range byBase {
+		if len(files) <= configBackupMaxKeep {
+			continue
+		}
+		sort.Slice(files, func(i, j int) bool {
+			mi := reConfigBackupFile.FindStringSubmatch(files[i])
+			mj := reConfigBackupFile.FindStringSubmatch(files[j])
+			if len(mi) < 3 || len(mj) < 3 {
+				return files[i] > files[j]
+			}
+			ti := parseConfigBackupDateTag(mi[2])
+			tj := parseConfigBackupDateTag(mj[2])
+			if !ti.Equal(tj) {
+				return ti.After(tj)
+			}
+			return files[i] > files[j]
+		})
+		for i := configBackupMaxKeep; i < len(files); i++ {
+			p := filepath.Join(bdir, files[i])
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				log.Printf("prune config backup remove %s: %v", p, err)
+			}
+		}
+	}
+	return nil
 }
 
 func copyFileToAs(src, dst, linuxUser string) error {

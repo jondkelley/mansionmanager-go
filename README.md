@@ -347,7 +347,7 @@ curl -X POST "http://127.0.0.1:3000/api/update?restartAll=true" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-Both stream output. The **Update Binary** tab in the web UI does the same.
+Both stream output. The **Updates** tab in the web UI does the same.
 
 ---
 

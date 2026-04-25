@@ -234,41 +234,19 @@
   .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .palace-detail-value code { font-size: 12px; }
   .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: flex-start; }
-  .palace-action-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: nowrap;
+  .palace-details-side {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 24px;
+    margin-left: auto;
+    justify-content: flex-end;
+    align-items: flex-start;
   }
-  .palace-action-label {
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    white-space: nowrap;
-  }
-  .palace-action-select {
-    width: auto;
-    min-width: 8.5em;
-    max-width: none;
-    padding: 5px 10px 5px 12px;
-    font-size: 12px;
-    line-height: 1.2;
-    border-radius: 6px;
-    cursor: pointer;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 3px rgba(0,0,0,.25);
-    background-color: var(--surface2);
-    background-image: var(--metal-shine), var(--metal-brush);
-    border: 1px solid var(--border);
-    color: var(--text);
-  }
-  .palace-action-select:hover {
-    background-color: var(--btn-hover-bg);
-    background-image: var(--metal-shine), var(--metal-brush);
-  }
-  .palace-action-select:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+  .unregistered-palace-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
   .log-file-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; min-height: 28px; }
   .log-file-tabs button { font-size: 11px; padding: 3px 10px; border-radius: 12px; }
@@ -309,6 +287,31 @@
   .palace-stat-item.stat-unavailable .palace-stat-value { color: var(--muted); }
   /* Palace users modal table */
   #palaceUsersModal .modal { max-width: 1000px; width: 96%; }
+  /* Bans tab table */
+  .bans-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .bans-table th, .bans-table td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-shade);
+  }
+  .bans-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--card); z-index: 1; }
+  .bans-table td { vertical-align: top; }
+  .bans-table .ban-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); }
+  .bans-table .ban-kind-deny { color: var(--red); font-weight: 600; }
+  .bans-table .ban-kind-track { color: var(--accent); font-weight: 600; }
+  .bans-table .ban-kind-timed { color: #f59e0b; font-weight: 600; }
+  .bans-table .ban-inactive { opacity: .45; }
+  .bans-table .ban-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bans-table .btn-unban { font-size: 11px; padding: 2px 10px; background: var(--red); color: #fff; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+  .bans-table .btn-unban:hover { opacity: .85; }
+  .bans-table-scroll { max-height: 520px; overflow-y: auto; }
+  .bans-palace-select { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .bans-palace-select label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .bans-palace-select select { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg, var(--bg)); color: var(--text); font-size: 13px; }
+  .bans-alert { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 10px; display: none; }
+  .bans-alert.error { background: rgba(220,38,38,.12); border: 1px solid rgba(220,38,38,.35); color: var(--red); display: block; }
+  .bans-alert.success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: var(--green); display: block; }
+  /* Palace users modal table */
   .palace-users-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .palace-users-table th, .palace-users-table td {
     padding: 5px 8px;
@@ -448,9 +451,52 @@
     box-shadow: inset 0 2px 10px rgba(0,0,0,.45);
   }
   .stream:empty::after { content: "No output yet."; color: var(--muted); }
+  /* ─── PAT / Iptscrae syntax highlighting colours ─── */
+  .ipt-comment  { color: #6c7a8d; font-style: italic; }
+  .ipt-string   { color: #6dbf7b; }
+  .ipt-number   { color: #c480c4; }
+  .ipt-command  { color: #6bbfc8; }
+  .ipt-control  { color: #c87070; font-weight: bold; }
+  .ipt-event    { color: #c8a84e; font-weight: bold; }
+  .ipt-variable { color: #b8bfcc; }
+  .ipt-extvar   { color: #b8bfcc; text-shadow: 0 0 5px rgba(107,191,200,.65), 0 0 12px rgba(107,191,200,.35); }
+  .ipt-operator { color: #c88a4e; }
+  .ipt-bracket  { color: #7a7ebc; }
+  .ipt-room     { color: #7bc9f0; font-weight: bold; }
+  .ipt-section  { color: #8dd8a8; }
+  /* ─── Stacked editor (textarea + highlight overlay) ─── */
+  #sfEditorWrap {
+    position: relative;
+    height: 300px;
+    transition: height .2s ease;
+  }
+  #sfEditorWrap.sf-expanded { height: 65vh; }
+  #sfHighlight {
+    display: none;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    margin: 0;
+    padding: 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background-color: var(--inset);
+    background-image: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 45%), var(--metal-brush);
+    border: 1px solid var(--border-shade);
+    border-radius: 8px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.45);
+    color: var(--text);
+  }
   #sfContent {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    min-height: 300px;
+    height: 100%;
     background-color: var(--inset);
     background-image: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 45%), var(--metal-brush);
     border: 1px solid var(--border-shade);
@@ -461,7 +507,16 @@
     color: var(--text);
     line-height: 1.45;
     box-shadow: inset 0 2px 10px rgba(0,0,0,.45);
-    resize: vertical;
+    resize: none;
+    z-index: 1;
+  }
+  #sfContent.sf-highlight-active {
+    background: transparent !important;
+    background-image: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    color: transparent !important;
+    caret-color: #c5ccd8 !important;
   }
   .step-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
   .step-row {
@@ -567,6 +622,18 @@
     z-index: 6;
   }
   .backups-restore-overlay.open { display: flex; }
+  .backups-confirm-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    border-radius: 12px;
+    align-items: center;
+    justify-content: center;
+    z-index: 7;
+    padding: 16px;
+  }
+  .backups-confirm-overlay.open { display: flex; }
   .backups-restore-card {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -577,6 +644,18 @@
     font-weight: 500;
     text-align: center;
   }
+  .backups-confirm-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.45);
+    max-width: 420px;
+    width: 100%;
+  }
+  .backups-confirm-card h4 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
+  .backups-confirm-card p { font-size: 13px; line-height: 1.5; color: var(--text); margin: 0 0 16px; }
+  .backups-confirm-card .backups-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
   .backups-tab-bar { display: flex; flex-wrap: wrap; gap: 4px; }
   .backups-tab { font-size: 11px; padding: 4px 10px; border-radius: 12px; }
   .backups-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
@@ -761,9 +840,6 @@
   html[data-theme="basic"] select {
     box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
   }
-  html[data-theme="basic"] .palace-action-select {
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(15,23,42,.1);
-  }
   html[data-theme="basic"] #mediaPreviewBody {
     background: #f3f4f6;
   }
@@ -832,8 +908,9 @@
     <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
     <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none">StaffPass™</button>
     <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none">Users</button>
-    <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Update Binary<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
-    <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Nginx &amp; Setup</button>
+    <button type="button" id="navBans" onclick="showTab('bans',this)" style="display:none">Bans</button>
+    <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Updates<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
+    <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Initial Setup</button>
     <button type="button" id="logoutBtn" onclick="doLogout()">Sign out</button>
   </nav>
 </header>
@@ -929,6 +1006,47 @@
       <thead><tr><th>Line</th><th>Scope</th><th>User</th><th>Actions</th></tr></thead>
       <tbody id="wizPassEntriesBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
     </table>
+  </div>
+</div>
+
+<!-- ===== BANS TAB ===== -->
+<div id="tab-bans" class="tab">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+      <h2>Banlist</h2>
+      <button type="button" onclick="loadBansTab()" style="font-size:13px;padding:5px 12px;">&#x21bb; Refresh</button>
+    </div>
+    <div class="bans-palace-select">
+      <label for="bansPalaceSelect">Palace:</label>
+      <select id="bansPalaceSelect" onchange="loadBansTab()">
+        <option value="">— select a palace —</option>
+      </select>
+      <input type="search" id="bansSearch" placeholder="Filter entries…" autocomplete="off" spellcheck="false"
+        style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg,var(--bg));color:var(--text);font-size:13px;min-width:180px;"
+        oninput="onBansSearch()">
+    </div>
+    <div id="bansAlert" class="bans-alert"></div>
+    <div id="bansLoading" style="display:none;padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">Loading…</div>
+    <div id="bansEmpty" style="display:none;padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">No ban records found.</div>
+    <div class="bans-table-scroll" id="bansTableWrap" style="display:none;">
+      <table class="bans-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Kind</th>
+            <th>Active</th>
+            <th>By</th>
+            <th>Reason</th>
+            <th>Details</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bansTbody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5;">
+      Unban removes the record and pages wizards in-world: <em>Page from System: Unbanned by PalaceManager (you)</em>.
+    </p>
   </div>
 </div>
 
@@ -1222,6 +1340,7 @@
     <p id="backupsDirHint" style="font-size:11px;color:var(--muted);margin-bottom:8px;word-break:break-all;"></p>
     <p style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:10px;">
       Each day at <strong>midnight UTC</strong>, the manager copies <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code> (when present) into <code>backups/</code> under the palace data directory, using names like <code>pserver.pat-mm-dd-yy.bak</code>.
+      After each run, older snapshots are removed so <strong>only the 30 most recent dated files per config</strong> remain.
       <strong>Take backup now</strong> writes the same snapshots on demand (every file that exists is copied into <code>backups/</code> for today’s UTC date tag, overwriting today’s files if you run it again).
       <strong>Download backup</strong> is a full gzip tarball of the palace Unix home (the on-disk <code>backups/</code> tree is excluded from that archive).
     </p>
@@ -1245,6 +1364,16 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" onclick="refreshBackupsModal()">Refresh</button>
         <button type="button" onclick="closeBackupsModal()">Close</button>
+      </div>
+    </div>
+    <div id="backupsRestoreConfirmOverlay" class="backups-confirm-overlay" aria-hidden="true">
+      <div class="backups-confirm-card" role="dialog" aria-modal="true" aria-labelledby="backupsRestoreConfirmTitle">
+        <h4 id="backupsRestoreConfirmTitle">Restore this backup?</h4>
+        <p id="backupsRestoreConfirmBody">The palace service will stop, the live file will be replaced from the backup, then the service will start again.</p>
+        <div class="backups-confirm-actions">
+          <button type="button" onclick="hideBackupsRestoreConfirm()">Cancel</button>
+          <button type="button" class="primary" id="backupsRestoreConfirmOk" onclick="executeRestoreConfigBackup()">Restore</button>
+        </div>
       </div>
     </div>
     <div id="backupsRestoreOverlay" class="backups-restore-overlay" aria-live="polite">
@@ -1352,25 +1481,29 @@
 <div class="modal-bg" id="serverFilesModal">
   <div class="modal" style="max-width:860px;width:96%;max-height:92vh;display:flex;flex-direction:column;">
     <h3 id="serverFilesModalTitle">Files</h3>
-    <div class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+    <div id="sfTopControls" class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:center;">
       <button type="button" onclick="loadServerFileList()">Refresh</button>
       <button type="button" class="primary" onclick="openPatUploadModal()">Upload pserver.pat…</button>
     </div>
-    <div style="flex:1;min-height:160px;max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+    <div id="sfFileListWrap" style="flex:1;min-height:160px;max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
       <table style="font-size:12px;">
         <thead><tr><th>File</th><th>Size</th><th>Actions</th></tr></thead>
         <tbody id="sfFilesBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
-    <div id="sfViewerWrap" style="margin-top:14px;display:none;">
+    <div id="sfViewerWrap" style="margin-top:14px;display:none;flex:1;min-height:0;flex-direction:column;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
         <strong id="sfViewerTitle" style="font-size:13px;"></strong>
         <div class="actions">
+          <button type="button" id="sfExpandBtn" onclick="sfPatHighlight.toggleExpand()">Expand &#x2193;</button>
           <button type="button" id="sfSaveBtn" class="primary" style="display:none;" onclick="openSfSaveModal()">Save…</button>
           <button type="button" id="sfDownloadBtn" onclick="downloadServerFileBlob()">Download</button>
         </div>
       </div>
-      <textarea id="sfContent"></textarea>
+      <div id="sfEditorWrap">
+        <pre id="sfHighlight" aria-hidden="true"></pre>
+        <textarea id="sfContent" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
       <p id="sfBinaryNote" style="display:none;color:var(--muted);font-size:12px;margin-top:8px;">Binary content is shown base64-encoded in JSON; use Download for the raw file.</p>
     </div>
     <div class="modal-footer"><button type="button" onclick="closeServerFilesModal()">Close</button></div>
@@ -1644,11 +1777,13 @@
 <script src="/js/users.js"></script>
 <script src="/js/wizpasses.js"></script>
 <script src="/js/media.js"></script>
+<script src="/js/pat-highlight.js"></script>
 <script src="/js/server-files.js"></script>
 <script src="/js/palaces.js"></script>
 <script src="/js/backups.js"></script>
 <script src="/js/update.js"></script>
 <script src="/js/nginx.js"></script>
+<script src="/js/bans.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

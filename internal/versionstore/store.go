@@ -295,7 +295,7 @@ func (s *Store) ResolveBinary(semver string) (string, error) {
 			return "", fmt.Errorf("binary for %s not found on disk", v.Semver)
 		}
 	}
-	return "", fmt.Errorf("unknown archived version %q — run Update Binary first", semver)
+	return "", fmt.Errorf("unknown archived version %q — run Updates first", semver)
 }
 
 func fileExists(p string) bool {

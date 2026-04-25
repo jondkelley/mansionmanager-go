@@ -9,6 +9,7 @@ function showTab(name, btn) {
   if (name === 'wizpasses') loadWizPasses();
   if (name === 'update') { loadPserverUpdateStatus(); loadRolloutPanel(); loadManagerVersionInfo(); }
   if (name === 'nginx') { loadNginxSettingsForm(); loadNginxStatus(); loadBootstrapStatus(); }
+  if (name === 'bans') { populateBansPalaceSelect(); }
 }
 
 document.addEventListener('keydown', (ev) => {
@@ -26,7 +27,12 @@ document.addEventListener('keydown', (ev) => {
     closeMediaDeleteModal();
     ev.preventDefault();
   } else if ($('backupsModal').classList.contains('open')) {
-    closeBackupsModal();
+    const restoreConfirm = $('backupsRestoreConfirmOverlay');
+    if (restoreConfirm && restoreConfirm.classList.contains('open')) {
+      hideBackupsRestoreConfirm();
+    } else {
+      closeBackupsModal();
+    }
     ev.preventDefault();
   } else if ($('mediaModal').classList.contains('open')) {
     closeMediaModal();

@@ -170,28 +170,11 @@ function palaceStatusDot(status) {
   return { dotClass: 'status-dot-warn', title: 'Status unknown' };
 }
 
-/** Suggested next service control for the Action dropdown (user can still pick any). */
-function defaultPalaceServiceAction(status) {
-  if (status === 'active') return 'stop';
-  if (status === 'inactive') return 'start';
-  if (status === 'failed') return 'restart';
-  return 'restart';
-}
-
-function palaceServiceActionSelectHTML(nameJson, status) {
-  const d = defaultPalaceServiceAction(status);
-  const opt = (value, label) =>
-    `<option value="${value}"${value === d ? ' selected' : ''}>${label}</option>`;
-  return `<span class="palace-action-inline">
-    <label class="palace-action-label">Action</label>
-    <select class="palace-action-select" title="Start, stop, or restart this palace service" aria-label="Service action" onchange="palaceActionFromSelect(this, ${nameJson})">${opt('start', 'Start')}${opt('stop', 'Stop')}${opt('restart', 'Restart')}</select>
-  </span>`;
-}
-
-function palaceActionFromSelect(sel, name) {
-  const action = sel && sel.value;
-  if (!action || !name) return;
-  palaceAction(name, action);
+/** Stop / Start / Restart — runs immediately (no confirmation). */
+function palaceServiceControlButtonsHTML(nameJson) {
+  return `<button type="button" onclick='void palaceAction(${nameJson},"stop")'>Stop</button>` +
+    `<button type="button" onclick='void palaceAction(${nameJson},"start")'>Start</button>` +
+    `<button type="button" onclick='void palaceAction(${nameJson},"restart")'>Restart</button>`;
 }
 
 const PROVISION_TCP_RANGE = [9990, 10990];
@@ -303,7 +286,7 @@ async function loadPalaces() {
         const nm = JSON.stringify(p.name);
         const removeBtn = `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`;
         const orphanSettingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
-        const serviceAction = palaceServiceActionSelectHTML(nm, p.status);
+        const controlBtns = palaceServiceControlButtonsHTML(nm);
         return `
       <tr>
         <td><strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Not in registry yet">Not registered</span></td>
@@ -311,11 +294,16 @@ async function loadPalaces() {
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
         <td>
-          <div class="actions">
-            <button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>
-            ${orphanSettingsBtn}
-            ${serviceAction}
-            ${removeBtn}
+          <div class="actions unregistered-palace-actions">
+            <div class="palace-detail-block" style="margin:0;">
+              <span class="palace-detail-label">Control</span>
+              <div class="palace-detail-actions" style="justify-content:flex-start;">${controlBtns}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>
+              ${orphanSettingsBtn}
+              ${removeBtn}
+            </div>
           </div>
         </td>
       </tr>`;
@@ -361,6 +349,7 @@ async function loadPalaces() {
         : '';
       const summaryClass = isAdmin ? 'palace-row-summary' : '';
       const sid = palaceStatId(p.name);
+      const controlBtns = palaceServiceControlButtonsHTML(nm);
       return `
       <tr class="${summaryClass}${expanded ? ' palace-row-open' : ''}"${isAdmin ? ` onclick='togglePalaceAccordion(${nm})'` : ''}>
         <td>
@@ -381,17 +370,22 @@ async function loadPalaces() {
               <span class="palace-detail-label">Service user</span>
               <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
             </div>
-            <div class="palace-detail-block" style="margin-left:auto;">
-              <span class="palace-detail-label">Actions</span>
-              <div class="palace-detail-actions">
-                ${mediaBtn}
-                ${backupsBtn}
-                ${filesBtn}
-                ${settingsBtn}
-                ${logsBtn}
-                ${usersBtn}
-                ${palaceServiceActionSelectHTML(nm, p.status)}
-                ${removeBtn}
+            <div class="palace-details-side">
+              <div class="palace-detail-block">
+                <span class="palace-detail-label">Control</span>
+                <div class="palace-detail-actions">${controlBtns}</div>
+              </div>
+              <div class="palace-detail-block">
+                <span class="palace-detail-label">Actions</span>
+                <div class="palace-detail-actions">
+                  ${mediaBtn}
+                  ${backupsBtn}
+                  ${filesBtn}
+                  ${settingsBtn}
+                  ${logsBtn}
+                  ${usersBtn}
+                  ${removeBtn}
+                </div>
               </div>
             </div>
           </div>
@@ -420,7 +414,11 @@ async function loadPalaces() {
 }
 
 async function palaceAction(name, action) {
-  await fetch(`/api/palaces/${encodeURIComponent(name)}/${action}`, { method: 'POST', headers: headers() });
+  try {
+    await fetch(`/api/palaces/${encodeURIComponent(name)}/${action}`, { method: 'POST', headers: headers() });
+  } catch (_) {
+    /* no UI feedback — row refresh still picks up real state */
+  }
   setTimeout(loadPalaces, 800);
   if (action === 'start' || action === 'restart') {
     loadNginxStatus();
@@ -658,7 +656,7 @@ async function doProvision() {
     stream.innerHTML =
       `<span style="color:var(--yellow);font-weight:600;">⚠ Setup required</span>\n\n` +
       `<span style="color:var(--text);">${esc(data.error)}</span>\n\n` +
-      `<span style="color:var(--muted);">→ <a href="#" onclick="gotoUpdateTab();return false" style="color:var(--accent);">Go to Update Binary</a> and click <strong>Update Binary</strong> to download the pserver template, then come back here.</span>`;
+      `<span style="color:var(--muted);">→ <a href="#" onclick="gotoUpdateTab();return false" style="color:var(--accent);">Go to Updates</a> and click <strong>Updates</strong> to download the pserver template, then come back here.</span>`;
     _setProvisionRunning(false);
     return;
   }
@@ -701,7 +699,7 @@ function _showProvisionFailure() {
 
 function gotoUpdateTab() {
   closeProvisionModal();
-  const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim() === 'Update Binary');
+  const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim() === 'Updates');
   if (btn) showTab('update', btn);
 }
 

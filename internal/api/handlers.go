@@ -193,7 +193,7 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 	// Pre-flight: pserver template must exist before we touch any system state.
 	if fi, err := os.Stat(s.cfg.Pserver.TemplateDir); err != nil || !fi.IsDir() {
 		writeError(w, http.StatusPreconditionFailed,
-			fmt.Sprintf("pserver template not ready (%s) — go to Update Binary and click \"Update Binary\" first to download the pserver template", s.cfg.Pserver.TemplateDir))
+			fmt.Sprintf("pserver template not ready (%s) — go to Updates and click \"Updates\" first to download the pserver template", s.cfg.Pserver.TemplateDir))
 		return
 	}
 
