@@ -233,7 +233,12 @@
   .palace-detail-block { display: flex; flex-direction: column; gap: 6px; }
   .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .palace-detail-value code { font-size: 12px; }
-  .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: flex-start; }
+  .palace-media-group { display: inline-flex; flex-direction: column; gap: 3px; }
+  .log-file-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; min-height: 28px; }
+  .log-file-tabs button { font-size: 11px; padding: 3px 10px; border-radius: 12px; }
+  .log-file-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+  .log-auto-update-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
   /* Server-stats strip shown below the service-user / actions row */
   .palace-stats-strip {
     margin-top: 10px;
@@ -341,7 +346,13 @@
   }
   .status-dot-running {
     background: var(--green);
-    box-shadow: 0 0 0 1px rgba(95,212,160,.35), 0 0 10px rgba(95,212,160,.35);
+    box-shadow: 0 0 0 0 var(--green);
+    animation: status-pulse 2s ease-in-out infinite;
+  }
+  @keyframes status-pulse {
+    0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(95,212,160,.9); }
+    50%  { transform: scale(1);    box-shadow: 0 0 0 8px rgba(95,212,160,0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(95,212,160,0); }
   }
   .status-dot-stopped {
     background: var(--red);
@@ -756,8 +767,7 @@
   <span class="version" id="managerVersionBadge" title=""></span>
   <nav>
     <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
-    <button type="button" id="navServerFiles" onclick="showTab('server-files',this)">Server files</button>
-    <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none">WizPasses</button>
+    <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none">StaffPass™</button>
     <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none">Users</button>
     <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Update Binary<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
     <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Nginx &amp; Setup</button>
@@ -795,46 +805,6 @@
   </div>
 </div>
 
-<!-- ===== SERVER FILES (pserver.pat + root JSON) ===== -->
-<div id="tab-server-files" class="tab">
-  <div class="card">
-    <h2>Server files</h2>
-    <p style="color:var(--muted);margin-bottom:12px;font-size:13px;line-height:1.5;">
-      Browse <code>pserver.pat</code> and JSON files in each palace data directory (same folder as the running script).
-      For uploads, rename, delete, and search in <code>media/</code>, use <strong>Media</strong> on the Palaces tab — Palace Manager reads your palman systemd unit (<code>-m …</code>) and edits that folder on disk directly (no public media URL required).
-    </p>
-    <div class="form-row">
-      <div class="field">
-        <label>Palace</label>
-        <select id="sfPalace" style="min-width:220px;" onchange="loadServerFileList()"></select>
-      </div>
-      <div class="field">
-        <label>&nbsp;</label>
-        <button type="button" onclick="loadServerFilesPalaces(); loadServerFileList();">Refresh</button>
-      </div>
-      <div class="field">
-        <label>&nbsp;</label>
-        <button type="button" class="primary" onclick="openPatUploadModal()">Upload pserver.pat…</button>
-      </div>
-    </div>
-    <table>
-      <thead><tr><th>File</th><th>Size</th><th>Actions</th></tr></thead>
-      <tbody id="sfFilesBody"><tr><td colspan="3" class="empty">Select a palace.</td></tr></tbody>
-    </table>
-    <div id="sfViewerWrap" style="margin-top:18px;display:none;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
-        <strong id="sfViewerTitle" style="font-size:13px;"></strong>
-        <div class="actions">
-          <button type="button" id="sfSaveBtn" class="primary" style="display:none;" onclick="openSfSaveModal()">Save…</button>
-          <button type="button" id="sfDownloadBtn" onclick="downloadServerFileBlob()">Download</button>
-        </div>
-      </div>
-      <textarea id="sfContent"></textarea>
-      <p id="sfBinaryNote" style="display:none;color:var(--muted);font-size:12px;margin-top:8px;">Binary content is shown base64-encoded in JSON; use Download for the raw file.</p>
-    </div>
-  </div>
-</div>
-
 <!-- ===== USERS TAB ===== -->
 <div id="tab-users" class="tab">
   <div class="card">
@@ -854,15 +824,13 @@
 <!-- ===== WIZPASSES TAB (primary admin) ===== -->
 <div id="tab-wizpasses" class="tab">
   <div class="card">
-    <h2>WizPasses</h2>
+    <h2>StaffPass™</h2>
     <p style="color:var(--muted);margin-bottom:12px;font-size:13px;line-height:1.5;">
-      Add bcrypt host-pass entries for mansionsource-go promotions (host/admin to god/owner flows).
-      Shared entries are stored as a hash line; user-specific entries are stored as <code>username:hash</code>.
-      Only the primary admin account can use this panel.
+      This is used so your hosting staff can gain host level privileges on any server. Only the primary admin in Palace Manager can manage these passwords. They are stored hashed and encrypted on disk.
     </p>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
-      Client usage: global entries require <code>~susr</code> with password only; user-specific entries require <code>~susr username:password</code> (username is case-sensitive).
-    </p>
+    <div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.5;color:var(--red);">
+      <strong>Client:</strong> global entries require <code>~susr</code> with password; user-specific entries require <code>~susr username:password</code> (username is case-sensitive in true unix philosophy)
+    </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">
       File: <code id="wizPassPath">/etc/palacehostpass</code>
     </p>
@@ -1262,10 +1230,49 @@
 
 <!-- Log Modal -->
 <div class="modal-bg" id="logModal">
-  <div class="modal" style="max-width:800px;">
+  <div class="modal" style="max-width:900px;">
     <h3 id="logModalTitle">Logs</h3>
-    <div id="logContent" class="stream" style="max-height:460px;"></div>
-    <div class="modal-footer"><button type="button" onclick="closeLogModal()">Close</button></div>
+    <div id="logFileSelector" class="log-file-tabs"></div>
+    <div id="logContent" class="stream" style="max-height:420px;margin-top:0;"></div>
+    <div style="margin-top:8px;">
+      <input type="text" id="logSearch" placeholder="Search log…" style="width:100%;" oninput="applyLogSearch()" />
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <label class="log-auto-update-label">
+        <input type="checkbox" id="logAutoUpdate" checked onchange="onLogAutoUpdateChange()" />
+        Auto-update
+      </label>
+      <button type="button" onclick="closeLogModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Server Files Modal -->
+<div class="modal-bg" id="serverFilesModal">
+  <div class="modal" style="max-width:860px;width:96%;max-height:92vh;display:flex;flex-direction:column;">
+    <h3 id="serverFilesModalTitle">Files</h3>
+    <div class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+      <button type="button" onclick="loadServerFileList()">Refresh</button>
+      <button type="button" class="primary" onclick="openPatUploadModal()">Upload pserver.pat…</button>
+    </div>
+    <div style="flex:1;min-height:160px;max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+      <table style="font-size:12px;">
+        <thead><tr><th>File</th><th>Size</th><th>Actions</th></tr></thead>
+        <tbody id="sfFilesBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div id="sfViewerWrap" style="margin-top:14px;display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+        <strong id="sfViewerTitle" style="font-size:13px;"></strong>
+        <div class="actions">
+          <button type="button" id="sfSaveBtn" class="primary" style="display:none;" onclick="openSfSaveModal()">Save…</button>
+          <button type="button" id="sfDownloadBtn" onclick="downloadServerFileBlob()">Download</button>
+        </div>
+      </div>
+      <textarea id="sfContent"></textarea>
+      <p id="sfBinaryNote" style="display:none;color:var(--muted);font-size:12px;margin-top:8px;">Binary content is shown base64-encoded in JSON; use Download for the raw file.</p>
+    </div>
+    <div class="modal-footer"><button type="button" onclick="closeServerFilesModal()">Close</button></div>
   </div>
 </div>
 

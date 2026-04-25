@@ -5,7 +5,6 @@ function showTab(name, btn) {
   $('tab-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'palaces') loadPalaces();
-  if (name === 'server-files') loadServerFilesPalaces().then(() => loadServerFileList());
   if (name === 'users') loadUsers();
   if (name === 'wizpasses') loadWizPasses();
   if (name === 'update') { loadPserverUpdateStatus(); loadRolloutPanel(); loadManagerVersionInfo(); }
@@ -31,6 +30,12 @@ document.addEventListener('keydown', (ev) => {
     ev.preventDefault();
   } else if ($('patUploadModal').classList.contains('open')) {
     closePatUploadModal();
+    ev.preventDefault();
+  } else if ($('sfSaveModal').classList.contains('open')) {
+    closeSfSaveModal();
+    ev.preventDefault();
+  } else if ($('serverFilesModal').classList.contains('open')) {
+    closeServerFilesModal();
     ev.preventDefault();
   } else if ($('deleteUserModal').classList.contains('open')) {
     closeDeleteUserModal();

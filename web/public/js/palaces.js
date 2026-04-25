@@ -330,8 +330,8 @@ async function loadPalaces() {
         : '';
       const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
       const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
-      const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
-      const backupBtn = `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Media Backup</button>`;
+      const mediaGroup = `<div class="palace-media-group"><button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button><button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)" style="font-size:11px;">Media Backup</button></div>`;
+      const filesBtn = `<button type="button" onclick='openServerFilesModal(${nm})'>Files</button>`;
       const usersBtn = p.httpPort
         ? `<button type="button" onclick='openPalaceUsersModal(${nm})'>Users</button>`
         : '';
@@ -360,8 +360,8 @@ async function loadPalaces() {
             <div class="palace-detail-block" style="margin-left:auto;">
               <span class="palace-detail-label">Actions</span>
               <div class="palace-detail-actions">
-                ${mediaBtn}
-                ${backupBtn}
+                ${mediaGroup}
+                ${filesBtn}
                 <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
                 <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
                 <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
@@ -684,12 +684,17 @@ function gotoUpdateTab() {
 // Log modal (polls while open — near–real-time tail of pserver.log)
 let logLiveTimer = null;
 let logLiveName = null;
+let logActiveFile = 'pserver.log';
+let logAllLines = [];
 
-function _applyLogText(text) {
+function _renderLogContent() {
   const el = $('logContent');
+  const searchEl = $('logSearch');
+  const term = searchEl ? searchEl.value.toLowerCase().trim() : '';
   const fromBottom = el.scrollHeight - el.scrollTop;
   const stickBottom = fromBottom <= el.clientHeight + 80;
-  el.textContent = text;
+  const lines = term ? logAllLines.filter(l => l.toLowerCase().includes(term)) : logAllLines;
+  el.textContent = lines.join('\n');
   if (stickBottom) {
     el.scrollTop = el.scrollHeight;
   } else {
@@ -697,10 +702,20 @@ function _applyLogText(text) {
   }
 }
 
+function _applyLogText(text) {
+  logAllLines = text ? text.split('\n') : [];
+  _renderLogContent();
+}
+
+function applyLogSearch() {
+  _renderLogContent();
+}
+
 async function fetchPalaceLogs(name) {
   if (!$('logModal').classList.contains('open') || name !== logLiveName) return;
+  if (logActiveFile !== 'pserver.log') return;
   try {
-    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/logs?lines=200`, { headers: headers() });
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/logs?lines=500`, { headers: headers() });
     if (!res.ok) {
       _applyLogText(`Error: HTTP ${res.status}`);
       return;
@@ -712,17 +727,136 @@ async function fetchPalaceLogs(name) {
   }
 }
 
+function onLogAutoUpdateChange() {
+  const checked = $('logAutoUpdate') && $('logAutoUpdate').checked;
+  if (checked && logLiveName && logActiveFile === 'pserver.log') {
+    if (!logLiveTimer) {
+      logLiveTimer = setInterval(() => fetchPalaceLogs(logLiveName), 2000);
+    }
+  } else {
+    if (logLiveTimer) {
+      clearInterval(logLiveTimer);
+      logLiveTimer = null;
+    }
+  }
+}
+
+async function _loadArchivedLog(name, fileName) {
+  $('logContent').textContent = 'Loading…';
+  logAllLines = [];
+  try {
+    const res = await fetch(
+      `/api/palaces/${encodeURIComponent(name)}/server-files/${encodeURIComponent(fileName)}`,
+      { headers: headers() }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      _applyLogText(`Error: ${data.error || ('HTTP ' + res.status)}`);
+      return;
+    }
+    if (data.encoding === 'base64') {
+      try {
+        const binary = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
+        const ds = new DecompressionStream('gzip');
+        const decompressed = await new Response(
+          new Blob([binary]).stream().pipeThrough(ds)
+        ).text();
+        _applyLogText(decompressed);
+      } catch (e) {
+        _applyLogText(`Error decompressing ${fileName}: ${e.message}`);
+      }
+    } else {
+      _applyLogText(typeof data.content === 'string' ? data.content : '');
+    }
+  } catch (e) {
+    _applyLogText(`Error: ${e.message}`);
+  }
+}
+
+async function selectLogFile(name, fileName) {
+  logActiveFile = fileName;
+
+  // Update active state of tab buttons
+  const sel = $('logFileSelector');
+  for (const btn of sel.querySelectorAll('button')) {
+    const btnFile = btn.dataset.file;
+    btn.classList.toggle('active', btnFile === fileName);
+  }
+
+  // Stop live timer when viewing an archived file
+  if (logLiveTimer) {
+    clearInterval(logLiveTimer);
+    logLiveTimer = null;
+  }
+
+  if (fileName === 'pserver.log') {
+    $('logContent').textContent = 'Loading…';
+    await fetchPalaceLogs(name);
+    const autoUpdate = $('logAutoUpdate');
+    if (autoUpdate && autoUpdate.checked && !logLiveTimer) {
+      logLiveTimer = setInterval(() => fetchPalaceLogs(name), 2000);
+    }
+  } else {
+    await _loadArchivedLog(name, fileName);
+  }
+}
+
+async function _loadLogFileSelector(name) {
+  const sel = $('logFileSelector');
+  sel.innerHTML = '<span style="color:var(--muted);font-size:11px;">Loading files…</span>';
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/server-files`, { headers: headers() });
+    if (!res.ok) { sel.innerHTML = ''; return; }
+    const data = await res.json();
+    const files = (data.files || []).filter(f => isPalaceServerLogFamily(f.name));
+    // Sort: pserver.log first, then by name (pserver.log.1, pserver.log.1.gz, pserver.log.2, …)
+    files.sort((a, b) => {
+      if (a.name === 'pserver.log') return -1;
+      if (b.name === 'pserver.log') return 1;
+      return a.name.localeCompare(b.name);
+    });
+    sel.innerHTML = '';
+    for (const f of files) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.file = f.name;
+      btn.textContent = f.name === 'pserver.log' ? 'Current' : f.name;
+      if (f.name === logActiveFile) btn.classList.add('active');
+      btn.onclick = () => selectLogFile(name, f.name);
+      sel.appendChild(btn);
+    }
+    if (files.length === 0) {
+      sel.innerHTML = '<span style="color:var(--muted);font-size:11px;">No log files found.</span>';
+    }
+  } catch (_) {
+    sel.innerHTML = '';
+  }
+}
+
 async function viewLogs(name) {
   if (logLiveTimer) {
     clearInterval(logLiveTimer);
     logLiveTimer = null;
   }
   logLiveName = name;
-  $('logModalTitle').textContent = `Logs — ${name} · auto-refresh`;
-  $('logContent').textContent = 'Loading...';
+  logActiveFile = 'pserver.log';
+  logAllLines = [];
+
+  $('logModalTitle').textContent = `Logs — ${name}`;
+  $('logContent').textContent = 'Loading…';
+  $('logFileSelector').innerHTML = '';
+  const searchEl = $('logSearch');
+  if (searchEl) searchEl.value = '';
+  const autoUpdate = $('logAutoUpdate');
+  if (autoUpdate) autoUpdate.checked = true;
+
   $('logModal').classList.add('open');
 
-  await fetchPalaceLogs(name);
+  await Promise.all([
+    _loadLogFileSelector(name),
+    fetchPalaceLogs(name),
+  ]);
+
   logLiveTimer = setInterval(() => fetchPalaceLogs(name), 2000);
 }
 
@@ -732,12 +866,16 @@ function closeLogModal() {
     logLiveTimer = null;
   }
   logLiveName = null;
+  logActiveFile = 'pserver.log';
+  logAllLines = [];
   $('logModal').classList.remove('open');
 }
 
 // ===== Palace Server Stats (per-card polling) =====
 
-// Map of palace name → { fetchTimer, uptimeTimer, startTime }
+// Map of palace name → { fetchTimer, uptimeTimer, startTime, lastData }
+// lastData holds the most-recently-received stats payload so re-renders can
+// restore values immediately without waiting for the next poll tick.
 const PALACE_STAT_TIMERS = new Map();
 
 // Returns a DOM-safe ID prefix for a palace's stats elements.
@@ -764,6 +902,19 @@ function setStatEl(sid, key, value) {
   if (val) val.textContent = value;
 }
 
+// Write a full stats payload into the DOM elements for a given stat-strip ID.
+function applyPalaceStats(sid, d) {
+  setStatEl(sid, 'rooms',  d.room_count  ?? '—');
+  setStatEl(sid, 'online', d.user_count  ?? '—');
+  setStatEl(sid, 'max',    d.max_users   ?? '—');
+  setStatEl(sid, 'today',  d.users_today ?? '—');
+  setStatEl(sid, 'week',   d.users_week  ?? '—');
+  setStatEl(sid, 'ops',    (d.operators ?? 0));
+  setStatEl(sid, 'gods',   (d.gods ?? 0) + (d.hosts ?? 0));
+  setStatEl(sid, 'owners', d.owners ?? '—');
+  setStatEl(sid, 'uptime', formatUptime(d.start_time));
+}
+
 async function fetchPalaceStats(name) {
   const sid = palaceStatId(name);
   if (!document.getElementById(sid)) {
@@ -781,20 +932,10 @@ async function fetchPalaceStats(name) {
     const d = await res.json();
     const entry = PALACE_STAT_TIMERS.get(name) || {};
     entry.startTime = d.start_time;
+    entry.lastData  = d;
     PALACE_STAT_TIMERS.set(name, entry);
 
-    setStatEl(sid, 'rooms',  d.room_count  ?? '—');
-    setStatEl(sid, 'online', d.user_count  ?? '—');
-    setStatEl(sid, 'max',    d.max_users   ?? '—');
-    setStatEl(sid, 'today',  d.users_today ?? '—');
-    setStatEl(sid, 'week',   d.users_week  ?? '—');
-    const ops = (d.operators ?? 0);
-    const gods = (d.gods ?? 0) + (d.hosts ?? 0);
-    setStatEl(sid, 'ops',    ops);
-    setStatEl(sid, 'gods',   gods);
-    setStatEl(sid, 'owners', d.owners ?? '—');
-    // Uptime is updated by the per-second ticker; seed it immediately.
-    setStatEl(sid, 'uptime', formatUptime(d.start_time));
+    applyPalaceStats(sid, d);
   } catch (_) {
     // Silently ignore fetch errors between polls.
   }
@@ -818,25 +959,34 @@ function stopPalaceStatPolling(name) {
 }
 
 function startPalaceStatPolling(name) {
-  // Already polling → keep running.
+  // Already polling → keep running; timers survive the DOM re-render.
   if (PALACE_STAT_TIMERS.has(name)) return;
   fetchPalaceStats(name); // immediate first fetch
   const fetchTimer  = setInterval(() => fetchPalaceStats(name), 5000);
   const uptimeTimer = setInterval(() => tickPalaceUptime(name), 1000);
-  PALACE_STAT_TIMERS.set(name, { fetchTimer, uptimeTimer, startTime: null });
+  PALACE_STAT_TIMERS.set(name, { fetchTimer, uptimeTimer, startTime: null, lastData: null });
 }
 
 // Called after loadPalaces() renders the DOM. Starts polls for newly-expanded
-// palaces and stops polls for palaces no longer expanded/visible.
+// palaces, stops polls for palaces no longer expanded/visible, and immediately
+// restores any cached stat values so the DOM never flickers back to '—'.
 function syncPalaceStatsPolling(expandedPalaces) {
   const activeNames = new Set(expandedPalaces.map(p => p.name));
   // Stop polls for palaces no longer visible.
   for (const name of PALACE_STAT_TIMERS.keys()) {
     if (!activeNames.has(name)) stopPalaceStatPolling(name);
   }
-  // Start polls for newly-expanded palaces.
   for (const p of expandedPalaces) {
-    startPalaceStatPolling(p.name);
+    const entry = PALACE_STAT_TIMERS.get(p.name);
+    if (entry) {
+      // Palace was already polling — DOM was just re-rendered with '—' placeholders.
+      // Restore cached values immediately so there's no visible flicker.
+      const sid = palaceStatId(p.name);
+      if (entry.lastData)  applyPalaceStats(sid, entry.lastData);
+      if (entry.startTime) setStatEl(sid, 'uptime', formatUptime(entry.startTime));
+    } else {
+      startPalaceStatPolling(p.name);
+    }
   }
 }
 

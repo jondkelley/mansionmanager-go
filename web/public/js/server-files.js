@@ -1,28 +1,27 @@
-async function loadServerFilesPalaces() {
-  const sel = $('sfPalace');
-  try {
-    const res = await fetch('/api/palaces', { headers: headers() });
-    if (!res.ok) return;
-    const rows = await res.json();
-    const prev = sel.value || SF_PALACE;
-    if (!Array.isArray(rows) || rows.length === 0) {
-      sel.innerHTML = '<option value="">— no palaces —</option>';
-      sel.disabled = true;
-      return;
-    }
-    sel.disabled = false;
-    sel.innerHTML = rows.map(p =>
-      `<option value="${attrEsc(p.name)}">${esc(p.name)}</option>`
-    ).join('');
-    const pick = prev && rows.some(r => r.name === prev) ? prev : rows[0].name;
-    sel.value = pick;
-    SF_PALACE = pick;
-  } catch (_) {}
+async function openServerFilesModal(name) {
+  SF_PALACE = name || '';
+  SF_FILE = '';
+  SF_FILE_ENCODING = 'utf8';
+  SF_ALLOW_SAVE = false;
+  $('serverFilesModalTitle').textContent = 'Files \u2014 ' + (name || '');
+  $('sfViewerWrap').style.display = 'none';
+  $('sfContent').value = '';
+  $('sfBinaryNote').style.display = 'none';
+  $('sfSaveBtn').style.display = 'none';
+  $('serverFilesModal').classList.add('open');
+  await loadServerFileList();
+}
+
+function closeServerFilesModal() {
+  $('serverFilesModal').classList.remove('open');
+  SF_PALACE = '';
+  SF_FILE = '';
+  SF_FILE_ENCODING = 'utf8';
+  SF_ALLOW_SAVE = false;
 }
 
 async function loadServerFileList() {
-  const sel = $('sfPalace');
-  const name = sel.value;
+  const name = SF_PALACE;
   const tbody = $('sfFilesBody');
   $('sfViewerWrap').style.display = 'none';
   $('sfContent').value = '';
@@ -31,7 +30,6 @@ async function loadServerFileList() {
   SF_FILE = '';
   SF_FILE_ENCODING = 'utf8';
   SF_ALLOW_SAVE = false;
-  SF_PALACE = name || '';
   if (!name) {
     tbody.innerHTML = '<tr><td colspan="3" class="empty">No palace selected.</td></tr>';
     return;
@@ -73,7 +71,7 @@ async function loadServerFileList() {
 }
 
 function openPatUploadModal() {
-  const name = $('sfPalace').value;
+  const name = SF_PALACE;
   if (!name) {
     alert('Select a palace first.');
     return;
@@ -125,7 +123,7 @@ async function submitPatUpload() {
     }
     closePatUploadModal();
     loadPalaces();
-    if ($('tab-server-files').classList.contains('active')) {
+    if ($('serverFilesModal').classList.contains('open')) {
       loadServerFileList();
     }
   } catch (e) {
