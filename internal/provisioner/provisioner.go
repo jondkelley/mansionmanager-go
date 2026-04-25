@@ -53,6 +53,11 @@ func (p *Provisioner) Provision(name string, tcpPort, httpPort int, w io.Writer)
 		"--no-cron", // manager owns the nginx regen loop
 		"--json",
 	}
+	if p := strings.TrimSpace(p.cfg.Nginx.HostingProvider); p != "" {
+		args = append(args, "--provider", p)
+	} else {
+		args = append(args, "--omit-provider")
+	}
 
 	env := append(os.Environ(),
 		"PALACE_TEMPLATE_DIR="+p.cfg.Pserver.TemplateDir,

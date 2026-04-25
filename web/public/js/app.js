@@ -61,6 +61,9 @@ document.addEventListener('keydown', (ev) => {
   } else if ($('palaceUsersModal').classList.contains('open')) {
     closePalaceUsersModal();
     ev.preventDefault();
+  } else if ($('palaceBansModal').classList.contains('open')) {
+    closePalaceBansModal();
+    ev.preventDefault();
   } else if ($('logModal').classList.contains('open')) {
     closeLogModal();
     ev.preventDefault();

@@ -635,18 +635,20 @@ func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
 			"certDir":           s.cfg.Nginx.CertDir,
 			"edgeScheme":        s.cfg.Nginx.EdgeScheme,
 			"matchScheme":       s.cfg.Nginx.MatchScheme,
+			"hostingProvider":   s.cfg.Nginx.HostingProvider,
 			"reverseProxyMedia": config.ReverseProxyMediaBase(s.cfg.Nginx.EdgeScheme, s.cfg.Nginx.MediaHost),
 		})
 		return
 	}
 
 	var req struct {
-		MediaHost    string `json:"mediaHost"`
-		CertDir      string `json:"certDir"`
-		EdgeScheme   string `json:"edgeScheme"`
-		MatchScheme  string `json:"matchScheme"`
-		RestartAll   bool   `json:"restartAll"`
-		RewriteUnits *bool  `json:"rewriteUnits"`
+		MediaHost        string `json:"mediaHost"`
+		CertDir          string `json:"certDir"`
+		EdgeScheme       string `json:"edgeScheme"`
+		MatchScheme      string `json:"matchScheme"`
+		HostingProvider  string `json:"hostingProvider"`
+		RestartAll       bool   `json:"restartAll"`
+		RewriteUnits     *bool  `json:"rewriteUnits"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -661,6 +663,7 @@ func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
 
 	s.cfg.Nginx.MediaHost = strings.TrimSpace(req.MediaHost)
 	s.cfg.Nginx.CertDir = strings.TrimSpace(req.CertDir)
+	s.cfg.Nginx.HostingProvider = strings.TrimSpace(req.HostingProvider)
 
 	es := strings.ToLower(strings.TrimSpace(req.EdgeScheme))
 	if es == "" {

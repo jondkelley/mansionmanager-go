@@ -28,6 +28,7 @@ TCP_PORT="9998"
 HTTP_PORT="8080"
 VERBOSITY="2"
 PROVIDER="MyPalaceNet"
+OMIT_PROVIDER=false
 # palace-manager sets PALACE_REVERSE_PROXY_MEDIA from nginx.edgeScheme + mediaHost (see config.json).
 REVERSE_PROXY_MEDIA="${PALACE_REVERSE_PROXY_MEDIA:-https://media.thepalace.app}"
 PALACE_DATA_DIR=""
@@ -127,7 +128,8 @@ usage_full() {
 
 Advanced options (same script; for automation / tuning):
   --verbosity N            -v for pserver (default: 2)
-  --provider TEXT          (default: MyPalaceNet)
+  --provider TEXT          pserver --provider (default: MyPalaceNet; omitted if you pass --omit-provider)
+  --omit-provider         Omit --provider from pserver (palace-manager uses this when hosting provider is unset)
   --pserver-binary PATH    Overrides PSERVER_BIN for this run
   --gen-script PATH        Overrides GEN_MEDIA_NGINX for this run
   --cron-schedule SPEC     Overrides PALACE_CRON_SCHEDULE for this run
@@ -165,7 +167,8 @@ while [[ $# -gt 0 ]]; do
     --tcp-port) TCP_PORT="$2"; shift 2 ;;
     --http-port) HTTP_PORT="$2"; shift 2 ;;
     --verbosity|-v) VERBOSITY="$2"; shift 2 ;;
-    --provider) PROVIDER="$2"; shift 2 ;;
+    --provider) PROVIDER="$2"; OMIT_PROVIDER=false; shift 2 ;;
+  --omit-provider) OMIT_PROVIDER=true; shift ;;
     --reverseproxymedia) REVERSE_PROXY_MEDIA="$2"; shift 2 ;;
     --data-dir|--palaces-dir) PALACE_DATA_DIR="$2"; shift 2 ;;
     --pserver-binary) PSERVER_BIN="$2"; shift 2 ;;
@@ -319,7 +322,12 @@ if [[ ! -f "$PAT_PATH" ]]; then
   echo ""
 fi
 
-EXEC_START="${PSERVER_BIN} -p ${TCP_PORT} -l ${LOG_PATH} -x ${PAT_PATH} -m ${PALACE_DATA_DIR}/media/ -nofork -H ${HTTP_PORT} -v ${VERBOSITY} --provider ${PROVIDER} --reverseproxymedia ${REVERSE_PROXY_MEDIA}"
+PSERVER_BASE="${PSERVER_BIN} -p ${TCP_PORT} -l ${LOG_PATH} -x ${PAT_PATH} -m ${PALACE_DATA_DIR}/media/ -nofork -H ${HTTP_PORT} -v ${VERBOSITY}"
+if $OMIT_PROVIDER; then
+  EXEC_START="${PSERVER_BASE} --reverseproxymedia ${REVERSE_PROXY_MEDIA}"
+else
+  EXEC_START="${PSERVER_BASE} --provider ${PROVIDER} --reverseproxymedia ${REVERSE_PROXY_MEDIA}"
+fi
 
 UNIT_CONTENT="[Unit]
 Description=Palace pserver (${PALACE_USER})

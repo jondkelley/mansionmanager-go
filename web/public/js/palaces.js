@@ -337,7 +337,7 @@ async function loadPalaces() {
       const expandGlyph = expanded ? '&#9662;' : '&#9656;';
       const pserv = `<code>${esc(p.pserverVersion || 'latest')}</code>`;
       const removeBtn = isAdmin
-        ? `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`
+        ? `<button type="button" class="danger" onclick='event.stopPropagation();openRemovePalaceModal(${nm})'>Remove</button>`
         : '';
       const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
       const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
@@ -346,6 +346,9 @@ async function loadPalaces() {
       const filesBtn = `<button type="button" onclick='openServerFilesModal(${nm})'>Files</button>`;
       const usersBtn = p.httpPort
         ? `<button type="button" onclick='openPalaceUsersModal(${nm})'>Users</button>`
+        : '';
+      const bansBtn = (p.httpPort && isAdmin)
+        ? `<button type="button" onclick='openPalaceBansModal(${nm})'>Bans</button>`
         : '';
       const summaryClass = isAdmin ? 'palace-row-summary' : '';
       const sid = palaceStatId(p.name);
@@ -361,7 +364,7 @@ async function loadPalaces() {
         <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
-        <td>${pserv}</td>
+        <td style="display:flex;align-items:center;gap:8px;">${pserv}${removeBtn}</td>
       </tr>
       <tr class="palace-details-row" style="display:${expanded ? '' : 'none'};">
         <td colspan="5">
@@ -376,7 +379,7 @@ async function loadPalaces() {
                 <div class="palace-detail-actions">${controlBtns}</div>
               </div>
               <div class="palace-detail-block">
-                <span class="palace-detail-label">Actions</span>
+                <span class="palace-detail-label">Manage</span>
                 <div class="palace-detail-actions">
                   ${mediaBtn}
                   ${backupsBtn}
@@ -384,7 +387,7 @@ async function loadPalaces() {
                   ${settingsBtn}
                   ${logsBtn}
                   ${usersBtn}
-                  ${removeBtn}
+                  ${bansBtn}
                 </div>
               </div>
             </div>

@@ -8,6 +8,7 @@ async function loadNginxSettingsForm() {
       return;
     }
     const s = await res.json();
+    if ($('ngxHostingProvider')) $('ngxHostingProvider').value = s.hostingProvider || '';
     if ($('ngxMediaHost')) $('ngxMediaHost').value = s.mediaHost || '';
     if ($('ngxEdgeScheme')) $('ngxEdgeScheme').value = s.edgeScheme || 'https';
     if ($('ngxMatchScheme')) $('ngxMatchScheme').value = s.matchScheme || 'both';
@@ -69,6 +70,7 @@ async function saveNginxSettings() {
   const note = $('ngxSettingsNote');
   try {
     const body = {
+      hostingProvider: $('ngxHostingProvider') ? $('ngxHostingProvider').value.trim() : '',
       mediaHost: $('ngxMediaHost').value.trim(),
       edgeScheme: $('ngxEdgeScheme').value,
       matchScheme: $('ngxMatchScheme').value,

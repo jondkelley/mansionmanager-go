@@ -40,6 +40,9 @@ type Nginx struct {
 	CertDir       string        `json:"certDir"`
 	EdgeScheme    string        `json:"edgeScheme"`
 	MatchScheme   string        `json:"matchScheme"`
+	// HostingProvider, when non-empty, is passed to provision-palace.sh as --provider for new palaces.
+	// When empty, provisioning omits --provider on the pserver command line.
+	HostingProvider string `json:"hostingProvider,omitempty"`
 }
 
 type Config struct {
@@ -50,12 +53,13 @@ type Config struct {
 }
 
 type rawNginx struct {
-	GenScript     string `json:"genScript"`
-	RegenInterval string `json:"regenInterval"`
-	MediaHost     string `json:"mediaHost"`
-	CertDir       string `json:"certDir"`
-	EdgeScheme    string `json:"edgeScheme"`
-	MatchScheme   string `json:"matchScheme"`
+	GenScript         string `json:"genScript"`
+	RegenInterval     string `json:"regenInterval"`
+	MediaHost         string `json:"mediaHost"`
+	CertDir           string `json:"certDir"`
+	EdgeScheme        string `json:"edgeScheme"`
+	MatchScheme       string `json:"matchScheme"`
+	HostingProvider   string `json:"hostingProvider,omitempty"`
 }
 
 type rawConfig struct {
@@ -82,11 +86,12 @@ func Load(path string) (*Config, error) {
 		Scripts: raw.Scripts,
 		Pserver: raw.Pserver,
 		Nginx: Nginx{
-			GenScript:   raw.Nginx.GenScript,
-			MediaHost:   raw.Nginx.MediaHost,
-			CertDir:     raw.Nginx.CertDir,
-			EdgeScheme:  raw.Nginx.EdgeScheme,
-			MatchScheme: raw.Nginx.MatchScheme,
+			GenScript:        raw.Nginx.GenScript,
+			MediaHost:        raw.Nginx.MediaHost,
+			CertDir:          raw.Nginx.CertDir,
+			EdgeScheme:       raw.Nginx.EdgeScheme,
+			MatchScheme:      raw.Nginx.MatchScheme,
+			HostingProvider:  raw.Nginx.HostingProvider,
 		},
 	}
 
@@ -206,12 +211,13 @@ func (c *Config) Save(path string) error {
 		Scripts: c.Scripts,
 		Pserver: c.Pserver,
 		Nginx: rawNginx{
-			GenScript:     c.Nginx.GenScript,
-			RegenInterval: c.Nginx.RegenInterval.String(),
-			MediaHost:     c.Nginx.MediaHost,
-			CertDir:       c.Nginx.CertDir,
-			EdgeScheme:    c.Nginx.EdgeScheme,
-			MatchScheme:   c.Nginx.MatchScheme,
+			GenScript:        c.Nginx.GenScript,
+			RegenInterval:    c.Nginx.RegenInterval.String(),
+			MediaHost:        c.Nginx.MediaHost,
+			CertDir:          c.Nginx.CertDir,
+			EdgeScheme:       c.Nginx.EdgeScheme,
+			MatchScheme:      c.Nginx.MatchScheme,
+			HostingProvider:  c.Nginx.HostingProvider,
 		},
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)

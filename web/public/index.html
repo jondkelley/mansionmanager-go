@@ -486,7 +486,6 @@
     white-space: pre-wrap;
     word-break: break-word;
     background-color: var(--inset);
-    background-image: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 45%), var(--metal-brush);
     border: 1px solid var(--border-shade);
     border-radius: 8px;
     box-shadow: inset 0 2px 10px rgba(0,0,0,.45);
@@ -498,7 +497,6 @@
     width: 100%;
     height: 100%;
     background-color: var(--inset);
-    background-image: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 45%), var(--metal-brush);
     border: 1px solid var(--border-shade);
     border-radius: 8px;
     padding: 12px;
@@ -1161,6 +1159,13 @@
       Changing the edge scheme rewrites every <code>palman-*.service</code> unit — restart palaces so running processes publish the new URL.
     </p>
     <div class="form-row">
+      <div class="field" style="flex:1.2;min-width:220px;">
+        <label>Hosting Provider Name</label>
+        <input id="ngxHostingProvider" type="text" autocomplete="off" placeholder="" />
+        <div style="font-size:12px;margin-top:4px;color:var(--muted);line-height:1.4;">When set, new palaces are provisioned with <code>--provider</code> and this name. Leave empty to omit that flag.</div>
+      </div>
+    </div>
+    <div class="form-row">
       <div class="field">
         <label>Media hostname</label>
         <input id="ngxMediaHost" type="text" autocomplete="off" placeholder="media.example.com" onblur="checkMediaHostDNS()" />
@@ -1455,6 +1460,42 @@
       </table>
     </div>
     <div class="modal-footer" style="flex-shrink:0;"><button type="button" onclick="closePalaceUsersModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- Palace Bans Modal -->
+<div class="modal-bg" id="palaceBansModal">
+  <div class="modal" style="max-width:960px;width:96%;display:flex;flex-direction:column;max-height:88vh;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0;flex-wrap:wrap;gap:8px;">
+      <h3 id="palaceBansModalTitle" style="margin:0;">Banlist</h3>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="search" id="palaceBansSearch" placeholder="Filter…" autocomplete="off" spellcheck="false"
+          style="padding:4px 9px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg,var(--bg));color:var(--text);font-size:12px;width:170px;"
+          oninput="onPalaceBansSearch()">
+        <span id="palaceBansCount" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+    </div>
+    <div id="palaceBansAlert" class="bans-alert" style="flex-shrink:0;margin-bottom:6px;"></div>
+    <div class="palace-users-scroll" style="flex:1;overflow-y:auto;">
+      <table class="bans-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Kind</th>
+            <th>Active</th>
+            <th>By</th>
+            <th>Reason</th>
+            <th>Details</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="palaceBansTbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-footer" style="flex-shrink:0;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);">Unban pages wizards in-world: <em>Page from System: Unbanned by PalaceManager (you)</em></span>
+      <button type="button" onclick="closePalaceBansModal()">Close</button>
+    </div>
   </div>
 </div>
 
