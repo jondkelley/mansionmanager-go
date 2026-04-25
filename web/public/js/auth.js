@@ -41,8 +41,6 @@ function applySessionUI() {
     const el = document.getElementById(id);
     if (el) el.style.display = admin ? '' : 'none';
   });
-  const bansBtn = document.getElementById('navBans');
-  if (bansBtn) bansBtn.style.display = SESSION ? '' : 'none';
   const wizBtn = document.getElementById('navWizPasses');
   if (wizBtn) wizBtn.style.display = primaryAdmin ? '' : 'none';
   if (admin) silentUpdateCheck();
