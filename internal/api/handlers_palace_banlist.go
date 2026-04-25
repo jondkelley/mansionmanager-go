@@ -28,12 +28,9 @@ func (s *Server) handlePalaceBanlist(w http.ResponseWriter, r *http.Request, nam
 }
 
 // handlePalaceBanlistUnban proxies POST /api/palaces/:name/banlist/unban to the palace,
-// injecting the requesting admin's username as the operator so the in-game page reads
+// injecting the requesting user's username as the operator so the in-game page reads
 // "Page from System: Unbanned by PalaceManager (<username>)".
 func (s *Server) handlePalaceBanlistUnban(w http.ResponseWriter, r *http.Request, name string) {
-	if !requireAdmin(w, r) {
-		return
-	}
 	if !canAccessPalace(r.Context(), name) {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
 		return

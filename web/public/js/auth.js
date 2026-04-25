@@ -37,10 +37,12 @@ function hidePasswordGate() {
 function applySessionUI() {
   const admin = SESSION && SESSION.role === 'admin';
   const primaryAdmin = admin && !!SESSION.isPrimaryAdmin;
-  ['navUpdate', 'navNginx', 'navUsers', 'navBans', 'btnNewPalace'].forEach(id => {
+  ['navUpdate', 'navNginx', 'navUsers', 'btnNewPalace'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = admin ? '' : 'none';
   });
+  const bansBtn = document.getElementById('navBans');
+  if (bansBtn) bansBtn.style.display = SESSION ? '' : 'none';
   const wizBtn = document.getElementById('navWizPasses');
   if (wizBtn) wizBtn.style.display = primaryAdmin ? '' : 'none';
   if (admin) silentUpdateCheck();
