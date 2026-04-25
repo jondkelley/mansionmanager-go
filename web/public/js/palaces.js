@@ -1017,6 +1017,45 @@ function syncPalaceStatsPolling(expandedPalaces) {
 
 // ===== Palace Users Modal =====
 
+const PALACE_USERS_IPINFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>';
+
+function palaceUsersIpInfoHref(ip) {
+  const s = String(ip || '').trim();
+  if (!s) return '#';
+  return 'https://ipinfo.io/' + encodeURIComponent(s);
+}
+
+function palaceUsersIpCell(ip) {
+  const s = String(ip || '').trim();
+  if (!s) return '<span class="muted">—</span>';
+  const href = palaceUsersIpInfoHref(s);
+  const label = `View ${s} on ipinfo.io (opens in new tab)`;
+  return `<a class="palace-users-ipinfo" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(label)}" aria-label="${esc(label)}">${esc(s)}${PALACE_USERS_IPINFO_SVG}</a>`;
+}
+
+function palaceUsersOsCell(os) {
+  const raw = String(os || '').trim() || '?';
+  let src = '';
+  switch (raw) {
+    case 'Mac':
+      src = '/img/os/mac.png';
+      break;
+    case 'Windows':
+      src = '/img/os/win.png';
+      break;
+    case 'Linux':
+      src = '/img/os/lnx.png';
+      break;
+    default:
+      break;
+  }
+  if (src) {
+    const t = esc(raw);
+    return `<span class="palace-users-os-wrap" title="${t}"><img class="palace-users-os-icon" src="${src}" width="20" height="20" alt="${t}" /></span>`;
+  }
+  return `<span class="palace-users-os-text" title="${esc(raw)}">${esc(raw)}</span>`;
+}
+
 let palaceUsersLiveName = null;
 let palaceUsersTimer = null;
 
@@ -1050,18 +1089,18 @@ async function fetchPalaceUsers(name) {
     $('palaceUsersBody').innerHTML = users.map(u => `
       <tr>
         <td><code>${u.id}</code></td>
+        <td>${formatSignonTime(u.signon_seconds)}</td>
         <td>${esc(u.role)}</td>
         <td><strong>${esc(u.name)}</strong></td>
         <td><code>${esc(u.client_version)}</code></td>
-        <td>${esc(u.os || '?')}</td>
+        <td>${palaceUsersOsCell(u.os)}</td>
         <td>${esc(u.room_name)}</td>
-        <td><code>${esc(u.ip)}</code></td>
+        <td class="palace-users-ip-cell">${palaceUsersIpCell(u.ip)}</td>
         <td><code style="font-size:10px;">${esc(u.uuid || '')}</code></td>
         <td><code>${u.puid_ctr || 0}</code></td>
         <td><code>${esc(u.crc)}</code></td>
         <td><code>${u.cnt || 0}</code></td>
         <td><code>${esc(u.wiz_key)}</code></td>
-        <td>${formatSignonTime(u.signon_seconds)}</td>
       </tr>`).join('');
   } catch (e) {
     $('palaceUsersBody').innerHTML = `<tr><td colspan="13" class="empty">Error: ${esc(e.message)}</td></tr>`;

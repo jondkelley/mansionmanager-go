@@ -321,6 +321,23 @@
   }
   .palace-users-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--card); }
   .palace-users-table td code { font-size: 11px; }
+  .palace-users-ip-cell { white-space: nowrap; }
+  a.palace-users-ipinfo {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #2563eb;
+    font-weight: 700;
+    text-decoration: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+  }
+  a.palace-users-ipinfo:hover { text-decoration: underline; color: #1d4ed8; }
+  a.palace-users-ipinfo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  a.palace-users-ipinfo svg { flex-shrink: 0; opacity: 0.9; }
+  .palace-users-os-wrap { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+  .palace-users-os-icon { width: 20px; height: auto; max-height: 22px; vertical-align: middle; display: block; }
+  .palace-users-os-text { font-size: 12px; }
   .palace-users-scroll { max-height: 480px; overflow-y: auto; }
   .toggle-inline {
     display: inline-flex;
@@ -1452,8 +1469,8 @@
       <table class="palace-users-table">
         <thead>
           <tr>
-            <th>#</th><th>Role</th><th>Name</th><th>Client</th><th>OS</th><th>Room</th>
-            <th>IP</th><th>UUID</th><th>PUID</th><th>CRC</th><th>CNT</th><th>Key</th><th>Online</th>
+            <th>#</th><th>Online</th><th>Role</th><th>Name</th><th>Client</th><th>OS</th><th>Room</th>
+            <th>IP</th><th>UUID</th><th>PUID</th><th>CRC</th><th>CNT</th><th>Key</th>
           </tr>
         </thead>
         <tbody id="palaceUsersBody"><tr><td colspan="13" class="empty">Loading…</td></tr></tbody>
