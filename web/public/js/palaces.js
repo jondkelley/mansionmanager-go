@@ -170,6 +170,30 @@ function palaceStatusDot(status) {
   return { dotClass: 'status-dot-warn', title: 'Status unknown' };
 }
 
+/** Suggested next service control for the Action dropdown (user can still pick any). */
+function defaultPalaceServiceAction(status) {
+  if (status === 'active') return 'stop';
+  if (status === 'inactive') return 'start';
+  if (status === 'failed') return 'restart';
+  return 'restart';
+}
+
+function palaceServiceActionSelectHTML(nameJson, status) {
+  const d = defaultPalaceServiceAction(status);
+  const opt = (value, label) =>
+    `<option value="${value}"${value === d ? ' selected' : ''}>${label}</option>`;
+  return `<span class="palace-action-inline">
+    <label class="palace-action-label">Action</label>
+    <select class="palace-action-select" title="Start, stop, or restart this palace service" aria-label="Service action" onchange="palaceActionFromSelect(this, ${nameJson})">${opt('start', 'Start')}${opt('stop', 'Stop')}${opt('restart', 'Restart')}</select>
+  </span>`;
+}
+
+function palaceActionFromSelect(sel, name) {
+  const action = sel && sel.value;
+  if (!action || !name) return;
+  palaceAction(name, action);
+}
+
 const PROVISION_TCP_RANGE = [9990, 10990];
 const PROVISION_HTTP_RANGE = [6000, 7000];
 const PALACE_EXPANDED = new Set();
@@ -279,6 +303,7 @@ async function loadPalaces() {
         const nm = JSON.stringify(p.name);
         const removeBtn = `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`;
         const orphanSettingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
+        const serviceAction = palaceServiceActionSelectHTML(nm, p.status);
         return `
       <tr>
         <td><strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Not in registry yet">Not registered</span></td>
@@ -288,10 +313,8 @@ async function loadPalaces() {
         <td>
           <div class="actions">
             <button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>
-            <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
-            <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
-            <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
             ${orphanSettingsBtn}
+            ${serviceAction}
             ${removeBtn}
           </div>
         </td>
@@ -330,7 +353,8 @@ async function loadPalaces() {
         : '';
       const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
       const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
-      const mediaGroup = `<div class="palace-media-group"><button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button><button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)" style="font-size:11px;">Media Backup</button></div>`;
+      const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
+      const backupsBtn = `<button type="button" onclick='openPalaceBackupsModal(${nm})' title="Config snapshots and full-home download">Backups</button>`;
       const filesBtn = `<button type="button" onclick='openServerFilesModal(${nm})'>Files</button>`;
       const usersBtn = p.httpPort
         ? `<button type="button" onclick='openPalaceUsersModal(${nm})'>Users</button>`
@@ -360,14 +384,13 @@ async function loadPalaces() {
             <div class="palace-detail-block" style="margin-left:auto;">
               <span class="palace-detail-label">Actions</span>
               <div class="palace-detail-actions">
-                ${mediaGroup}
+                ${mediaBtn}
+                ${backupsBtn}
                 ${filesBtn}
-                <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
-                <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
-                <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
                 ${settingsBtn}
                 ${logsBtn}
                 ${usersBtn}
+                ${palaceServiceActionSelectHTML(nm, p.status)}
                 ${removeBtn}
               </div>
             </div>
@@ -417,7 +440,8 @@ async function downloadPalaceHomeBackup(name) {
     }
     const blob = await res.blob();
     const cd = res.headers.get('Content-Disposition') || '';
-    let fname = `${name}-home-backup.tar.gz`;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    let fname = `${name}-home-backup-${stamp}.tar.gz`;
     const m = /filename="([^"]+)"/.exec(cd);
     if (m) fname = m[1];
     const href = URL.createObjectURL(blob);

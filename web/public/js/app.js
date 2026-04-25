@@ -25,6 +25,9 @@ document.addEventListener('keydown', (ev) => {
   } else if ($('mediaDeleteModal').classList.contains('open')) {
     closeMediaDeleteModal();
     ev.preventDefault();
+  } else if ($('backupsModal').classList.contains('open')) {
+    closeBackupsModal();
+    ev.preventDefault();
   } else if ($('mediaModal').classList.contains('open')) {
     closeMediaModal();
     ev.preventDefault();

@@ -234,7 +234,42 @@
   .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .palace-detail-value code { font-size: 12px; }
   .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: flex-start; }
-  .palace-media-group { display: inline-flex; flex-direction: column; gap: 3px; }
+  .palace-action-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  .palace-action-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+  .palace-action-select {
+    width: auto;
+    min-width: 8.5em;
+    max-width: none;
+    padding: 5px 10px 5px 12px;
+    font-size: 12px;
+    line-height: 1.2;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 3px rgba(0,0,0,.25);
+    background-color: var(--surface2);
+    background-image: var(--metal-shine), var(--metal-brush);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .palace-action-select:hover {
+    background-color: var(--btn-hover-bg);
+    background-image: var(--metal-shine), var(--metal-brush);
+  }
+  .palace-action-select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
   .log-file-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; min-height: 28px; }
   .log-file-tabs button { font-size: 11px; padding: 3px 10px; border-radius: 12px; }
   .log-file-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
@@ -520,6 +555,31 @@
   }
   .modal h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
   .modal-footer { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+  .backups-modal-wrap { position: relative; max-width: 760px; width: 96%; }
+  .backups-restore-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    border-radius: 12px;
+    align-items: center;
+    justify-content: center;
+    z-index: 6;
+  }
+  .backups-restore-overlay.open { display: flex; }
+  .backups-restore-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 28px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.45);
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+  }
+  .backups-tab-bar { display: flex; flex-wrap: wrap; gap: 4px; }
+  .backups-tab { font-size: 11px; padding: 4px 10px; border-radius: 12px; }
+  .backups-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
   #palaceSettingsModal .modal {
     max-width: 840px;
     display: flex;
@@ -700,6 +760,9 @@
   html[data-theme="basic"] input,
   html[data-theme="basic"] select {
     box-shadow: inset 0 1px 2px rgba(15,23,42,.06);
+  }
+  html[data-theme="basic"] .palace-action-select {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(15,23,42,.1);
   }
   html[data-theme="basic"] #mediaPreviewBody {
     background: #f3f4f6;
@@ -1152,6 +1215,44 @@
   </div>
 </div>
 
+<!-- Palace config backups + full-home download -->
+<div class="modal-bg modal-stacked" id="backupsModal" style="z-index:115;">
+  <div class="modal backups-modal-wrap" style="max-width:760px;">
+    <h3 id="backupsModalTitle">Backups</h3>
+    <p id="backupsDirHint" style="font-size:11px;color:var(--muted);margin-bottom:8px;word-break:break-all;"></p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:10px;">
+      Each day at <strong>midnight UTC</strong>, the manager copies <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code> (when present) into <code>backups/</code> under the palace data directory, using names like <code>pserver.pat-mm-dd-yy.bak</code>.
+      <strong>Take backup now</strong> writes the same snapshots on demand (every file that exists is copied into <code>backups/</code> for today’s UTC date tag, overwriting today’s files if you run it again).
+      <strong>Download backup</strong> is a full gzip tarball of the palace Unix home (the on-disk <code>backups/</code> tree is excluded from that archive).
+    </p>
+    <p id="backupsSnapshotNote" style="font-size:12px;color:var(--accent);min-height:18px;margin-bottom:6px;"></p>
+    <div class="log-file-tabs backups-tab-bar" style="margin-top:4px;">
+      <button type="button" class="backups-tab active" data-kind="pat" onclick="setBackupTab('pat')">pserver.pat</button>
+      <button type="button" class="backups-tab" data-kind="prefs" onclick="setBackupTab('prefs')">pserver.prefs</button>
+      <button type="button" class="backups-tab" data-kind="serverprefs" onclick="setBackupTab('serverprefs')">serverprefs.json</button>
+    </div>
+    <div style="overflow:auto;max-height:380px;border:1px solid var(--border);border-radius:8px;margin-top:10px;">
+      <table style="font-size:12px;width:100%;">
+        <thead><tr><th>Backup file</th><th>Date tag</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+        <tbody id="backupsTableBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button type="button" class="primary" id="takeBackupNowBtn" onclick="runBackupsSnapshotNow()">Take backup now</button>
+        <button type="button" onclick="downloadPalaceBackupFromBackupsModal()" title="gzip tarball of palace user home (best compression)">Download backup</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" onclick="refreshBackupsModal()">Refresh</button>
+        <button type="button" onclick="closeBackupsModal()">Close</button>
+      </div>
+    </div>
+    <div id="backupsRestoreOverlay" class="backups-restore-overlay" aria-live="polite">
+      <div class="backups-restore-card">This will take a minute…</div>
+    </div>
+  </div>
+</div>
+
 <!-- Media: notice / error (stacked above media modal) -->
 <div class="modal-bg modal-stacked" id="mediaMessageModal">
   <div class="modal" style="min-width:360px;max-width:480px;">
@@ -1545,6 +1646,7 @@
 <script src="/js/media.js"></script>
 <script src="/js/server-files.js"></script>
 <script src="/js/palaces.js"></script>
+<script src="/js/backups.js"></script>
 <script src="/js/update.js"></script>
 <script src="/js/nginx.js"></script>
 <script src="/js/app.js"></script>

@@ -1199,12 +1199,12 @@ func (s *Server) handlePalaceServerPrefsSave(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var req struct {
-		Mode              string               `json:"mode"`
-		Content           string               `json:"content"`
-		Form              pserverprefs.PrefsFormDTO `json:"form"`
-		UnknownTail       string               `json:"unknownTail"`
-		YPHost            string               `json:"ypHost"`
-		YPPort            int                  `json:"ypPort"`
+		Mode        string                    `json:"mode"`
+		Content     string                    `json:"content"`
+		Form        pserverprefs.PrefsFormDTO `json:"form"`
+		UnknownTail string                    `json:"unknownTail"`
+		YPHost      string                    `json:"ypHost"`
+		YPPort      int                       `json:"ypPort"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -1369,8 +1369,15 @@ func (s *Server) handlePalaceHomeBackup(w http.ResponseWriter, r *http.Request, 
 		safe = "palace"
 	}
 
+	var backupRoot string
+	if dd, derr := s.palaceDataDir(palaceName); derr == nil {
+		backupRoot = filepath.Join(dd, "backups")
+	}
+
+	stamp := time.Now().UTC().Format("2006-01-02T150405Z")
+	dlName := fmt.Sprintf("%s-home-backup-%s.tar.gz", safe, stamp)
 	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-home-backup.tar.gz"`, safe))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, dlName))
 
 	gzw, err := gzip.NewWriterLevel(w, gzip.BestCompression)
 	if err != nil {
@@ -1394,6 +1401,17 @@ func (s *Server) handlePalaceHomeBackup(w http.ResponseWriter, r *http.Request, 
 		info, err := d.Info()
 		if err != nil {
 			return nil
+		}
+
+		cp := filepath.Clean(path)
+		if backupRoot != "" {
+			br := filepath.Clean(backupRoot)
+			if cp == br || strings.HasPrefix(cp, br+string(filepath.Separator)) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 		}
 
 		link := ""

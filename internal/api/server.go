@@ -39,22 +39,23 @@ type pserverUpdateState struct {
 
 // Server wires all dependencies into an http.Handler.
 type Server struct {
-	cfg           *config.Config
-	configPath    string
-	version       string
-	gitHash       string
-	instances     *instance.Manager
-	prov          *provisioner.Provisioner
-	nginx         *nginx.Manager
-	boot          *bootstrap.Runner
-	reg           *registry.Registry
-	vers          *versionstore.Store
-	unreg         *unregistered.Store
-	authStore     *authstore.Store
-	mux           *http.ServeMux
-	updateCache   *releaseCache
-	pserverUpdate *pserverUpdateState
-	hostPassMu    sync.Mutex
+	cfg            *config.Config
+	configPath     string
+	version        string
+	gitHash        string
+	instances      *instance.Manager
+	prov           *provisioner.Provisioner
+	nginx          *nginx.Manager
+	boot           *bootstrap.Runner
+	reg            *registry.Registry
+	vers           *versionstore.Store
+	unreg          *unregistered.Store
+	authStore      *authstore.Store
+	mux            *http.ServeMux
+	updateCache    *releaseCache
+	pserverUpdate  *pserverUpdateState
+	hostPassMu     sync.Mutex
+	configBackupMu sync.Mutex
 }
 
 func New(
@@ -92,9 +93,10 @@ func New(
 	return s
 }
 
-// Start launches background tasks (pserver auto-update loop). Call once after New.
+// Start launches background tasks (pserver auto-update loop, daily config backups). Call once after New.
 func (s *Server) Start(ctx context.Context) {
 	go s.pserverAutoUpdateLoop(ctx)
+	go s.midnightUTCConfigBackupLoop(ctx)
 }
 
 // pserverAutoUpdateLoop downloads the latest pserver binary every 2 hours silently.
@@ -372,6 +374,12 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalacePatUpload(w, r, name)
 	case action == "home-backup" && r.Method == http.MethodGet:
 		s.handlePalaceHomeBackup(w, r, name)
+	case action == "config-backups" && r.Method == http.MethodGet:
+		s.handlePalaceConfigBackupsList(w, r, name)
+	case action == "config-backups/snapshot" && r.Method == http.MethodPost:
+		s.handlePalaceConfigBackupsSnapshot(w, r, name)
+	case action == "config-backups/restore" && r.Method == http.MethodPost:
+		s.handlePalaceConfigBackupsRestore(w, r, name)
 	case action == "stats" && r.Method == http.MethodGet:
 		s.handlePalaceStats(w, r, name)
 	case action == "palace-users" && r.Method == http.MethodGet:
