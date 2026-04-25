@@ -181,6 +181,82 @@ const PROVISION_TCP_RANGE = [9990, 10990];
 const PROVISION_HTTP_RANGE = [6000, 7000];
 const PALACE_EXPANDED = new Set();
 
+/** Preset + custom slider for new-palace home quota (binary MB / GB to match server usage). */
+const PROVISION_QUOTA_LEVELS = (function () {
+  const MB = 1024 * 1024;
+  const GB = 1024 * 1024 * 1024;
+  const a = [
+    { label: 'Unlimited', bytes: 0 },
+    { label: '1 MB', bytes: MB },
+    { label: '500 MB', bytes: 500 * MB },
+  ];
+  for (let g = 1; g <= 10; g++) {
+    a.push({ label: `${g} GB`, bytes: g * GB });
+  }
+  a.push({ label: 'Custom…', bytes: -1 });
+  return a;
+})();
+
+function formatPalaceQuotaShort(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  const MB = 1024 * 1024;
+  const GB = 1024 * 1024 * 1024;
+  if (bytes >= GB) {
+    const g = bytes / GB;
+    const s = Number.isInteger(g) ? String(g) : String(Math.round(g * 10) / 10).replace(/\.0$/, '');
+    return `${s} GB`;
+  }
+  const m = bytes / MB;
+  const s = Number.isInteger(m) ? String(m) : String(Math.round(m * 10) / 10).replace(/\.0$/, '');
+  return `${s} MB`;
+}
+
+function syncProvisionQuotaLabel() {
+  const slider = $('pQuotaSlider');
+  const label = $('pQuotaLabel');
+  const wrap = $('pQuotaCustomWrap');
+  if (!slider || !label) return;
+  const i = parseInt(slider.value, 10);
+  const row = PROVISION_QUOTA_LEVELS[Math.min(Math.max(i, 0), PROVISION_QUOTA_LEVELS.length - 1)];
+  if (row.bytes === -1) {
+    if (wrap) wrap.style.display = '';
+    label.textContent = 'Custom maximum (enter MiB below).';
+  } else {
+    if (wrap) wrap.style.display = 'none';
+    label.textContent = 'Max home storage: ' + row.label;
+  }
+}
+
+function provisionQuotaSelectedBytes() {
+  const slider = $('pQuotaSlider');
+  if (!slider) return 0;
+  const i = parseInt(slider.value, 10);
+  const row = PROVISION_QUOTA_LEVELS[Math.min(Math.max(i, 0), PROVISION_QUOTA_LEVELS.length - 1)];
+  if (row.bytes === -1) {
+    const mib = parseFloat(($('pQuotaCustomMiB') && $('pQuotaCustomMiB').value) || '');
+    if (!Number.isFinite(mib) || mib <= 0) return null;
+    return Math.round(mib * 1024 * 1024);
+  }
+  return row.bytes;
+}
+
+function palaceQuotaDetailBlockHTML(p) {
+  const max = p.quotaBytesMax;
+  if (!max) {
+    return `<div class="palace-detail-block">
+      <span class="palace-detail-label">Quota</span>
+      <span class="palace-detail-value">Unlimited</span>
+    </div>`;
+  }
+  const over = !!p.quotaExceeded;
+  const cls = over ? 'palace-detail-value palace-quota-over' : 'palace-detail-value';
+  const u = p.homeUsedBytes != null ? p.homeUsedBytes : 0;
+  return `<div class="palace-detail-block">
+    <span class="palace-detail-label">Quota</span>
+    <span class="${cls}">${esc(formatPalaceQuotaShort(u))} / ${esc(formatPalaceQuotaShort(max))}</span>
+  </div>`;
+}
+
 async function fetchUsedPalacePorts() {
   const used = new Set();
   const res = await fetch('/api/palaces', { headers: headers() });
@@ -353,6 +429,9 @@ async function loadPalaces() {
       const summaryClass = isAdmin ? 'palace-row-summary' : '';
       const sid = palaceStatId(p.name);
       const controlBtns = palaceServiceControlButtonsHTML(nm);
+      const overQuotaBadge = p.quotaExceeded
+        ? '<span class="badge badge-over-quota">OVER QUOTA</span>'
+        : '';
       return `
       <tr class="${summaryClass}${expanded ? ' palace-row-open' : ''}"${isAdmin ? ` onclick='togglePalaceAccordion(${nm})'` : ''}>
         <td>
@@ -361,18 +440,19 @@ async function loadPalaces() {
             <strong>${esc(p.name)}</strong>
           </span>
         </td>
-        <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
+        <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span>${overQuotaBadge}</span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
         <td style="display:flex;align-items:center;gap:8px;">${pserv}${removeBtn}</td>
       </tr>
       <tr class="palace-details-row" style="display:${expanded ? '' : 'none'};">
         <td colspan="5">
-          <div class="palace-details-wrap">
+          <div class="palace-details-wrap palace-details-top">
             <div class="palace-detail-block">
               <span class="palace-detail-label">Service user</span>
               <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
             </div>
+            ${palaceQuotaDetailBlockHTML(p)}
             <div class="palace-details-side">
               <div class="palace-detail-block">
                 <span class="palace-detail-label">Control</span>
@@ -608,6 +688,9 @@ function openProvisionModal() {
   ['pName','pTCP','pHTTP'].forEach(id => { $(id).value = ''; });
   if ($('pTCPAuto')) $('pTCPAuto').checked = true;
   if ($('pHTTPAuto')) $('pHTTPAuto').checked = true;
+  if ($('pQuotaSlider')) $('pQuotaSlider').value = '6';
+  if ($('pQuotaCustomMiB')) $('pQuotaCustomMiB').value = '';
+  syncProvisionQuotaLabel();
   syncProvisionPortMode();
 }
 function closeProvisionModal() {
@@ -616,7 +699,10 @@ function closeProvisionModal() {
 }
 
 function _setProvisionRunning(running) {
-  ['pName','pYPHost','pYPPort','pTCPAuto','pHTTPAuto'].forEach(id => { const el = $(id); if (el) el.disabled = running; });
+  ['pName','pYPHost','pYPPort','pTCPAuto','pHTTPAuto','pQuotaSlider','pQuotaCustomMiB'].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = running;
+  });
   if (!running) syncProvisionPortMode();
   if (running) {
     ['pTCP','pHTTP'].forEach(id => { const el = $(id); if (el) el.disabled = true; });
@@ -638,6 +724,12 @@ async function doProvision() {
   }
   if (!name || !tcpPort || !httpPort) { alert('All fields required'); return; }
 
+  const quotaBytesMax = provisionQuotaSelectedBytes();
+  if (quotaBytesMax === null) {
+    alert('Enter a valid custom quota in MiB (e.g. 8192 for 8 GiB).');
+    return;
+  }
+
   const stream = $('provisionStream');
   stream.textContent = '';
   stream.innerHTML = '';
@@ -651,7 +743,7 @@ async function doProvision() {
   const res = await fetch('/api/palaces', {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ name, tcpPort, httpPort, ypHost, ypPort })
+    body: JSON.stringify({ name, tcpPort, httpPort, ypHost, ypPort, quotaBytesMax }),
   });
 
   if (res.status === 412) {

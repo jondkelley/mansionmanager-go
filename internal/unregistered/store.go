@@ -24,6 +24,7 @@ type Record struct {
 	PserverVersion string    `json:"pserverVersion,omitempty"`
 	YPHost         string    `json:"ypHost,omitempty"`
 	YPPort         int       `json:"ypPort,omitempty"`
+	QuotaBytesMax  int64     `json:"quotaBytesMax,omitempty"`
 	UnregisteredAt time.Time `json:"unregisteredAt"`
 }
 
@@ -73,6 +74,7 @@ func (s *Store) UpsertFromPalace(p registry.Palace, at time.Time) error {
 		PserverVersion: p.PserverVersion,
 		YPHost:         p.YPHost,
 		YPPort:         p.YPPort,
+		QuotaBytesMax:  p.QuotaBytesMax,
 		UnregisteredAt: at.UTC(),
 	}
 	found := false

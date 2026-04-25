@@ -22,6 +22,7 @@ import (
 	"palace-manager/internal/bootstrap"
 	"palace-manager/internal/config"
 	"palace-manager/internal/instance"
+	"palace-manager/internal/palacequota"
 	"palace-manager/internal/provisioner"
 	"palace-manager/internal/pserverprefs"
 	"palace-manager/internal/registry"
@@ -131,6 +132,7 @@ func (s *Server) enrichInstance(inst *instance.Instance) {
 	if md, err := instance.DiscoverMediaDir(inst.Name); err == nil {
 		inst.MediaDir = md
 	}
+	s.enrichQuota(inst)
 }
 
 func (s *Server) handleListPalaces(w http.ResponseWriter, r *http.Request) {
@@ -167,11 +169,12 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name     string `json:"name"`
-		TCPPort  int    `json:"tcpPort"`
-		HTTPPort int    `json:"httpPort"`
-		YPHost   string `json:"ypHost"`
-		YPPort   int    `json:"ypPort"`
+		Name          string `json:"name"`
+		TCPPort       int    `json:"tcpPort"`
+		HTTPPort      int    `json:"httpPort"`
+		YPHost        string `json:"ypHost"`
+		YPPort        int    `json:"ypPort"`
+		QuotaBytesMax int64  `json:"quotaBytesMax"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -213,6 +216,7 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		ypPort := resolveYPPort(req.YPHost, req.YPPort, req.TCPPort)
 		entry := provisioner.RegistryEntry(req.Name, result, req.YPHost, ypPort)
 		entry.ProvisionedAt = time.Now()
+		entry.QuotaBytesMax = palacequota.NormalizeMax(req.QuotaBytesMax)
 
 		// Auto-pin to the current template semver so this palace stays on a known-good
 		// build. The operator can later opt it into "latest" via the rollout panel.
@@ -356,13 +360,14 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 	}
 
 	var req struct {
-		TcpPort   int    `json:"tcpPort"`
-		HttpPort  int    `json:"httpPort"`
-		DataDir   string `json:"dataDir"`
-		LinuxUser string `json:"linuxUser"`
-		EnableNow bool   `json:"enableNow"`
-		YPHost    string `json:"ypHost"`
-		YPPort    int    `json:"ypPort"`
+		TcpPort       int    `json:"tcpPort"`
+		HttpPort      int    `json:"httpPort"`
+		DataDir       string `json:"dataDir"`
+		LinuxUser     string `json:"linuxUser"`
+		EnableNow     bool   `json:"enableNow"`
+		YPHost        string `json:"ypHost"`
+		YPPort        int    `json:"ypPort"`
+		QuotaBytesMax int64  `json:"quotaBytesMax"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -429,6 +434,7 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 		YPHost:        ypHost,
 		YPPort:        ypPort,
 		ProvisionedAt: time.Now(),
+		QuotaBytesMax: palacequota.NormalizeMax(req.QuotaBytesMax),
 	}
 	if s.unreg != nil {
 		if rec, ok := s.unreg.Get(name); ok && rec.PserverVersion != "" {
@@ -642,13 +648,13 @@ func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		MediaHost        string `json:"mediaHost"`
-		CertDir          string `json:"certDir"`
-		EdgeScheme       string `json:"edgeScheme"`
-		MatchScheme      string `json:"matchScheme"`
-		HostingProvider  string `json:"hostingProvider"`
-		RestartAll       bool   `json:"restartAll"`
-		RewriteUnits     *bool  `json:"rewriteUnits"`
+		MediaHost       string `json:"mediaHost"`
+		CertDir         string `json:"certDir"`
+		EdgeScheme      string `json:"edgeScheme"`
+		MatchScheme     string `json:"matchScheme"`
+		HostingProvider string `json:"hostingProvider"`
+		RestartAll      bool   `json:"restartAll"`
+		RewriteUnits    *bool  `json:"rewriteUnits"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -1144,6 +1150,12 @@ func (s *Server) handlePalaceServerFileSave(w http.ResponseWriter, r *http.Reque
 		toWrite = merged
 	}
 
+	oldSz := fileSizeOrZero(fullPath)
+	if err := s.quotaRejectAfterChange(palaceName, oldSz, int64(len(toWrite))); err != nil {
+		writeError(w, http.StatusInsufficientStorage, err.Error())
+		return
+	}
+
 	if err := writeFileAtomicAs(fullPath, s.palaceLinuxUser(palaceName), strings.NewReader(toWrite)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1297,6 +1309,11 @@ func (s *Server) handlePalaceServerPrefsSave(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	fullPath := filepath.Join(dir, "pserver.prefs")
+	oldSz := fileSizeOrZero(fullPath)
+	if err := s.quotaRejectAfterChange(palaceName, oldSz, int64(len(merged))); err != nil {
+		writeError(w, http.StatusInsufficientStorage, err.Error())
+		return
+	}
 	if err := writeFileAtomicAs(fullPath, s.palaceLinuxUser(palaceName), strings.NewReader(merged)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1493,6 +1510,18 @@ func (s *Server) handlePalacePatUpload(w http.ResponseWriter, r *http.Request, p
 	defer src.Close()
 
 	dest := filepath.Join(dir, "pserver.pat")
+	newSz := fh.Size
+	if newSz <= 0 {
+		newSz = maxPatUploadBytes
+	}
+	if newSz > maxPatUploadBytes {
+		newSz = maxPatUploadBytes
+	}
+	oldSz := fileSizeOrZero(dest)
+	if err := s.quotaRejectAfterChange(palaceName, oldSz, newSz); err != nil {
+		writeError(w, http.StatusInsufficientStorage, err.Error())
+		return
+	}
 	if err := writeFileAtomicAs(dest, s.palaceLinuxUser(palaceName), io.LimitReader(src, maxPatUploadBytes)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

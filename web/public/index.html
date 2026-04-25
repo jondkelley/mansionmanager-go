@@ -234,6 +234,25 @@
   .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .palace-detail-value code { font-size: 12px; }
   .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: flex-start; }
+  .palace-details-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px 28px;
+  }
+  .palace-quota-over {
+    color: #c62828;
+    font-weight: 700;
+  }
+  .badge-over-quota {
+    background: rgba(198, 40, 40, 0.95);
+    color: #fff;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    margin-left: 6px;
+  }
+  .provision-quota-row input[type="range"] { width: 100%; max-width: 420px; }
   .palace-details-side {
     display: flex;
     flex-wrap: wrap;
@@ -1265,6 +1284,18 @@
         <div class="field">
           <label>YP port</label>
           <input id="pYPPort" type="number" min="0" max="65535" placeholder="defaults to TCP port" />
+        </div>
+      </div>
+      <div class="form-row provision-quota-row">
+        <div class="field" style="flex:1;min-width:260px;">
+          <label>Home directory quota (service user home)</label>
+          <input type="range" id="pQuotaSlider" min="0" max="13" value="6" step="1" oninput="syncProvisionQuotaLabel()" />
+          <div id="pQuotaLabel" style="font-size:13px;margin-top:6px;color:var(--text);">Max home storage: 4 GB</div>
+          <div id="pQuotaCustomWrap" style="display:none;margin-top:10px;">
+            <label style="font-size:12px;color:var(--muted);">Custom maximum (MiB)</label>
+            <input id="pQuotaCustomMiB" type="number" min="1" max="1048576" step="1" placeholder="8192" style="max-width:140px;" />
+            <span style="font-size:11px;color:var(--muted);margin-left:6px;">1024 MiB ≈ 1 GiB</span>
+          </div>
         </div>
       </div>
     </div>

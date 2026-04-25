@@ -38,6 +38,9 @@ type Instance struct {
 	MediaDir       string `json:"mediaDir,omitempty"`       // absolute path from palman unit -m (or …/media)
 	YPHost         string `json:"ypHost,omitempty"`         // directory announce host → YPMYEXTADDR
 	YPPort         int    `json:"ypPort,omitempty"`         // directory announce port → YPMYEXTPORT
+	QuotaBytesMax  int64  `json:"quotaBytesMax,omitempty"`  // 0 = unlimited
+	HomeUsedBytes  int64  `json:"homeUsedBytes,omitempty"`  // set when quotaBytesMax > 0
+	QuotaExceeded  bool   `json:"quotaExceeded,omitempty"`  // homeUsedBytes > quotaBytesMax
 }
 
 type systemdUnit struct {
@@ -82,6 +85,7 @@ func (m *Manager) List() ([]Instance, error) {
 			inst.DataDir = p.DataDir
 			inst.YPHost = p.YPHost
 			inst.YPPort = p.YPPort
+			inst.QuotaBytesMax = p.QuotaBytesMax
 			if !p.ProvisionedAt.IsZero() {
 				inst.ProvisionedAt = p.ProvisionedAt.Format("2006-01-02T15:04:05Z")
 			}
@@ -102,15 +106,16 @@ func (m *Manager) List() ([]Instance, error) {
 		if !found {
 			u := fmt.Sprintf("palman-%s.service", p.Name)
 			instances = append(instances, Instance{
-				Name:       p.Name,
-				Registered: true,
-				User:       p.User,
-				TCPPort:    p.TCPPort,
-				HTTPPort:   p.HTTPPort,
-				DataDir:    p.DataDir,
-				YPHost:     p.YPHost,
-				YPPort:     p.YPPort,
-				UnitName:   u,
+				Name:          p.Name,
+				Registered:    true,
+				User:          p.User,
+				TCPPort:       p.TCPPort,
+				HTTPPort:      p.HTTPPort,
+				DataDir:       p.DataDir,
+				YPHost:        p.YPHost,
+				YPPort:        p.YPPort,
+				QuotaBytesMax: p.QuotaBytesMax,
+				UnitName:      u,
 				// list-units + glob sometimes omits loaded units; ask systemd directly.
 				Status: queryUnitStatus(u),
 			})
@@ -137,6 +142,7 @@ func (m *Manager) List() ([]Instance, error) {
 				DataDir:        rec.DataDir,
 				YPHost:         rec.YPHost,
 				YPPort:         rec.YPPort,
+				QuotaBytesMax:  rec.QuotaBytesMax,
 				Registered:     false,
 				UnitName:       u,
 				Status:         queryUnitStatus(u),

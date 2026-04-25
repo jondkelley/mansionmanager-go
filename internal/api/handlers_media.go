@@ -244,6 +244,28 @@ func (s *Server) handlePalaceMediaUpload(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	var oldSum, newSum int64
+	for _, fh := range fhs {
+		base := filepath.Base(fh.Filename)
+		if base == "" || base == "." || base == string(filepath.Separator) {
+			continue
+		}
+		dest, err := mediadisk.ResolveSafe(root, base)
+		if err != nil {
+			continue
+		}
+		ns := fh.Size
+		if ns <= 0 {
+			ns = mediadisk.MaxUploadBytes
+		}
+		newSum += ns
+		oldSum += fileSizeOrZero(dest)
+	}
+	if err := s.quotaRejectAfterChange(palaceName, oldSum, newSum); err != nil {
+		writeError(w, http.StatusInsufficientStorage, err.Error())
+		return
+	}
+
 	var saved []string
 	for _, fh := range fhs {
 		base := filepath.Base(fh.Filename)

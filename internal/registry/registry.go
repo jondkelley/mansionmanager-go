@@ -22,6 +22,9 @@ type Palace struct {
 	// YPHost / YPPort are written to pserver.prefs as YPMYEXTADDR / YPMYEXTPORT for directory registration.
 	YPHost string `json:"ypHost,omitempty"`
 	YPPort int    `json:"ypPort,omitempty"`
+	// QuotaBytesMax is a hard cap on total logical size of regular files under the service user's
+	// Unix home directory. Zero or omitted means unlimited (legacy palaces).
+	QuotaBytesMax int64 `json:"quotaBytesMax,omitempty"`
 }
 
 type Registry struct {

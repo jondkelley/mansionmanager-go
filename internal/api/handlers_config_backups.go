@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -169,6 +170,10 @@ func (s *Server) handlePalaceConfigBackupsSnapshot(w http.ResponseWriter, r *htt
 	defer s.configBackupMu.Unlock()
 	created, err := s.doPalaceConfigBackup(palaceName, time.Now().UTC())
 	if err != nil {
+		if errors.Is(err, errPalaceQuotaExceeded) {
+			writeError(w, http.StatusInsufficientStorage, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -180,6 +185,9 @@ func (s *Server) handlePalaceConfigBackupsSnapshot(w http.ResponseWriter, r *htt
 func (s *Server) doPalaceConfigBackup(palaceName string, nowUTC time.Time) ([]string, error) {
 	dir, err := s.palaceDataDir(palaceName)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.assertConfigSnapshotQuotaHeadroom(palaceName, dir, nowUTC); err != nil {
 		return nil, err
 	}
 	lu := s.palaceLinuxUser(palaceName)
@@ -319,6 +327,20 @@ func (s *Server) handlePalaceConfigBackupsRestore(w http.ResponseWriter, r *http
 	dest := filepath.Join(dir, base)
 	lu := s.palaceLinuxUser(palaceName)
 
+	bakFi, err := os.Stat(bakPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !bakFi.Mode().IsRegular() {
+		writeError(w, http.StatusBadRequest, "invalid backup file")
+		return
+	}
+	if err := s.quotaRejectAfterChange(palaceName, fileSizeOrZero(dest), bakFi.Size()); err != nil {
+		writeError(w, http.StatusInsufficientStorage, err.Error())
+		return
+	}
+
 	if err := s.instances.Stop(palaceName); err != nil {
 		writeError(w, http.StatusInternalServerError, "stop failed: "+err.Error())
 		return
@@ -360,6 +382,10 @@ func (s *Server) runScheduledConfigBackupsForAllPalaces(nowUTC time.Time) {
 			continue
 		}
 		if _, err := s.doPalaceConfigBackup(name, nowUTC); err != nil {
+			if errors.Is(err, errPalaceQuotaExceeded) {
+				log.Printf("scheduled config backup [%s]: skipped (home over quota)", name)
+				continue
+			}
 			log.Printf("scheduled config backup [%s]: %v", name, err)
 		}
 	}
