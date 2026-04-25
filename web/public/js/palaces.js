@@ -170,6 +170,81 @@ function palaceStatusDot(status) {
   return { dotClass: 'status-dot-warn', title: 'Status unknown' };
 }
 
+const PROVISION_TCP_RANGE = [9990, 10990];
+const PROVISION_HTTP_RANGE = [6000, 7000];
+const PALACE_EXPANDED = new Set();
+
+async function fetchUsedPalacePorts() {
+  const used = new Set();
+  const res = await fetch('/api/palaces', { headers: headers() });
+  if (!res.ok) return used;
+  const list = await res.json().catch(() => []);
+  if (!Array.isArray(list)) return used;
+  list.forEach(p => {
+    const tcp = parseInt(p && p.tcpPort, 10);
+    const http = parseInt(p && p.httpPort, 10);
+    if (Number.isFinite(tcp) && tcp > 0) used.add(tcp);
+    if (Number.isFinite(http) && http > 0) used.add(http);
+  });
+  return used;
+}
+
+function pickRangePort(start, end, used) {
+  for (let port = start; port <= end; port += 1) {
+    if (!used.has(port)) return port;
+  }
+  return 0;
+}
+
+async function suggestProvisionPorts() {
+  const tcpInput = $('pTCP');
+  const httpInput = $('pHTTP');
+  const tcpAuto = $('pTCPAuto') && $('pTCPAuto').checked;
+  const httpAuto = $('pHTTPAuto') && $('pHTTPAuto').checked;
+  if (!tcpInput || !httpInput || (!tcpAuto && !httpAuto)) return;
+  try {
+    const used = await fetchUsedPalacePorts();
+    if (tcpAuto) {
+      const tcp = pickRangePort(PROVISION_TCP_RANGE[0], PROVISION_TCP_RANGE[1], used);
+      if (tcp) {
+        tcpInput.value = String(tcp);
+        used.add(tcp);
+      } else {
+        tcpInput.value = '';
+      }
+    }
+    if (httpAuto) {
+      const http = pickRangePort(PROVISION_HTTP_RANGE[0], PROVISION_HTTP_RANGE[1], used);
+      if (http) {
+        httpInput.value = String(http);
+        used.add(http);
+      } else {
+        httpInput.value = '';
+      }
+    }
+  } catch (_) {}
+}
+
+function syncProvisionPortMode() {
+  const tcpAuto = $('pTCPAuto') && $('pTCPAuto').checked;
+  const httpAuto = $('pHTTPAuto') && $('pHTTPAuto').checked;
+  if ($('pTCP')) $('pTCP').disabled = !!tcpAuto;
+  if ($('pHTTP')) $('pHTTP').disabled = !!httpAuto;
+  if (tcpAuto || httpAuto) {
+    suggestProvisionPorts();
+  }
+}
+
+function togglePalaceAccordion(name) {
+  if (!name || !SESSION || SESSION.role !== 'admin') return;
+  if (PALACE_EXPANDED.has(name)) {
+    PALACE_EXPANDED.delete(name);
+  } else {
+    PALACE_EXPANDED.add(name);
+  }
+  loadPalaces();
+}
+
 async function loadPalaces() {
   const tbody = $('palaceBody');
   const unregPanel = $('unregisteredPalacesPanel');
@@ -186,7 +261,7 @@ async function loadPalaces() {
       }
     }
     if (!res.ok) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty">Could not load palaces (HTTP ${res.status})</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">Could not load palaces (HTTP ${res.status})</td></tr>`;
       if (unregPanel) unregPanel.style.display = 'none';
       return;
     }
@@ -210,7 +285,6 @@ async function loadPalaces() {
         <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
-        <td><code>${esc(p.user || p.name)}</code></td>
         <td>
           <div class="actions">
             <button type="button" class="primary" onclick='openRegisterPalaceModal(${nm})'>Register…</button>
@@ -235,47 +309,68 @@ async function loadPalaces() {
     }
 
     if (!Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">No palaces found. Provision one to get started.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No palaces found. Provision one to get started.</td></tr>';
       return;
     }
     if (mainList.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">No registered palaces in the manager. Unregistered instances are listed below.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No registered palaces in the manager. Unregistered instances are listed below.</td></tr>';
       return;
     }
+    const isAdmin = !!(SESSION && SESSION.role === 'admin');
+    const isTenant = !!(SESSION && SESSION.role === 'tenant');
     tbody.innerHTML = mainList.map(p => {
       const { dotClass, title } = palaceStatusDot(p.status);
       const nm = JSON.stringify(p.name);
+      const expanded = isTenant || PALACE_EXPANDED.has(p.name);
+      const expandGlyph = expanded ? '&#9662;' : '&#9656;';
       const pserv = `<code>${esc(p.pserverVersion || 'latest')}</code>`;
-      const removeBtn = canAdmin
+      const removeBtn = isAdmin
         ? `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`
         : '';
       const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
       const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
       const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
-      const backupBtn = `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Backup</button>`;
+      const backupBtn = `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Media Backup</button>`;
+      const summaryClass = isAdmin ? 'palace-row-summary' : '';
       return `
-      <tr>
-        <td><strong>${esc(p.name)}</strong></td>
+      <tr class="${summaryClass}${expanded ? ' palace-row-open' : ''}"${isAdmin ? ` onclick='togglePalaceAccordion(${nm})'` : ''}>
+        <td>
+          <span class="palace-name-cell">
+            <span class="palace-expander">${isAdmin ? expandGlyph : '&nbsp;'}</span>
+            <strong>${esc(p.name)}</strong>
+          </span>
+        </td>
         <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span></span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
         <td>${pserv}</td>
-        <td><code>${esc(p.user || p.name)}</code></td>
-        <td><div class="actions">${mediaBtn}${backupBtn}</div></td>
-        <td>
-          <div class="actions">
-            <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
-            <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
-            <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
-            ${settingsBtn}
-            ${logsBtn}
-            ${removeBtn}
+      </tr>
+      <tr class="palace-details-row" style="display:${expanded ? '' : 'none'};">
+        <td colspan="5">
+          <div class="palace-details-wrap">
+            <div class="palace-detail-block">
+              <span class="palace-detail-label">Service user</span>
+              <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
+            </div>
+            <div class="palace-detail-block" style="margin-left:auto;">
+              <span class="palace-detail-label">Actions</span>
+              <div class="palace-detail-actions">
+                ${mediaBtn}
+                ${backupBtn}
+                <button type="button" onclick='palaceAction(${nm},"stop")'>Stop</button>
+                <button type="button" onclick='palaceAction(${nm},"start")'>Start</button>
+                <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
+                ${settingsBtn}
+                ${logsBtn}
+                ${removeBtn}
+              </div>
+            </div>
           </div>
-        </td>
+        </td> 
       </tr>`;
     }).join('');
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Error: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(e.message)}</td></tr>`;
     if (unregPanel) unregPanel.style.display = 'none';
   }
 }
@@ -456,7 +551,10 @@ function openProvisionModal() {
   $('provisionFooter').innerHTML =
     `<button id="provisionCancelBtn" onclick="closeProvisionModal()">Cancel</button>` +
     `<button id="provisionBtn" class="primary" onclick="doProvision()">Provision</button>`;
-  ['pName','pTCP','pHTTP'].forEach(id => { $(id).disabled = false; $(id).value = ''; });
+  ['pName','pTCP','pHTTP'].forEach(id => { $(id).value = ''; });
+  if ($('pTCPAuto')) $('pTCPAuto').checked = true;
+  if ($('pHTTPAuto')) $('pHTTPAuto').checked = true;
+  syncProvisionPortMode();
 }
 function closeProvisionModal() {
   $('provisionModal').classList.remove('open');
@@ -464,15 +562,26 @@ function closeProvisionModal() {
 }
 
 function _setProvisionRunning(running) {
-  ['pName','pTCP','pHTTP','pYPHost','pYPPort'].forEach(id => { const el = $(id); if (el) el.disabled = running; });
+  ['pName','pYPHost','pYPPort','pTCPAuto','pHTTPAuto'].forEach(id => { const el = $(id); if (el) el.disabled = running; });
+  if (!running) syncProvisionPortMode();
+  if (running) {
+    ['pTCP','pHTTP'].forEach(id => { const el = $(id); if (el) el.disabled = true; });
+  }
   const btn = $('provisionBtn');
   if (btn) { btn.disabled = running; btn.textContent = running ? 'Provisioning…' : 'Provision'; }
 }
 
 async function doProvision() {
   const name = $('pName').value.trim();
-  const tcpPort = parseInt($('pTCP').value);
-  const httpPort = parseInt($('pHTTP').value);
+  let tcpPort = parseInt($('pTCP').value, 10);
+  let httpPort = parseInt($('pHTTP').value, 10);
+  if (($('pTCPAuto') && $('pTCPAuto').checked) || ($('pHTTPAuto') && $('pHTTPAuto').checked)) {
+    if (!Number.isFinite(tcpPort) || !Number.isFinite(httpPort)) {
+      await suggestProvisionPorts();
+      tcpPort = parseInt($('pTCP').value, 10);
+      httpPort = parseInt($('pHTTP').value, 10);
+    }
+  }
   if (!name || !tcpPort || !httpPort) { alert('All fields required'); return; }
 
   const stream = $('provisionStream');

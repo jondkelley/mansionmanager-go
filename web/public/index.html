@@ -183,6 +183,47 @@
   th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); }
   td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
+  .palace-row-summary { cursor: pointer; }
+  .palace-row-summary:hover { background: rgba(255,255,255,.02); }
+  .palace-row-summary.palace-row-open { background: rgba(95,212,160,.06); }
+  .palace-name-cell { display: flex; align-items: center; gap: 8px; }
+  .palace-expander {
+    width: 16px;
+    color: var(--muted);
+    display: inline-block;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .palace-details-row td {
+    background: rgba(0,0,0,.08);
+    border-top: 0;
+    padding-top: 8px;
+    padding-bottom: 14px;
+  }
+  .palace-details-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px 16px;
+  }
+  .palace-detail-block { display: flex; flex-direction: column; gap: 6px; }
+  .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .palace-detail-value code { font-size: 12px; }
+  .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .toggle-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-inline input { width: auto; margin: 0; accent-color: var(--accent); }
+  .toggle-inline .hint { color: var(--muted); }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
   .badge-active { background: rgba(95,212,160,.15); color: var(--green); }
   .badge-inactive { background: rgba(255,255,255,.06); color: var(--muted); }
@@ -668,9 +709,9 @@
     </div>
     <table id="palaceTable">
       <thead><tr>
-        <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>Pserver</th><th>User</th><th>Media</th><th>Actions</th>
+        <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>Pserver</th>
       </tr></thead>
-      <tbody id="palaceBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+      <tbody id="palaceBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
     </table>
     <div id="unregisteredPalacesPanel" class="unregistered-palaces-box" style="display:none;">
       <h3>Unregistered palaces</h3>
@@ -679,7 +720,7 @@
       </p>
       <table>
         <thead><tr>
-          <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>User</th><th>Actions</th>
+          <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>Actions</th>
         </tr></thead>
         <tbody id="unregisteredPalaceBody"></tbody>
       </table>
@@ -1009,10 +1050,18 @@
           <label>TCP Port</label>
           <input id="pTCP" type="number" placeholder="9998" />
         </div>
+        <label class="toggle-inline">
+          <input id="pTCPAuto" type="checkbox" checked onchange="syncProvisionPortMode()" />
+          <span>Auto-select port between 9990-10990</span>
+        </label>
         <div class="field">
           <label>HTTP Port</label>
           <input id="pHTTP" type="number" placeholder="8080" />
         </div>
+        <label class="toggle-inline">
+          <input id="pHTTPAuto" type="checkbox" checked onchange="syncProvisionPortMode()" />
+          <span>Auto-select port between 6000-7000</span>
+        </label>
       </div>
       <p style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:8px;">Directory listing (optional): host and port announced to the directory server — stored in <code>pserver.prefs</code> as <code>YPMYEXTADDR</code> / <code>YPMYEXTPORT</code> (same as mansionsource-go). Leave host blank to skip.</p>
       <div class="form-row">
