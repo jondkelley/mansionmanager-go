@@ -318,6 +318,7 @@ async function loadPalaces() {
     }
     const isAdmin = !!(SESSION && SESSION.role === 'admin');
     const isTenant = !!(SESSION && SESSION.role === 'tenant');
+    const expandedList = mainList.filter(p => p.httpPort && (isTenant || PALACE_EXPANDED.has(p.name)));
     tbody.innerHTML = mainList.map(p => {
       const { dotClass, title } = palaceStatusDot(p.status);
       const nm = JSON.stringify(p.name);
@@ -331,7 +332,11 @@ async function loadPalaces() {
       const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
       const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
       const backupBtn = `<button type="button" onclick='downloadPalaceHomeBackup(${nm})' title="Download tar.gz of this palace user's home directory (gzip -9)">Media Backup</button>`;
+      const usersBtn = p.httpPort
+        ? `<button type="button" onclick='openPalaceUsersModal(${nm})'>Users</button>`
+        : '';
       const summaryClass = isAdmin ? 'palace-row-summary' : '';
+      const sid = palaceStatId(p.name);
       return `
       <tr class="${summaryClass}${expanded ? ' palace-row-open' : ''}"${isAdmin ? ` onclick='togglePalaceAccordion(${nm})'` : ''}>
         <td>
@@ -362,13 +367,29 @@ async function loadPalaces() {
                 <button type="button" onclick='palaceAction(${nm},"restart")'>Restart</button>
                 ${settingsBtn}
                 ${logsBtn}
+                ${usersBtn}
                 ${removeBtn}
               </div>
             </div>
           </div>
+          ${p.httpPort ? `
+          <div class="palace-stats-strip" id="${sid}">
+            <div class="palace-stats-grid">
+              <div class="palace-stat-item" id="${sid}-rooms"><span class="palace-stat-value">—</span><span class="palace-stat-label">Rooms</span></div>
+              <div class="palace-stat-item" id="${sid}-uptime"><span class="palace-stat-value">—</span><span class="palace-stat-label">Uptime</span></div>
+              <div class="palace-stat-item" id="${sid}-online"><span class="palace-stat-value">—</span><span class="palace-stat-label">Online</span></div>
+              <div class="palace-stat-item" id="${sid}-max"><span class="palace-stat-value">—</span><span class="palace-stat-label">Max Users</span></div>
+              <div class="palace-stat-item" id="${sid}-today"><span class="palace-stat-value">—</span><span class="palace-stat-label">Today</span></div>
+              <div class="palace-stat-item" id="${sid}-week"><span class="palace-stat-value">—</span><span class="palace-stat-label">This Week</span></div>
+              <div class="palace-stat-item" id="${sid}-ops"><span class="palace-stat-value">—</span><span class="palace-stat-label">Operators</span></div>
+              <div class="palace-stat-item" id="${sid}-gods"><span class="palace-stat-value">—</span><span class="palace-stat-label">Gods</span></div>
+              <div class="palace-stat-item" id="${sid}-owners"><span class="palace-stat-value">—</span><span class="palace-stat-label">Owners</span></div>
+            </div>
+          </div>` : ''}
         </td> 
       </tr>`;
     }).join('');
+    syncPalaceStatsPolling(expandedList);
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(e.message)}</td></tr>`;
     if (unregPanel) unregPanel.style.display = 'none';
@@ -497,6 +518,8 @@ function openRemovePalaceModal(name) {
 
 function closeRemovePalaceModal() {
   $('removePalaceModal').classList.remove('open');
+  $('removePalaceSpinner').style.display = 'none';
+  $('removePalaceFooter').style.display = '';
   REMOVE_PALACE_NAME = null;
 }
 
@@ -515,6 +538,8 @@ async function confirmRemovePalace() {
   $('removePalaceError').textContent = '';
   const btn = $('removePalaceSubmit');
   btn.disabled = true;
+  $('removePalaceSpinner').style.display = '';
+  $('removePalaceFooter').style.display = 'none';
   try {
     const q = purge ? '?purge=true' : '';
     const res = await fetch(`/api/palaces/${encodeURIComponent(name)}${q}`, {
@@ -523,6 +548,8 @@ async function confirmRemovePalace() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
+      $('removePalaceSpinner').style.display = 'none';
+      $('removePalaceFooter').style.display = '';
       $('removePalaceError').textContent = body.error || ('HTTP ' + res.status);
       btn.disabled = false;
       syncRemovePalaceSubmitStyle();
@@ -534,6 +561,8 @@ async function confirmRemovePalace() {
     closeRemovePalaceModal();
     loadPalaces();
   } catch (e) {
+    $('removePalaceSpinner').style.display = 'none';
+    $('removePalaceFooter').style.display = '';
     $('removePalaceError').textContent = e.message;
     btn.disabled = false;
     syncRemovePalaceSubmitStyle();
@@ -704,4 +733,185 @@ function closeLogModal() {
   }
   logLiveName = null;
   $('logModal').classList.remove('open');
+}
+
+// ===== Palace Server Stats (per-card polling) =====
+
+// Map of palace name → { fetchTimer, uptimeTimer, startTime }
+const PALACE_STAT_TIMERS = new Map();
+
+// Returns a DOM-safe ID prefix for a palace's stats elements.
+function palaceStatId(name) {
+  return 'pstat-' + encodeURIComponent(name).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function formatUptime(startIso) {
+  if (!startIso) return '—';
+  const elapsed = Math.max(0, Math.floor((Date.now() - new Date(startIso).getTime()) / 1000));
+  const d = Math.floor(elapsed / 86400);
+  const h = Math.floor((elapsed % 86400) / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+}
+
+function setStatEl(sid, key, value) {
+  const el = document.getElementById(`${sid}-${key}`);
+  if (!el) return;
+  const val = el.querySelector('.palace-stat-value');
+  if (val) val.textContent = value;
+}
+
+async function fetchPalaceStats(name) {
+  const sid = palaceStatId(name);
+  if (!document.getElementById(sid)) {
+    // Stats strip not in DOM (palace collapsed) — stop polling.
+    stopPalaceStatPolling(name);
+    return;
+  }
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/stats`, { headers: headers() });
+    if (!res.ok) {
+      setStatEl(sid, 'rooms', '—');
+      setStatEl(sid, 'online', '—');
+      return;
+    }
+    const d = await res.json();
+    const entry = PALACE_STAT_TIMERS.get(name) || {};
+    entry.startTime = d.start_time;
+    PALACE_STAT_TIMERS.set(name, entry);
+
+    setStatEl(sid, 'rooms',  d.room_count  ?? '—');
+    setStatEl(sid, 'online', d.user_count  ?? '—');
+    setStatEl(sid, 'max',    d.max_users   ?? '—');
+    setStatEl(sid, 'today',  d.users_today ?? '—');
+    setStatEl(sid, 'week',   d.users_week  ?? '—');
+    const ops = (d.operators ?? 0);
+    const gods = (d.gods ?? 0) + (d.hosts ?? 0);
+    setStatEl(sid, 'ops',    ops);
+    setStatEl(sid, 'gods',   gods);
+    setStatEl(sid, 'owners', d.owners ?? '—');
+    // Uptime is updated by the per-second ticker; seed it immediately.
+    setStatEl(sid, 'uptime', formatUptime(d.start_time));
+  } catch (_) {
+    // Silently ignore fetch errors between polls.
+  }
+}
+
+function tickPalaceUptime(name) {
+  const sid = palaceStatId(name);
+  if (!document.getElementById(sid)) return;
+  const entry = PALACE_STAT_TIMERS.get(name);
+  if (entry && entry.startTime) {
+    setStatEl(sid, 'uptime', formatUptime(entry.startTime));
+  }
+}
+
+function stopPalaceStatPolling(name) {
+  const entry = PALACE_STAT_TIMERS.get(name);
+  if (!entry) return;
+  if (entry.fetchTimer)  clearInterval(entry.fetchTimer);
+  if (entry.uptimeTimer) clearInterval(entry.uptimeTimer);
+  PALACE_STAT_TIMERS.delete(name);
+}
+
+function startPalaceStatPolling(name) {
+  // Already polling → keep running.
+  if (PALACE_STAT_TIMERS.has(name)) return;
+  fetchPalaceStats(name); // immediate first fetch
+  const fetchTimer  = setInterval(() => fetchPalaceStats(name), 5000);
+  const uptimeTimer = setInterval(() => tickPalaceUptime(name), 1000);
+  PALACE_STAT_TIMERS.set(name, { fetchTimer, uptimeTimer, startTime: null });
+}
+
+// Called after loadPalaces() renders the DOM. Starts polls for newly-expanded
+// palaces and stops polls for palaces no longer expanded/visible.
+function syncPalaceStatsPolling(expandedPalaces) {
+  const activeNames = new Set(expandedPalaces.map(p => p.name));
+  // Stop polls for palaces no longer visible.
+  for (const name of PALACE_STAT_TIMERS.keys()) {
+    if (!activeNames.has(name)) stopPalaceStatPolling(name);
+  }
+  // Start polls for newly-expanded palaces.
+  for (const p of expandedPalaces) {
+    startPalaceStatPolling(p.name);
+  }
+}
+
+// ===== Palace Users Modal =====
+
+let palaceUsersLiveName = null;
+let palaceUsersTimer = null;
+
+function formatSignonTime(secs) {
+  const s = Math.max(0, Math.floor(secs));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+async function fetchPalaceUsers(name) {
+  if (!$('palaceUsersModal').classList.contains('open') || name !== palaceUsersLiveName) return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/palace-users`, { headers: headers() });
+    if (!res.ok) {
+      $('palaceUsersBody').innerHTML = `<tr><td colspan="13" class="empty">Error: HTTP ${res.status}</td></tr>`;
+      return;
+    }
+    const users = await res.json();
+    if (!Array.isArray(users) || users.length === 0) {
+      $('palaceUsersCount').textContent = '0 users';
+      $('palaceUsersBody').innerHTML = '<tr><td colspan="13" class="empty">No users connected</td></tr>';
+      return;
+    }
+    $('palaceUsersCount').textContent = `${users.length} user${users.length === 1 ? '' : 's'}`;
+    $('palaceUsersBody').innerHTML = users.map(u => `
+      <tr>
+        <td><code>${u.id}</code></td>
+        <td>${esc(u.role)}</td>
+        <td><strong>${esc(u.name)}</strong></td>
+        <td><code>${esc(u.client_version)}</code></td>
+        <td>${esc(u.os || '?')}</td>
+        <td>${esc(u.room_name)}</td>
+        <td><code>${esc(u.ip)}</code></td>
+        <td><code style="font-size:10px;">${esc(u.uuid || '')}</code></td>
+        <td><code>${u.puid_ctr || 0}</code></td>
+        <td><code>${esc(u.crc)}</code></td>
+        <td><code>${u.cnt || 0}</code></td>
+        <td><code>${esc(u.wiz_key)}</code></td>
+        <td>${formatSignonTime(u.signon_seconds)}</td>
+      </tr>`).join('');
+  } catch (e) {
+    $('palaceUsersBody').innerHTML = `<tr><td colspan="13" class="empty">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function openPalaceUsersModal(name) {
+  if (palaceUsersTimer) {
+    clearInterval(palaceUsersTimer);
+    palaceUsersTimer = null;
+  }
+  palaceUsersLiveName = name;
+  $('palaceUsersModalTitle').textContent = `Connected Users — ${name}`;
+  $('palaceUsersCount').textContent = '';
+  $('palaceUsersBody').innerHTML = '<tr><td colspan="13" class="empty">Loading…</td></tr>';
+  $('palaceUsersModal').classList.add('open');
+  await fetchPalaceUsers(name);
+  palaceUsersTimer = setInterval(() => fetchPalaceUsers(name), 5000);
+}
+
+function closePalaceUsersModal() {
+  if (palaceUsersTimer) {
+    clearInterval(palaceUsersTimer);
+    palaceUsersTimer = null;
+  }
+  palaceUsersLiveName = null;
+  $('palaceUsersModal').classList.remove('open');
 }

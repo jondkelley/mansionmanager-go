@@ -372,6 +372,10 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalacePatUpload(w, r, name)
 	case action == "home-backup" && r.Method == http.MethodGet:
 		s.handlePalaceHomeBackup(w, r, name)
+	case action == "stats" && r.Method == http.MethodGet:
+		s.handlePalaceStats(w, r, name)
+	case action == "palace-users" && r.Method == http.MethodGet:
+		s.handlePalaceUsers(w, r, name)
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 	}

@@ -132,6 +132,28 @@
     0%, 100% { opacity: 1; }
     50% { opacity: .35; }
   }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .modal-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 24px 0 8px;
+  }
+  .modal-spinner-ring {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-shade);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .modal-spinner-label {
+    font-size: 13px;
+    color: var(--muted);
+  }
   nav { display: flex; gap: 4px; margin-left: auto; }
   nav button { background: none; border: none; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
   nav button.active, nav button:hover {
@@ -212,6 +234,51 @@
   .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .palace-detail-value code { font-size: 12px; }
   .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  /* Server-stats strip shown below the service-user / actions row */
+  .palace-stats-strip {
+    margin-top: 10px;
+    border-top: 1px solid rgba(255,255,255,.07);
+    padding-top: 10px;
+  }
+  .palace-stats-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    align-items: center;
+  }
+  .palace-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 64px;
+  }
+  .palace-stat-value {
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .palace-stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    white-space: nowrap;
+  }
+  .palace-stat-item.stat-unavailable .palace-stat-value { color: var(--muted); }
+  /* Palace users modal table */
+  #palaceUsersModal .modal { max-width: 1000px; width: 96%; }
+  .palace-users-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .palace-users-table th, .palace-users-table td {
+    padding: 5px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-shade);
+    white-space: nowrap;
+  }
+  .palace-users-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--card); }
+  .palace-users-table td code { font-size: 11px; }
+  .palace-users-scroll { max-height: 480px; overflow-y: auto; }
   .toggle-inline {
     display: inline-flex;
     align-items: center;
@@ -1171,6 +1238,28 @@
   </div>
 </div>
 
+<!-- Palace Users Modal -->
+<div class="modal-bg" id="palaceUsersModal">
+  <div class="modal" style="max-width:1000px;width:96%;display:flex;flex-direction:column;max-height:88vh;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0;">
+      <h3 id="palaceUsersModalTitle" style="margin:0;">Connected Users</h3>
+      <span id="palaceUsersCount" style="font-size:12px;color:var(--muted);"></span>
+    </div>
+    <div class="palace-users-scroll" style="flex:1;overflow-y:auto;">
+      <table class="palace-users-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Role</th><th>Name</th><th>Client</th><th>OS</th><th>Room</th>
+            <th>IP</th><th>UUID</th><th>PUID</th><th>CRC</th><th>CNT</th><th>Key</th><th>Online</th>
+          </tr>
+        </thead>
+        <tbody id="palaceUsersBody"><tr><td colspan="13" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-footer" style="flex-shrink:0;"><button type="button" onclick="closePalaceUsersModal()">Close</button></div>
+  </div>
+</div>
+
 <!-- Log Modal -->
 <div class="modal-bg" id="logModal">
   <div class="modal" style="max-width:800px;">
@@ -1253,7 +1342,11 @@
       </label>
     </div>
     <div id="removePalaceError" style="color:var(--red);font-size:13px;margin-top:12px;min-height:18px;"></div>
-    <div class="modal-footer">
+    <div id="removePalaceSpinner" class="modal-spinner" style="display:none;">
+      <div class="modal-spinner-ring"></div>
+      <div class="modal-spinner-label">This can take a while&hellip;</div>
+    </div>
+    <div class="modal-footer" id="removePalaceFooter">
       <button type="button" onclick="closeRemovePalaceModal()">Cancel</button>
       <button type="button" class="primary" id="removePalaceSubmit" onclick="confirmRemovePalace()">Remove palace</button>
     </div>
