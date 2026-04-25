@@ -6,31 +6,43 @@ function wizPassToggleUsername() {
 async function loadWizPasses() {
   const pathEl = $('wizPassPath');
   const globalsEl = $('wizPassGlobalCount');
-  const usersBody = $('wizPassUsersBody');
+  const entriesBody = $('wizPassEntriesBody');
   pathEl.textContent = 'Loading...';
   globalsEl.textContent = '...';
-  usersBody.innerHTML = '<tr><td class="empty">Loading...</td></tr>';
+  entriesBody.innerHTML = '<tr><td colspan="4" class="empty">Loading...</td></tr>';
   try {
     const res = await fetch('/api/wizpasses', { headers: headers() });
     if (!res.ok) {
       pathEl.textContent = 'error';
       globalsEl.textContent = '0';
-      usersBody.innerHTML = `<tr><td class="empty">HTTP ${res.status}</td></tr>`;
+      entriesBody.innerHTML = `<tr><td colspan="4" class="empty">HTTP ${res.status}</td></tr>`;
       return;
     }
     const data = await res.json();
     pathEl.textContent = data.path || '/etc/palacehostpass';
     globalsEl.textContent = String(data.globalCount || 0);
-    const users = Array.isArray(data.users) ? data.users : [];
-    if (users.length === 0) {
-      usersBody.innerHTML = '<tr><td class="empty">No user-specific host passes.</td></tr>';
+    const entries = Array.isArray(data.entries) ? data.entries : [];
+    if (entries.length === 0) {
+      entriesBody.innerHTML = '<tr><td colspan="4" class="empty">No host pass entries.</td></tr>';
       return;
     }
-    usersBody.innerHTML = users.map(u => `<tr><td><code>${esc(u)}</code></td></tr>`).join('');
+    entriesBody.innerHTML = entries.map(e => {
+      const scope = e.scope === 'user' ? 'User-specific' : 'Global';
+      const user = e.scope === 'user' ? `<code>${esc(e.username || '')}</code>` : '—';
+      const desc = e.scope === 'user'
+        ? ('user ' + (e.username || '') + ' entry')
+        : 'global entry';
+      return `<tr>
+        <td>${e.line}</td>
+        <td>${scope}</td>
+        <td>${user}</td>
+        <td><button type="button" class="danger" onclick='deleteWizPass(${Number(e.line) || 0}, ${JSON.stringify(desc)})'>Delete</button></td>
+      </tr>`;
+    }).join('');
   } catch (e) {
     pathEl.textContent = 'error';
     globalsEl.textContent = '0';
-    usersBody.innerHTML = `<tr><td class="empty">Error: ${esc(e.message)}</td></tr>`;
+    entriesBody.innerHTML = `<tr><td colspan="4" class="empty">Error: ${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -72,5 +84,33 @@ async function addWizPass() {
     $('wizPassError').textContent = e.message;
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function deleteWizPass(line, description) {
+  $('wizPassError').textContent = '';
+  $('wizPassSuccess').textContent = '';
+  if (!line || line < 1) {
+    $('wizPassError').textContent = 'Invalid entry line.';
+    return;
+  }
+  if (!confirm('Delete ' + description + ' from host pass file?')) {
+    return;
+  }
+  try {
+    const res = await fetch('/api/wizpasses', {
+      method: 'DELETE',
+      headers: headers(),
+      body: JSON.stringify({ line }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('wizPassError').textContent = body.error || ('HTTP ' + res.status);
+      return;
+    }
+    $('wizPassSuccess').textContent = 'Deleted host pass entry on line ' + line + '.';
+    await loadWizPasses();
+  } catch (e) {
+    $('wizPassError').textContent = e.message;
   }
 }

@@ -752,6 +752,9 @@
       Shared entries are stored as a hash line; user-specific entries are stored as <code>username:hash</code>.
       Only the primary admin account can use this panel.
     </p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
+      Client usage: global entries require <code>~susr</code> with password only; user-specific entries require <code>~susr username:password</code> (username is case-sensitive).
+    </p>
     <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">
       File: <code id="wizPassPath">/etc/palacehostpass</code>
     </p>
@@ -784,8 +787,8 @@
     </div>
 
     <table style="margin-top:10px;">
-      <thead><tr><th>User-specific entries</th></tr></thead>
-      <tbody id="wizPassUsersBody"><tr><td class="empty">Loading…</td></tr></tbody>
+      <thead><tr><th>Line</th><th>Scope</th><th>User</th><th>Actions</th></tr></thead>
+      <tbody id="wizPassEntriesBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </div>
