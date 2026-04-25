@@ -74,14 +74,16 @@ function renderPalaceBansTable(entries) {
                   : 'ban-kind-deny';
     const rowCls = e.active ? '' : ' ban-inactive';
     const id = escHtml(e.id || '');
-    const line = escHtml(e.line || '');
+    const lineRaw = e.line || '';
+    const lineTitle = escHtml(lineRaw);
+    const lineCell = escHtml(formatBanLineMultiline(lineRaw));
     return `<tr class="${rowCls}">
       <td class="ban-id" title="${id}">${id.length > 14 ? id.slice(0, 14) + '…' : id}</td>
       <td class="${kindCls}">${escHtml(e.kind || '—')}</td>
       <td>${e.active ? '✓' : '—'}</td>
       <td>${escHtml(e.created_by || '—')}</td>
       <td>${escHtml(e.reason || '—')}</td>
-      <td class="ban-line" title="${line}">${line}</td>
+      <td class="ban-line" title="${lineTitle}">${lineCell}</td>
       <td><button class="btn-unban" data-id="${id}" data-ctx="modal" title="Unban this record">Unban</button></td>
     </tr>`;
   }).join('');
@@ -243,7 +245,9 @@ function renderBansTable(entries) {
     const rowCls = e.active ? '' : ' ban-inactive';
     const reason = escHtml(e.reason || '—');
     const by = escHtml(e.created_by || '—');
-    const line = escHtml(e.line || '');
+    const lineRaw = e.line || '';
+    const lineTitle = escHtml(lineRaw);
+    const lineCell = escHtml(formatBanLineMultiline(lineRaw));
     const id = escHtml(e.id || '');
     return `<tr class="${rowCls}">
       <td class="ban-id" title="${id}">${id.length > 12 ? id.slice(0, 12) + '…' : id}</td>
@@ -251,7 +255,7 @@ function renderBansTable(entries) {
       <td>${e.active ? '✓' : '—'}</td>
       <td>${by}</td>
       <td>${reason}</td>
-      <td class="ban-line" title="${line}">${line}</td>
+      <td class="ban-line" title="${lineTitle}">${lineCell}</td>
       <td><button class="btn-unban" data-id="${id}" data-ctx="tab" title="Unban this record">Unban</button></td>
     </tr>`;
   }).join('');
@@ -273,4 +277,9 @@ function escHtml(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// Ban list "line" is space-separated key=value pairs; break before each key for readability.
+function formatBanLineMultiline(line) {
+  return String(line || '').replace(/ (?=[a-z][a-z_]*=)/gi, '\n');
 }

@@ -301,7 +301,7 @@
   .bans-table .ban-kind-track { color: var(--accent); font-weight: 600; }
   .bans-table .ban-kind-timed { color: #f59e0b; font-weight: 600; }
   .bans-table .ban-inactive { opacity: .45; }
-  .bans-table .ban-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bans-table .ban-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--muted); max-width: 420px; white-space: pre-line; word-break: break-word; line-height: 1.35; }
   .bans-table .btn-unban { font-size: 11px; padding: 2px 10px; background: var(--red); color: #fff; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
   .bans-table .btn-unban:hover { opacity: .85; }
   .bans-table-scroll { max-height: 520px; overflow-y: auto; }
@@ -1043,7 +1043,7 @@
       </table>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5;">
-      Unban removes the record and pages wizards in-world: <em>Page from System: Unbanned by PalaceManager (you)</em>.
+      Unban will page wizards in-world, everyone will know what you did!
     </p>
   </div>
 </div>
@@ -1493,7 +1493,7 @@
       </table>
     </div>
     <div class="modal-footer" style="flex-shrink:0;justify-content:space-between;align-items:center;">
-      <span style="font-size:11px;color:var(--muted);">Unban pages wizards in-world: <em>Page from System: Unbanned by PalaceManager (you)</em></span>
+      <span style="font-size:11px;color:var(--muted);">Unban will page wizards in-world, everyone will know what you did!</span>
       <button type="button" onclick="closePalaceBansModal()">Close</button>
     </div>
   </div>
