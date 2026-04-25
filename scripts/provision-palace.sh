@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Debian-style provisioning: one unprivileged Unix user per palace host under /home/<user>/,
+# Linux provisioning: one unprivileged Unix user per palace host under /home/<user>/,
 # with all server data in /home/<user>/palace/ (pserver.pat, media/, logs, mediaserverurl.txt).
 #
 # Cron: one global job runs gen-media-nginx.sh --scan-homes (see HOST_IMPLEMENTATION_GUIDE.md).
@@ -27,8 +27,9 @@ PALACE_USER="palacedemo"
 TCP_PORT="9998"
 HTTP_PORT="8080"
 VERBOSITY="2"
-PROVIDER="MyPalaceNet"
-OMIT_PROVIDER=false
+# pserver --provider is added to ExecStart only when you pass --provider (no default).
+PROVIDER=""
+USE_PSERVER_PROVIDER=false
 # palace-manager sets PALACE_REVERSE_PROXY_MEDIA from nginx.edgeScheme + mediaHost (see config.json).
 REVERSE_PROXY_MEDIA="${PALACE_REVERSE_PROXY_MEDIA:-https://media.thepalace.app}"
 PALACE_DATA_DIR=""
@@ -128,8 +129,8 @@ usage_full() {
 
 Advanced options (same script; for automation / tuning):
   --verbosity N            -v for pserver (default: 2)
-  --provider TEXT          pserver --provider (default: MyPalaceNet; omitted if you pass --omit-provider)
-  --omit-provider         Omit --provider from pserver (palace-manager uses this when hosting provider is unset)
+  --provider TEXT          Add pserver --provider TEXT to ExecStart (optional; omit both this and legacy --omit-provider to leave the flag off)
+  --omit-provider         Legacy: same as default (no --provider on pserver until you pass --provider)
   --pserver-binary PATH    Overrides PSERVER_BIN for this run
   --gen-script PATH        Overrides GEN_MEDIA_NGINX for this run
   --cron-schedule SPEC     Overrides PALACE_CRON_SCHEDULE for this run
@@ -167,8 +168,8 @@ while [[ $# -gt 0 ]]; do
     --tcp-port) TCP_PORT="$2"; shift 2 ;;
     --http-port) HTTP_PORT="$2"; shift 2 ;;
     --verbosity|-v) VERBOSITY="$2"; shift 2 ;;
-    --provider) PROVIDER="$2"; OMIT_PROVIDER=false; shift 2 ;;
-  --omit-provider) OMIT_PROVIDER=true; shift ;;
+    --provider) PROVIDER="$2"; USE_PSERVER_PROVIDER=true; shift 2 ;;
+    --omit-provider) USE_PSERVER_PROVIDER=false; shift ;;
     --reverseproxymedia) REVERSE_PROXY_MEDIA="$2"; shift 2 ;;
     --data-dir|--palaces-dir) PALACE_DATA_DIR="$2"; shift 2 ;;
     --pserver-binary) PSERVER_BIN="$2"; shift 2 ;;
@@ -266,9 +267,14 @@ run() {
 
 if ! id -u "$PALACE_USER" &>/dev/null; then
   echo "Creating user ${PALACE_USER} (unprivileged, no login password set) ..."
-  run adduser --disabled-password --gecos "" "$PALACE_USER"
+  if command -v adduser >/dev/null 2>&1 && adduser --help 2>&1 | grep -q -- '--disabled-password'; then
+    run adduser --disabled-password --gecos "" "$PALACE_USER"
+  else
+    run useradd -m -s /bin/bash "$PALACE_USER"
+    run passwd -l "$PALACE_USER" 2>/dev/null || true
+  fi
 else
-  echo "User ${PALACE_USER} already exists — skipping adduser."
+  echo "User ${PALACE_USER} already exists — skipping user creation."
 fi
 
 echo "Creating palace directory ${PALACE_DATA_DIR} ..."
@@ -323,10 +329,10 @@ if [[ ! -f "$PAT_PATH" ]]; then
 fi
 
 PSERVER_BASE="${PSERVER_BIN} -p ${TCP_PORT} -l ${LOG_PATH} -x ${PAT_PATH} -m ${PALACE_DATA_DIR}/media/ -nofork -H ${HTTP_PORT} -v ${VERBOSITY}"
-if $OMIT_PROVIDER; then
-  EXEC_START="${PSERVER_BASE} --reverseproxymedia ${REVERSE_PROXY_MEDIA}"
-else
+if $USE_PSERVER_PROVIDER; then
   EXEC_START="${PSERVER_BASE} --provider ${PROVIDER} --reverseproxymedia ${REVERSE_PROXY_MEDIA}"
+else
+  EXEC_START="${PSERVER_BASE} --reverseproxymedia ${REVERSE_PROXY_MEDIA}"
 fi
 
 UNIT_CONTENT="[Unit]

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"palace-manager/internal/config"
@@ -55,8 +56,6 @@ func (p *Provisioner) Provision(name string, tcpPort, httpPort int, w io.Writer)
 	}
 	if p := strings.TrimSpace(p.cfg.Nginx.HostingProvider); p != "" {
 		args = append(args, "--provider", p)
-	} else {
-		args = append(args, "--omit-provider")
 	}
 
 	env := append(os.Environ(),
@@ -129,11 +128,48 @@ func (p *Provisioner) EnsureLogrotate(linuxUser, dataDir, systemdUnit string, w 
 }
 
 // PurgeUser removes the Linux user and their home directory.
+// We use userdel -r instead of deluser --remove-home: Debian's deluser walks the
+// home tree with Perl path sanitization that exits 255 on filenames containing
+// certain Unicode (e.g. NFD accents in palace/media/), which blocks purge.
+// Before userdel, we remove each top-level entry under the passwd home directory
+// with os.RemoveAll so odd filenames do not block account removal.
 func (p *Provisioner) PurgeUser(name string) error {
-	cmd := exec.Command("deluser", "--remove-home", name)
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid user name")
+	}
+	out, err := exec.Command("getent", "passwd", name).Output()
+	if err == nil {
+		parts := strings.Split(strings.TrimSpace(string(out)), ":")
+		if len(parts) >= 6 {
+			home := filepath.Clean(parts[5])
+			if err := purgeUserHomeContents(home); err != nil {
+				return fmt.Errorf("clear home %s: %w", home, err)
+			}
+		}
+	}
+	cmd := exec.Command("userdel", "-r", name)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func purgeUserHomeContents(home string) error {
+	if home == "" || home == "/" || home == "." || !filepath.IsAbs(home) {
+		return nil
+	}
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if err := os.RemoveAll(filepath.Join(home, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // runScript runs a shell script, tees output to w, and extracts a typed result

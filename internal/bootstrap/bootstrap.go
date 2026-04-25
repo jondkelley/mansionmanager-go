@@ -131,12 +131,7 @@ func (r *Runner) Run(ctx context.Context, opts Options, w io.Writer) error {
 		switch step {
 		case StepDeps:
 			log("Installing system dependencies (nginx, certbot, rsync)...")
-			if err := runCmd(w, "apt-get", "update"); err != nil {
-				emit(StepDeps, StateFailed, err.Error())
-				return err
-			}
-			if err := runCmd(w, "apt-get", "install", "-y",
-				"nginx", "certbot", "python3-certbot-nginx", "rsync"); err != nil {
+			if err := installSystemDeps(w); err != nil {
 				emit(StepDeps, StateFailed, err.Error())
 				return err
 			}
@@ -260,6 +255,65 @@ func runCmd(w io.Writer, name string, args ...string) error {
 	cmd.Stdout = w
 	cmd.Stderr = w
 	return cmd.Run()
+}
+
+// detectPackageManager returns apt, dnf, or yum (prefer dnf when both exist).
+func detectPackageManager() string {
+	if _, err := exec.LookPath("dnf"); err == nil {
+		return "dnf"
+	}
+	if _, err := exec.LookPath("apt-get"); err == nil {
+		return "apt"
+	}
+	if _, err := exec.LookPath("yum"); err == nil {
+		return "yum"
+	}
+	return ""
+}
+
+func tryInstallEPEL(w io.Writer, pm string) {
+	// python3-certbot-nginx is typically in EPEL on RHEL / Alma / Rocky / CentOS Stream.
+	var cmd *exec.Cmd
+	switch pm {
+	case "dnf":
+		cmd = exec.Command("dnf", "install", "-y", "epel-release")
+	case "yum":
+		cmd = exec.Command("yum", "install", "-y", "epel-release")
+	default:
+		return
+	}
+	cmd.Stdout = w
+	cmd.Stderr = w
+	_ = cmd.Run()
+}
+
+func installSystemDeps(w io.Writer) error {
+	switch detectPackageManager() {
+	case "apt":
+		if err := runCmd(w, "apt-get", "update"); err != nil {
+			return err
+		}
+		return runCmd(w, "apt-get", "install", "-y",
+			"nginx", "certbot", "python3-certbot-nginx", "rsync")
+	case "dnf":
+		fmt.Fprintf(w, "data: %s\n\n", jsonLog("Attempting epel-release (ignored if already present or unavailable)…"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		tryInstallEPEL(w, "dnf")
+		return runCmd(w, "dnf", "install", "-y",
+			"nginx", "certbot", "python3-certbot-nginx", "rsync")
+	case "yum":
+		fmt.Fprintf(w, "data: %s\n\n", jsonLog("Attempting epel-release (ignored if already present or unavailable)…"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		tryInstallEPEL(w, "yum")
+		return runCmd(w, "yum", "install", "-y",
+			"nginx", "certbot", "python3-certbot-nginx", "rsync")
+	default:
+		return fmt.Errorf("no supported package manager found (install apt-get, dnf, or yum)")
+	}
 }
 
 func jsonLog(msg string) string {

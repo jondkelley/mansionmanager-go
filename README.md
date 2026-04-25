@@ -2,7 +2,7 @@
 
 A management service for hosting multiple [pserver](https://thepalace.app/server.html) (Palace server) instances on a single Linux host. It wraps `systemd`, the provisioning shell scripts, and `gen-media-nginx.sh` behind a REST API and a web dashboard — so standing up a new palace, updating binaries, and configuring nginx + TLS can all be done from a browser or curl.
 
-**This is a Linux-only tool.** It uses `systemd`, `adduser`, `certbot`, and nginx — it is designed for Debian/Ubuntu VPS operators.
+**This is a Linux-only tool.** It uses `systemd`, `certbot`, and nginx. It is tested on **Debian/Ubuntu** and supported on **RHEL-derived** distros (AlmaLinux, Rocky Linux, CentOS Stream, Fedora) with `dnf`/`yum` or `apt-get` for bootstrap dependencies.
 
 ---
 
@@ -12,7 +12,7 @@ A management service for hosting multiple [pserver](https://thepalace.app/server
 |-----------|-----|
 | Provision a new palace | Creates a Linux user, data dir, systemd unit, and logrotate config via `scripts/provision-palace.sh` |
 | Update pserver binary | Downloads latest official tarball from `sdist.thepalace.app` for your arch and refreshes the template via `scripts/update-pserver.sh` |
-| Start / stop / restart | Wraps `systemctl` for each `palace-*.service` unit |
+| Start / stop / restart | Wraps `systemctl` for each `palman-*.service` unit |
 | Nginx media regen | Runs `gen-media-nginx.sh --scan-homes --reload` on a built-in ticker (default 2 min) — **no cron job needed** |
 | Let's Encrypt bootstrap | One-shot `palace-manager bootstrap` command installs deps, obtains a cert, writes the renewal hook, and generates the initial nginx config |
 | Web UI | Single-page dashboard embedded in the binary; served at `http://127.0.0.1:3000/` |
@@ -38,10 +38,29 @@ Override by setting `sdistUrl` in `config.json` if you want to cross-fetch a dif
 
 ## Prerequisites
 
-- Debian 11+ or Ubuntu 22.04+ (tested on Debian 13 arm64 / amd64)
+- **Debian 11+** or **Ubuntu 22.04+**, or **RHEL 8+–style** hosts (AlmaLinux, Rocky Linux, CentOS Stream, etc.) with EPEL available when using RPM certbot packages
 - Root access (the provisioning scripts create Linux users, write systemd units, etc.)
-- `rsync` — needed by `--from-template` in the provision script: `apt install rsync`
-- For TLS media proxy: `nginx`, `certbot`, `python3-certbot-nginx` — the bootstrap command installs these for you
+- `rsync` — needed by `--from-template` in the provision script (e.g. `apt install rsync` / `dnf install rsync`)
+- For TLS media proxy: `nginx`, `certbot`, `python3-certbot-nginx` — the `palace-manager bootstrap` **`deps`** step installs these via `apt-get`, `dnf`, or `yum`
+
+### RHEL / AlmaLinux / Rocky / CentOS Stream notes
+
+- Bootstrap runs **`dnf install epel-release`** or **`yum install epel-release`** best-effort before installing certbot packages; if `python3-certbot-nginx` is still missing, enable EPEL manually for your OS version, then re-run **`deps`**.
+- **`deploy/install.sh`** opens port **3000** with **firewalld** when it is active, or **ufw** when that is active (typical on Ubuntu).
+
+#### SELinux (Enforcing)
+
+nginx may be blocked from proxying to palace HTTP backends until you allow network connects from the HTTP daemon domain, for example:
+
+```bash
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+Use tighter policy (custom port labels, more specific Booleans) if your site requires it.
+
+#### Nginx media vhost path (upgrade from older releases)
+
+Releases **before** this layout used `/etc/nginx/sites-enabled/100-palace-manager-media.conf`. Current releases use **`/etc/nginx/conf.d/100-palace-manager-media.conf`**, which stock **Debian and RHEL** nginx packages load by default. After upgrading, **remove the old file** if it exists, then run **Regen Now** in the UI (or reload nginx) so `server_name` is not defined twice.
 
 ---
 
@@ -263,7 +282,7 @@ This runs 7 idempotent steps:
 
 | Step | What happens |
 |------|-------------|
-| `deps` | `apt install nginx certbot python3-certbot-nginx rsync` |
+| `deps` | Installs `nginx`, `certbot`, `python3-certbot-nginx`, `rsync` via **`apt-get`**, **`dnf`**, or **`yum`** (best-effort `epel-release` on RPM family) |
 | `dns` | Resolves `--media-host` and compares to this server's public IP (advisory) |
 | `cert` | `certbot certonly --nginx -d <media-host>` — skipped if cert already exists |
 | `dhparam` | Generates `/etc/letsencrypt/ssl-dhparams.pem` if missing |
@@ -288,10 +307,10 @@ The same flow is available through the web UI under **Host Setup**.
 ### How TLS paths relate to palace URLs
 
 - **`gen-media-nginx.sh` does not read certificate paths from `mediaserverurl.txt`.** Those files tell nginx how to proxy path segments to each palace’s internal HTTP URL. TLS is configured separately via **`nginx.mediaHost`** and **`nginx.certDir`** in `/etc/palace-manager/config.json`.
-- **`palace-manager` always writes the media vhost to** `/etc/nginx/sites-enabled/100-palace-manager-media.conf` **(fixed name)** so it stays the same regardless of hostname; **`server_name`** inside the file still comes from **`nginx.mediaHost`**.
+- **`palace-manager` always writes the media vhost to** `/etc/nginx/conf.d/100-palace-manager-media.conf` **(fixed name)** so it stays the same regardless of hostname; **`server_name`** inside the file still comes from **`nginx.mediaHost`**.
 - **`certDir` must contain the PEMs for `mediaHost`.** Defaults now set `certDir` to `/etc/letsencrypt/live/<mediaHost>/`, matching what Certbot creates when you request a certificate for that hostname.
 - **`config.json` is updated only when the `config` bootstrap step runs** (after the earlier steps succeed). If **`cert`** fails (e.g. DNS `NXDOMAIN`), the wizard stops and the on-disk config can still have old placeholders — nginx regen then points at certs that were never issued. Fix DNS (or use **`edgeScheme`: `http`** for local HTTP-only testing), complete Host Setup through **`config`**, then use **Regen Now** again.
-- **Certificate renewal:** Certbot ships a **systemd timer** on Debian/Ubuntu (`certbot.timer`) — not a cron line. The bootstrap **`hook`** step installs a **deploy hook** that runs `systemctl reload nginx` after a successful renew so new certs are picked up without manual restarts.
+- **Certificate renewal:** Certbot typically ships a **systemd timer** (`certbot.timer`) when installed from distro packages. The bootstrap **`hook`** step installs a **deploy hook** that runs `systemctl reload nginx` after a successful renew so new certs are picked up without manual restarts.
 
 ---
 
@@ -317,7 +336,7 @@ Output streams as SSE. After provisioning:
 1. Copy `pserver.pat` and `serverkey.txt` (if using a registered directory key) into `/home/mypalace/palace/`
 2. Enable the service:
    ```bash
-   systemctl enable --now palace-mypalace.service
+   systemctl enable --now palman-mypalace.service
    ```
 3. nginx will pick up the new palace's `mediaserverurl.txt` within the next regen interval (default 2 min)
 
@@ -435,9 +454,9 @@ Override the config path with `-config /path/to/config.json` or `PALACE_MANAGER_
 
 ## Permissions model
 
-palace-manager needs root because provisioning creates Linux users, writes systemd units, and runs `apt`. The service unit (`deploy/palace-manager.service`) runs as root by default.
+palace-manager needs root because provisioning creates Linux users, writes systemd units, and bootstrap installs packages (`apt-get`, `dnf`, or `yum`). The service unit (`deploy/palace-manager.service`) runs as root by default.
 
-For a least-privilege setup, run `palace-manager bootstrap` once as root, then create `/etc/sudoers.d/palace-manager` granting the service user only the needed commands (adduser, systemctl, install).
+For a least-privilege setup, run `palace-manager bootstrap` once as root, then create `/etc/sudoers.d/palace-manager` granting the service user only the needed commands (`adduser`/`useradd`, `systemctl`, `install`, etc.).
 
 ---
 
@@ -453,7 +472,8 @@ For a least-privilege setup, run `palace-manager bootstrap` once as root, then c
 | `/root/palace-template/` | Shared pserver template tree (populated by update-pserver.sh) |
 | `/usr/local/bin/pserver` | Shared pserver binary (installed by update-pserver.sh) |
 | `/home/<name>/palace/` | Per-palace data: `pserver.pat`, `media/`, logs, `mediaserverurl.txt` |
-| `/etc/systemd/system/palace-<name>.service` | Per-palace systemd unit |
+| `/etc/nginx/conf.d/100-palace-manager-media.conf` | Generated media reverse-proxy vhost (`gen-media-nginx.sh`) |
+| `/etc/systemd/system/palman-<name>.service` | Per-palace systemd unit |
 | `/etc/logrotate.d/palace-<name>` | Per-palace log rotation |
 
 ---

@@ -34,7 +34,7 @@ set -euo pipefail
 PALACES_DIR="/srv/palace"
 SCAN_HOMES=false
 HOMES_PREFIX="/home"
-NGINX_CONF="/etc/nginx/sites-enabled/100-palace-manager-media.conf"
+NGINX_CONF="/etc/nginx/conf.d/100-palace-manager-media.conf"
 MEDIA_HOST="media.thepalace.app"
 CERT_DIR="/etc/letsencrypt/live/thepalace.app"
 MATCH_SCHEME="both"
