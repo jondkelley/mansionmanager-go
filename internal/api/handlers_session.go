@@ -31,6 +31,7 @@ func (s *Server) handleSessionGet(w http.ResponseWriter, r *http.Request) {
 		"role":               string(id.Role),
 		"mustChangePassword": id.MustChangePassword,
 		"palaces":            id.Palaces,
+		"isPrimaryAdmin":     s.authStore.IsPrimaryAdmin(id.Username),
 	})
 }
 

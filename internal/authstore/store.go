@@ -264,3 +264,24 @@ func (s *Store) CountAdmins() int {
 	}
 	return n
 }
+
+// PrimaryAdminUsername returns the first admin account in store order.
+// Bootstrap writes the initial admin first, so this remains the primary admin
+// unless users.json is manually reordered.
+func (s *Store) PrimaryAdminUsername() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, u := range s.Users {
+		if u.Role == RoleAdmin {
+			return u.Username
+		}
+	}
+	return ""
+}
+
+func (s *Store) IsPrimaryAdmin(username string) bool {
+	if username == "" {
+		return false
+	}
+	return s.PrimaryAdminUsername() == username
+}

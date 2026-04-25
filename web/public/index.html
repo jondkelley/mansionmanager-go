@@ -649,6 +649,7 @@
   <nav>
     <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
     <button type="button" id="navServerFiles" onclick="showTab('server-files',this)">Server files</button>
+    <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none">WizPasses</button>
     <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none">Users</button>
     <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Update Binary<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
     <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Nginx &amp; Setup</button>
@@ -738,6 +739,53 @@
         <th>Username</th><th>Role</th><th>Palaces</th><th>Must change pwd</th><th></th>
       </tr></thead>
       <tbody id="usersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== WIZPASSES TAB (primary admin) ===== -->
+<div id="tab-wizpasses" class="tab">
+  <div class="card">
+    <h2>WizPasses</h2>
+    <p style="color:var(--muted);margin-bottom:12px;font-size:13px;line-height:1.5;">
+      Add bcrypt host-pass entries for mansionsource-go promotions (host/admin to god/owner flows).
+      Shared entries are stored as a hash line; user-specific entries are stored as <code>username:hash</code>.
+      Only the primary admin account can use this panel.
+    </p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">
+      File: <code id="wizPassPath">/etc/palacehostpass</code>
+    </p>
+
+    <div class="form-row" style="align-items:flex-end;">
+      <div class="field">
+        <label>Scope</label>
+        <select id="wizPassScope" onchange="wizPassToggleUsername()">
+          <option value="global">Global (shared password)</option>
+          <option value="user">User-specific (username:password)</option>
+        </select>
+      </div>
+      <div class="field" id="wizPassUserRow" style="display:none;">
+        <label>Username</label>
+        <input id="wizPassUser" type="text" autocomplete="off" placeholder="palaceadmin" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="wizPassPassword" type="password" autocomplete="new-password" />
+      </div>
+      <button type="button" class="primary" id="wizPassAddBtn" onclick="addWizPass()">Add Host Pass</button>
+      <button type="button" onclick="loadWizPasses()">Refresh</button>
+    </div>
+
+    <div id="wizPassError" style="color:var(--red);font-size:13px;min-height:18px;"></div>
+    <div id="wizPassSuccess" style="color:var(--green);font-size:13px;min-height:18px;"></div>
+
+    <div class="form-row" style="margin-top:8px;">
+      <p style="font-size:13px;color:var(--text);margin:0;">Global hash entries: <strong id="wizPassGlobalCount">0</strong></p>
+    </div>
+
+    <table style="margin-top:10px;">
+      <thead><tr><th>User-specific entries</th></tr></thead>
+      <tbody id="wizPassUsersBody"><tr><td class="empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -1211,10 +1259,10 @@
   </div>
 </div>
 
-<!-- Palace settings (structured pserver.prefs + YP) -->
+<!-- Palace preferences (structured pserver.prefs) -->
 <div class="modal-bg" id="palaceSettingsModal">
   <div class="modal" style="width:96%;">
-    <h3 id="palaceSettingsTitle">Palace settings</h3>
+    <h3 id="palaceSettingsTitle">Palace Preferences</h3>
     <p id="palaceSettingsLead" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;"></p>
 
     <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text);">Server preferences (<code>pserver.prefs</code>)</p>
@@ -1224,22 +1272,6 @@
     </div>
     <p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;line-height:1.45;"><strong>Structured form</strong> gives fields for <code>SERVERNAME</code>, occupancy, permissions, chat logging, etc. <strong>Raw text</strong> is the on-disk file. Default is the form.</p>
     <div id="palaceSettingsWarnings" style="display:none;"></div>
-
-    <div id="palaceSettingsYPAdmin" style="display:none;">
-      <p style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text);">Public directory listing</p>
-      <div class="form-row">
-        <div class="field" style="flex:1;min-width:200px;">
-          <label>Directory host (<code>YPMYEXTADDR</code>)</label>
-          <input id="palaceSettingsYPHost" type="text" placeholder="e.g. palace.example.com" style="width:100%;max-width:none;" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label>Directory port (<code>YPMYEXTPORT</code>)</label>
-          <input id="palaceSettingsYPPort" type="number" min="0" max="65535" placeholder="uses TCP port if blank" />
-        </div>
-      </div>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.45;">Stored in the manager registry and merged into <code>pserver.prefs</code> on save and before start/stop/restart.</p>
-    </div>
-    <div id="palaceSettingsYPTenant" style="display:none;font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;"></div>
 
     <div id="palaceSettingsStructured" class="prefs-modal-scroll">
       <p class="prefs-hint">Fields match directives parsed by <strong>mansionsource-go</strong> (<code>internal/script/prefs.go</code>). Wizard/god promotion passwords are managed elsewhere. <code>PERMISSIONS</code>, <code>SERVEROPTIONS</code>, <code>PICFOLDER</code>, <code>AUTOPURGE</code>, <code>SAVESESSIONKEYS</code>, <code>NOAUTOREGISTER</code>, <code>HTTP_URL</code>, and <code>AUTOANNOUNCE</code> are left as on disk when you use this form; use <strong>Raw text file</strong> to change those.</p>
@@ -1357,6 +1389,7 @@
 <script src="/js/utils.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/users.js"></script>
+<script src="/js/wizpasses.js"></script>
 <script src="/js/media.js"></script>
 <script src="/js/server-files.js"></script>
 <script src="/js/palaces.js"></script>

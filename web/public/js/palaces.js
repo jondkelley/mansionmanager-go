@@ -58,7 +58,7 @@ async function openPalaceSettingsModal(name) {
   SETTINGS_RAW_SNAPSHOT = '';
   $('palaceSettingsError').textContent = '';
   $('palaceSettingsSaveBtn').disabled = false;
-  $('palaceSettingsTitle').textContent = 'Palace settings — ' + name;
+  $('palaceSettingsTitle').textContent = 'Palace Preferences — ' + name;
   $('palaceSettingsLead').textContent = '';
   $('palaceSettingsContent').value = '';
   $('palaceUnknownTail').value = '';
@@ -67,10 +67,6 @@ async function openPalaceSettingsModal(name) {
   $('palaceSettingsModeForm').checked = true;
   syncPalaceSettingsMode();
 
-  const canAdmin = SESSION && SESSION.role === 'admin';
-  $('palaceSettingsYPAdmin').style.display = canAdmin ? 'block' : 'none';
-  $('palaceSettingsYPTenant').style.display = canAdmin ? 'none' : 'block';
-  $('palaceSettingsYPTenant').textContent = '';
   $('palaceSettingsModal').classList.add('open');
 
   try {
@@ -89,16 +85,6 @@ async function openPalaceSettingsModal(name) {
     }
     const dd = pd.dataDir || '';
     $('palaceSettingsLead').textContent = dd ? ('Data directory: ' + dd) : '';
-    if (canAdmin) {
-      $('palaceSettingsYPHost').value = pd.ypHost || '';
-      $('palaceSettingsYPPort').value = pd.ypPort ? String(pd.ypPort) : '';
-    } else {
-      const h = pd.ypHost ? esc(pd.ypHost) : '(not set)';
-      const pt = pd.ypPort ? esc(String(pd.ypPort)) : '(not set)';
-      $('palaceSettingsYPTenant').innerHTML =
-        'Directory host/port (<code>YPMYEXTADDR</code> / <code>YPMYEXTPORT</code>) are set by the administrator: <strong>' + h + '</strong> : <strong>' + pt + '</strong>. They are merged on save.';
-    }
-
     if (pform.ok && formData.form) {
       populatePrefsFormFromDTO(formData.form);
       $('palaceUnknownTail').value = formData.unknownTail || '';
@@ -134,7 +120,6 @@ async function savePalaceSettings() {
   const name = SETTINGS_PALACE;
   if (!name) return;
   $('palaceSettingsError').textContent = '';
-  const canAdmin = SESSION && SESSION.role === 'admin';
   const rawMode = $('palaceSettingsModeRaw').checked;
 
   let body;
@@ -150,12 +135,6 @@ async function savePalaceSettings() {
       unknownTail: $('palaceUnknownTail').value,
     };
   }
-  if (canAdmin) {
-    body.ypHost = $('palaceSettingsYPHost').value.trim();
-    const pp = parseInt($('palaceSettingsYPPort').value, 10);
-    body.ypPort = Number.isFinite(pp) ? pp : 0;
-  }
-
   const btn = $('palaceSettingsSaveBtn');
   btn.disabled = true;
   try {

@@ -54,6 +54,7 @@ type Server struct {
 	mux           *http.ServeMux
 	updateCache   *releaseCache
 	pserverUpdate *pserverUpdateState
+	hostPassMu    sync.Mutex
 }
 
 func New(
@@ -183,6 +184,7 @@ func (s *Server) routes() {
 	s.mux.Handle("/api/session/password", auth(http.HandlerFunc(s.handleSessionPassword)))
 	s.mux.Handle("/api/users", auth(http.HandlerFunc(s.routeUsers)))
 	s.mux.Handle("/api/users/", auth(http.HandlerFunc(s.routeUserByName)))
+	s.mux.Handle("/api/wizpasses", auth(http.HandlerFunc(s.routeWizPasses)))
 
 	// Palace instances
 	s.mux.Handle("/api/palaces", auth(http.HandlerFunc(s.routePalaces)))

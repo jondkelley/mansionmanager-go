@@ -67,6 +67,22 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+func (s *Server) requirePrimaryAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if !requireAdmin(w, r) {
+		return false
+	}
+	id, ok := IdentityFrom(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return false
+	}
+	if !s.authStore.IsPrimaryAdmin(id.Username) {
+		writeError(w, http.StatusForbidden, "primary admin only")
+		return false
+	}
+	return true
+}
+
 func canAccessPalace(ctx context.Context, palaceName string) bool {
 	id, ok := IdentityFrom(ctx)
 	if !ok {
