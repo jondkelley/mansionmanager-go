@@ -130,15 +130,55 @@ func (r *Registry) All() []Palace {
 }
 
 func (r *Registry) PortInUse(tcp, http int) bool {
+	return r.portInUseLocked(tcp, http, "")
+}
+
+// PortInUseExcept returns true if tcp/http conflicts with another palace's ports, ignoring exceptName.
+func (r *Registry) PortInUseExcept(tcp, http int, exceptName string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.portInUseLocked(tcp, http, exceptName)
+}
 
+func (r *Registry) portInUseLocked(tcp, http int, exceptName string) bool {
 	for _, p := range r.Palaces {
+		if exceptName != "" && p.Name == exceptName {
+			continue
+		}
 		if p.TCPPort == tcp || p.HTTPPort == http || p.TCPPort == http || p.HTTPPort == tcp {
 			return true
 		}
 	}
 	return false
+}
+
+// PutPalace removes the registry row keyed by oldKey and inserts palace p (p.Name is the new canonical name).
+// Use oldKey == p.Name to update ports/quota in place without renaming the systemd unit.
+func (r *Registry) PutPalace(oldKey string, p Palace) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, x := range r.Palaces {
+		if x.Name != oldKey && x.Name == p.Name {
+			return fmt.Errorf("palace name %q is already in use", p.Name)
+		}
+	}
+
+	out := make([]Palace, 0, len(r.Palaces))
+	found := false
+	for _, x := range r.Palaces {
+		if x.Name == oldKey {
+			found = true
+			continue
+		}
+		out = append(out, x)
+	}
+	if !found {
+		return fmt.Errorf("palace %q not found in registry", oldKey)
+	}
+	out = append(out, p)
+	r.Palaces = out
+	return r.saveUnlocked()
 }
 
 func (r *Registry) saveUnlocked() error {

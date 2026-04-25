@@ -327,6 +327,8 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case action == "" && r.Method == http.MethodGet:
 		s.handleGetPalace(w, r, name)
+	case action == "" && r.Method == http.MethodPut:
+		s.handlePalaceAdminUpdate(w, r, name)
 	case action == "" && r.Method == http.MethodDelete:
 		s.handleDeletePalace(w, r, name)
 	case action == "logs" && r.Method == http.MethodGet:

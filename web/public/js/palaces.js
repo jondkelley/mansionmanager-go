@@ -257,6 +257,134 @@ function palaceQuotaDetailBlockHTML(p) {
   </div>`;
 }
 
+function quotaSliderIndexForMaxBytes(max) {
+  if (!max) return 0;
+  for (let i = 0; i < PROVISION_QUOTA_LEVELS.length; i++) {
+    const b = PROVISION_QUOTA_LEVELS[i].bytes;
+    if (b > 0 && b === max) return i;
+  }
+  return PROVISION_QUOTA_LEVELS.length - 1;
+}
+
+function syncEditPalaceQuotaLabel() {
+  const slider = $('eQuotaSlider');
+  const label = $('eQuotaLabel');
+  const wrap = $('eQuotaCustomWrap');
+  if (!slider || !label) return;
+  const i = parseInt(slider.value, 10);
+  const row = PROVISION_QUOTA_LEVELS[Math.min(Math.max(i, 0), PROVISION_QUOTA_LEVELS.length - 1)];
+  if (row.bytes === -1) {
+    if (wrap) wrap.style.display = '';
+    label.textContent = 'Custom maximum (enter MiB below).';
+  } else {
+    if (wrap) wrap.style.display = 'none';
+    label.textContent = 'Max home storage: ' + row.label;
+  }
+}
+
+function editPalaceQuotaSelectedBytes() {
+  const slider = $('eQuotaSlider');
+  if (!slider) return 0;
+  const i = parseInt(slider.value, 10);
+  const row = PROVISION_QUOTA_LEVELS[Math.min(Math.max(i, 0), PROVISION_QUOTA_LEVELS.length - 1)];
+  if (row.bytes === -1) {
+    const mib = parseFloat(($('eQuotaCustomMiB') && $('eQuotaCustomMiB').value) || '');
+    if (!Number.isFinite(mib) || mib <= 0) return null;
+    return Math.round(mib * 1024 * 1024);
+  }
+  return row.bytes;
+}
+
+function editPalaceOpen(name) {
+  if (!name || !SESSION || SESSION.role !== 'admin') return;
+  PALACE_EXPANDED.add(name);
+  void loadPalaces();
+  void openEditPalaceModal(name);
+}
+
+async function openEditPalaceModal(origName) {
+  EDIT_PALACE_ORIG = origName;
+  $('editPalaceError').textContent = '';
+  $('editPalaceModal').classList.add('open');
+  const btn = $('editPalaceSubmit');
+  if (btn) btn.disabled = false;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(origName)}`, { headers: headers() });
+    const p = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('editPalaceError').textContent = p.error || ('HTTP ' + res.status);
+      return;
+    }
+    $('ePalaceName').value = (p.name || '').toLowerCase();
+    $('eTcpPort').value = p.tcpPort != null && p.tcpPort !== '' ? String(p.tcpPort) : '';
+    $('eHttpPort').value = p.httpPort != null && p.httpPort !== '' ? String(p.httpPort) : '';
+    const max = p.quotaBytesMax || 0;
+    const idx = quotaSliderIndexForMaxBytes(max);
+    $('eQuotaSlider').value = String(idx);
+    const row = PROVISION_QUOTA_LEVELS[idx];
+    if (row && row.bytes === -1 && max > 0) {
+      $('eQuotaCustomMiB').value = String(Math.round(max / (1024 * 1024)));
+    } else {
+      $('eQuotaCustomMiB').value = '';
+    }
+    syncEditPalaceQuotaLabel();
+  } catch (e) {
+    $('editPalaceError').textContent = e.message || String(e);
+  }
+}
+
+function closeEditPalaceModal() {
+  $('editPalaceModal').classList.remove('open');
+  EDIT_PALACE_ORIG = null;
+}
+
+async function submitEditPalaceAdmin() {
+  const orig = EDIT_PALACE_ORIG;
+  if (!orig) return;
+  $('editPalaceError').textContent = '';
+  const btn = $('editPalaceSubmit');
+  if (btn) btn.disabled = true;
+  const name = ($('ePalaceName').value || '').trim().toLowerCase();
+  const tcp = parseInt($('eTcpPort').value, 10);
+  const http = parseInt($('eHttpPort').value, 10);
+  const qb = editPalaceQuotaSelectedBytes();
+  if (qb === null) {
+    $('editPalaceError').textContent = 'Enter a valid custom quota in MiB.';
+    if (btn) btn.disabled = false;
+    return;
+  }
+  if (!name || !Number.isFinite(tcp) || !Number.isFinite(http) || tcp <= 0 || http <= 0) {
+    $('editPalaceError').textContent = 'Name, TCP port, and HTTP port are required.';
+    if (btn) btn.disabled = false;
+    return;
+  }
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(orig)}`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ name, tcpPort: tcp, httpPort: http, quotaBytesMax: qb }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('editPalaceError').textContent = out.error || ('HTTP ' + res.status);
+      if (btn) btn.disabled = false;
+      return;
+    }
+    const newN = out.name || name;
+    if (orig !== newN) {
+      PALACE_EXPANDED.delete(orig);
+      PALACE_EXPANDED.add(newN);
+    }
+    closeEditPalaceModal();
+    loadPalaces();
+    loadNginxStatus();
+    setTimeout(loadNginxStatus, 2500);
+  } catch (e) {
+    $('editPalaceError').textContent = e.message || String(e);
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function fetchUsedPalacePorts() {
   const used = new Set();
   const res = await fetch('/api/palaces', { headers: headers() });
@@ -412,6 +540,9 @@ async function loadPalaces() {
       const expanded = isTenant || PALACE_EXPANDED.has(p.name);
       const expandGlyph = expanded ? '&#9662;' : '&#9656;';
       const pserv = `<code>${esc(p.pserverVersion || 'latest')}</code>`;
+      const editBtn = isAdmin
+        ? `<button type="button" onclick='event.stopPropagation();editPalaceOpen(${nm})' title="Edit name, ports, quota (admin)">Edit</button>`
+        : '';
       const removeBtn = isAdmin
         ? `<button type="button" class="danger" onclick='event.stopPropagation();openRemovePalaceModal(${nm})'>Remove</button>`
         : '';
@@ -443,7 +574,7 @@ async function loadPalaces() {
         <td><span class="palace-status"><span class="status-dot ${dotClass}" title="${esc(title)}" aria-hidden="true"></span><span class="badge badge-${esc(p.status)}">${esc(p.status)}</span>${overQuotaBadge}</span></td>
         <td>${p.tcpPort || '—'}</td>
         <td>${p.httpPort || '—'}</td>
-        <td style="display:flex;align-items:center;gap:8px;">${pserv}${removeBtn}</td>
+        <td style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${pserv}${editBtn}${removeBtn}</td>
       </tr>
       <tr class="palace-details-row" style="display:${expanded ? '' : 'none'};">
         <td colspan="5">

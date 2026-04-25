@@ -219,6 +219,26 @@ func (s *Store) Update(username string, role Role, palaces []string, newPassword
 	return s.saveUnlocked()
 }
 
+// RenamePalaceInTenantBindings replaces oldName with newName in every tenant user's palace list.
+func (s *Store) RenamePalaceInTenantBindings(oldName, newName string) error {
+	if oldName == "" || newName == "" || oldName == newName {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.Users {
+		if s.Users[i].Role != RoleTenant {
+			continue
+		}
+		for j := range s.Users[i].Palaces {
+			if s.Users[i].Palaces[j] == oldName {
+				s.Users[i].Palaces[j] = newName
+			}
+		}
+	}
+	return s.saveUnlocked()
+}
+
 func (s *Store) Delete(username string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

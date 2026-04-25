@@ -4,6 +4,8 @@ let AUTH_HEADER = sessionStorage.getItem('pm_auth') || '';
 let SESSION = null;
 let EDIT_USER = null;
 let REMOVE_PALACE_NAME = null;
+/** @type {string|null} Palace registry name when opening the admin Edit modal */
+let EDIT_PALACE_ORIG = null;
 let DELETE_USER_NAME = null;
 let REGISTER_PALACE_NAME = null;
 let SETTINGS_PALACE = null;
