@@ -826,13 +826,25 @@
   .backups-tab-bar { display: flex; flex-wrap: wrap; gap: 4px; }
   .backups-tab { font-size: 11px; padding: 4px 10px; border-radius: 12px; }
   .backups-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+  /* Allow the dialog to scroll on very short viewports; padding keeps it off screen edges */
+  #palaceSettingsModal.modal-bg {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    align-items: center;
+    justify-content: center;
+    padding: min(20px, 4vh) 12px;
+    box-sizing: border-box;
+  }
   #palaceSettingsModal .modal {
     max-width: 840px;
     display: flex;
     flex-direction: column;
-    max-height: 92vh;
+    max-height: calc(100vh - 40px);
+    max-height: min(92vh, calc(100dvh - 40px));
     min-height: 0;
     overflow: hidden;
+    box-sizing: border-box;
+    flex-shrink: 0;
   }
   #palaceSettingsModal .modal > h3,
   #palaceSettingsModal .modal > #palaceSettingsLead,
@@ -845,16 +857,46 @@
     flex-direction: column;
     flex: 1 1 0;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
   }
-  .prefs-modal-scroll {
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
+  /* Host for guided/raw or structured/raw pairs: inner .prefs-modal-scroll gets the scrollbar */
+  #palaceSettingsModal .palace-settings-flex-scroll-host {
     flex: 1 1 0;
     min-height: 0;
-    max-height: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #palaceSettingsModal .palace-settings-flex-scroll-host > .prefs-modal-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding-right: 6px;
     margin-right: -4px;
+  }
+  /* Single region that scrolls (ranks/ratbot tables) */
+  #palaceSettingsModal .palace-settings-scroll-block {
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  #palaceSettingsModal .palace-settings-bordered-scroll {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding-right: 2px;
+  }
+  .prefs-modal-scroll {
+    box-sizing: border-box;
+    min-height: 0;
   }
   details.prefs-sec {
     margin-bottom: 10px;
@@ -893,6 +935,9 @@
   #palaceSettingsModal .prefs-panel.active .modal-footer {
     flex-shrink: 0;
     margin-top: auto;
+  }
+  #palaceSettingsModal .prefs-panel.active > *:not(.palace-settings-flex-scroll-host):not(.palace-settings-scroll-block):not(.modal-footer) {
+    flex-shrink: 0;
   }
   .ratbot-table input, .ratbot-table select { width: 100%; max-width: none; }
   .ratbot-table td { vertical-align: top; }
@@ -2082,6 +2127,7 @@
     <p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;line-height:1.45;"><strong>Structured form</strong> gives fields for <code>SERVERNAME</code>, occupancy, permissions, chat logging, etc. <strong>Raw text</strong> is the on-disk file. Default is the form.</p>
     <div id="palaceSettingsWarnings" style="display:none;"></div>
 
+    <div class="palace-settings-flex-scroll-host">
     <div id="palaceSettingsStructured" class="prefs-modal-scroll">
       <p class="prefs-hint">Fields match directives parsed by <strong>mansionsource-go</strong> (<code>internal/script/prefs.go</code>). Wizard/god promotion passwords are managed elsewhere. <code>PERMISSIONS</code>, <code>SERVEROPTIONS</code>, <code>PICFOLDER</code>, <code>AUTOPURGE</code>, <code>SAVESESSIONKEYS</code>, <code>NOAUTOREGISTER</code>, <code>HTTP_URL</code>, and <code>AUTOANNOUNCE</code> are left as on disk when you use this form; use <strong>Raw text file</strong> to change those.</p>
 
@@ -2140,6 +2186,7 @@
       <p class="prefs-hint">Direct editing — same format as on disk. Registry directory host/port still apply on save for admins.</p>
       <textarea id="palaceSettingsContent" spellcheck="false" style="min-height:280px;width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;line-height:1.4;"></textarea>
     </div>
+    </div>
 
     <div id="palaceSettingsError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
     <div class="modal-footer">
@@ -2158,6 +2205,7 @@
       </div>
       <p style="font-size:11px;color:var(--muted);margin:-4px 0 10px;line-height:1.45;">Use the form for safe, validated choices. Advanced mode is the full file — invalid JSON will be rejected.</p>
 
+      <div class="palace-settings-flex-scroll-host">
       <div id="palaceServerprefsGuided" class="prefs-modal-scroll">
         <details class="prefs-sec" open>
           <summary>Website &amp; directory (YP) text</summary>
@@ -2197,9 +2245,9 @@
           <div class="field" style="margin-bottom:8px;">
             <label>Wizard authoring policy</label>
             <select id="spfWizAuthoring">
-              <option value="on">On — normal wizard rules (<code>wiz_authoring</code>, default)</option>
-              <option value="off">Off — wizards cannot author rooms/spots/pics</option>
-              <option value="bless">Bless — blessed operator accounts with author rights only</option>
+              <option value="on">On — gods always author; wizards need rights (<code>wiz_authoring</code>, default)</option>
+              <option value="off">Off — nobody may author (including gods)</option>
+              <option value="bless">Bless — blessed accounts with author only (god/wizard password does not bypass)</option>
               <option value="godonly">God only — only gods may author</option>
             </select>
           </div>
@@ -2294,6 +2342,7 @@
         </div>
         <textarea id="palaceServerprefsEditor" spellcheck="false" style="min-height:min(360px,45vh);width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;line-height:1.4;"></textarea>
       </div>
+      </div>
 
       <div id="palaceServerprefsInfo" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:18px;"></div>
       <div id="palaceServerprefsError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:4px;"></div>
@@ -2312,13 +2361,13 @@
         names. Values are stored as <code>command_ranks</code>. Use <strong>Reload server config</strong>
         (SIGHUP) so the running pserver rereads <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code>.
       </p>
-      <div class="form-row" style="margin-bottom:10px;">
+      <div class="form-row" style="margin-bottom:10px;flex-shrink:0;">
         <div class="field" style="flex:1;min-width:220px;">
           <label for="palaceRanksFilter">Filter</label>
           <input type="search" id="palaceRanksFilter" placeholder="Command name…" autocomplete="off" oninput="filterPalaceRanksRows()" style="width:100%;max-width:none;" />
         </div>
       </div>
-      <div style="max-height:min(520px,55vh);overflow:auto;border:1px solid var(--border);border-radius:8px;">
+      <div class="palace-settings-scroll-block palace-settings-bordered-scroll">
         <table class="ratbot-table" style="width:100%;">
           <thead><tr><th>Command</th><th>Minimum rank</th></tr></thead>
           <tbody id="palaceRanksBody"><tr><td colspan="2" class="empty">Loading…</td></tr></tbody>
@@ -2349,7 +2398,7 @@
       <div class="form-row">
         <button type="button" onclick="addRatbotQuestionRow()">+ Add question</button>
       </div>
-      <div style="max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+      <div class="palace-settings-scroll-block palace-settings-bordered-scroll">
         <table class="ratbot-table">
           <thead><tr><th>Question</th><th>A</th><th>B</th><th>C</th><th>D</th><th class="narrow">Correct</th><th></th></tr></thead>
           <tbody id="ratbotQuestionsBody"><tr><td colspan="7" class="empty">Select a file or create a new one.</td></tr></tbody>
