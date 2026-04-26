@@ -557,7 +557,7 @@ async function loadPalaces() {
       const bansBtn = (p.httpPort && (isAdmin || isTenant))
         ? `<button type="button" onclick='openPalaceBansModal(${nm})'>Bans</button>`
         : '';
-      const propsBtn = (p.httpPort && isAdmin)
+      const propsBtn = (p.httpPort && (isAdmin || isTenant))
         ? `<button type="button" onclick='openPalacePropsModal(${nm})'>Props</button>`
         : '';
       const pagesBtn = p.httpPort

@@ -327,6 +327,12 @@
   .bans-alert { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 10px; display: none; }
   .bans-alert.error { background: rgba(220,38,38,.12); border: 1px solid rgba(220,38,38,.35); color: var(--red); display: block; }
   .bans-alert.success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: var(--green); display: block; }
+  .button-danger-solid {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+  }
+  .button-danger-solid:hover { opacity: .88; background: var(--red); }
   .pages-compose-row {
     display: flex;
     gap: 10px;
@@ -365,6 +371,7 @@
     line-height: 1.4;
   }
   .pages-line:last-child { border-bottom: none; }
+  .pages-line.pages-line-gmsg { background: rgba(220,38,38,.08); }
   .pages-ts {
     color: var(--muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -377,6 +384,10 @@
     color: var(--text);
     word-break: break-word;
     flex: 1;
+  }
+  .pages-txt.pages-txt-gmsg {
+    color: var(--red);
+    font-weight: 700;
   }
   /* Palace users modal table */
   .palace-users-list { display: flex; flex-direction: column; gap: 10px; }
@@ -1702,6 +1713,7 @@
     <div class="pages-compose-row" style="flex-shrink:0;">
       <textarea id="palacePagesCompose" rows="2" placeholder="Message to all connected wizards..." autocomplete="off" spellcheck="false"></textarea>
       <button type="button" class="primary" id="palacePagesSendBtn">Page</button>
+      <button type="button" class="button-danger-solid" id="palacePagesGmsgBtn">Gmsg</button>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px;flex-shrink:0;">
       <button type="button" id="palacePagesRefreshBtn">Refresh</button>
@@ -1761,6 +1773,21 @@
     </div>
     <div class="modal-footer" style="flex-shrink:0;">
       <button type="button" onclick="closePalacePropsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Palace Pages Gmsg Confirm (stacked) -->
+<div class="modal-bg modal-stacked" id="palacePagesGmsgConfirmModal">
+  <div class="modal" style="min-width:420px;max-width:560px;">
+    <h3>Send global message?</h3>
+    <p style="font-size:13px;line-height:1.55;color:var(--text);margin-bottom:12px;">
+      This will go to everyone on the server, are you sure?
+    </p>
+    <div id="palacePagesGmsgConfirmError" style="color:var(--red);font-size:13px;min-height:18px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closePalacePagesGmsgConfirm()">Cancel</button>
+      <button type="button" class="button-danger-solid" id="palacePagesGmsgConfirmBtn" onclick="confirmPalaceGmsgSend()">Send to everyone</button>
     </div>
   </div>
 </div>

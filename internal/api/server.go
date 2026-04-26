@@ -400,6 +400,8 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalacePages(w, r, name)
 	case action == "pages/send" && r.Method == http.MethodPost:
 		s.handlePalacePagesSend(w, r, name)
+	case action == "pages/gmsg" && r.Method == http.MethodPost:
+		s.handlePalacePagesGmsg(w, r, name)
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 	}

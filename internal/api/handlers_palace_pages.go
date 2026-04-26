@@ -75,3 +75,52 @@ func (s *Server) handlePalacePagesSend(w http.ResponseWriter, r *http.Request, n
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body) //nolint:errcheck
 }
+
+// handlePalacePagesGmsg proxies POST /api/palaces/:name/pages/gmsg to the palace,
+// injecting the requesting manager username as operator. The palace treats this
+// as a global server talk broadcast visible to all connected users.
+func (s *Server) handlePalacePagesGmsg(w http.ResponseWriter, r *http.Request, name string) {
+	if !canAccessPalace(r.Context(), name) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+		return
+	}
+	inst, err := s.instances.Get(name)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if inst.HTTPPort == 0 {
+		writeError(w, http.StatusServiceUnavailable, "palace has no HTTP port configured (-H flag not set)")
+		return
+	}
+
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	id, _ := IdentityFrom(r.Context())
+	operator := id.Username
+	if operator == "" {
+		operator = "admin"
+	}
+
+	payload, _ := json.Marshal(map[string]string{
+		"message":  req.Message,
+		"operator": operator,
+	})
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/v1/palacemanager/pages/gmsg", inst.HTTPPort)
+	resp, err := palaceManagerClient.Post(url, "application/json", bytes.NewReader(payload)) //nolint:noctx
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "palace not reachable: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body) //nolint:errcheck
+}

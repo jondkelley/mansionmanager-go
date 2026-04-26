@@ -37,6 +37,7 @@ function closePalacePagesModal() {
     _palacePagesTimer = null;
   }
   _palacePagesName = null;
+  closePalacePagesGmsgConfirm();
   $('palacePagesModal').classList.remove('open');
 }
 
@@ -46,7 +47,10 @@ function palacePagesRowHTML(entry) {
     ? new Date(unix * 1000).toLocaleString()
     : '';
   const text = entry && entry.text ? entry.text : '';
-  return `<div class="pages-line"><span class="pages-ts">${esc(ts)}</span><span class="pages-txt">${esc(text)}</span></div>`;
+  const isGmsg = /^\s*\[gmsg\b/i.test(String(text || ''));
+  const rowClass = isGmsg ? 'pages-line pages-line-gmsg' : 'pages-line';
+  const txtClass = isGmsg ? 'pages-txt pages-txt-gmsg' : 'pages-txt';
+  return `<div class="${rowClass}"><span class="pages-ts">${esc(ts)}</span><span class="${txtClass}">${esc(text)}</span></div>`;
 }
 
 async function loadPalacePages(name) {
@@ -108,6 +112,59 @@ async function sendPalacePage() {
   }
 }
 
+function openPalacePagesGmsgConfirm() {
+  $('palacePagesGmsgConfirmError').textContent = '';
+  $('palacePagesGmsgConfirmBtn').disabled = false;
+  $('palacePagesGmsgConfirmModal').classList.add('open');
+}
+
+function closePalacePagesGmsgConfirm() {
+  $('palacePagesGmsgConfirmModal').classList.remove('open');
+}
+
+function openPalaceGmsgPrompt() {
+  const message = $('palacePagesCompose').value;
+  if (!String(message || '').trim()) {
+    setPalacePagesAlert('Enter a message to send.', 'error');
+    return;
+  }
+  setPalacePagesAlert('');
+  openPalacePagesGmsgConfirm();
+}
+
+async function confirmPalaceGmsgSend() {
+  const name = _palacePagesName;
+  if (!name) return;
+  const message = $('palacePagesCompose').value;
+  if (!String(message || '').trim()) {
+    $('palacePagesGmsgConfirmError').textContent = 'Enter a message to send.';
+    return;
+  }
+  const btn = $('palacePagesGmsgConfirmBtn');
+  btn.disabled = true;
+  $('palacePagesGmsgConfirmError').textContent = '';
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/pages/gmsg`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palacePagesGmsgConfirmError').textContent = data.error || data.message || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    $('palacePagesCompose').value = '';
+    closePalacePagesGmsgConfirm();
+    setPalacePagesAlert(data.message || 'Global message sent.', 'success');
+    await loadPalacePages(name);
+  } catch (e) {
+    $('palacePagesGmsgConfirmError').textContent = 'Network error: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
 $('palacePagesRefreshBtn').addEventListener('click', function () {
   if (_palacePagesName) {
     loadPalacePages(_palacePagesName);
@@ -115,6 +172,7 @@ $('palacePagesRefreshBtn').addEventListener('click', function () {
 });
 
 $('palacePagesSendBtn').addEventListener('click', sendPalacePage);
+$('palacePagesGmsgBtn').addEventListener('click', openPalaceGmsgPrompt);
 $('palacePagesCompose').addEventListener('keydown', function (ev) {
   if ((ev.key === 'Enter' || ev.keyCode === 13) && (ev.metaKey || ev.ctrlKey)) {
     ev.preventDefault();

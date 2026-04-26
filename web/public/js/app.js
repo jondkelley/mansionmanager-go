@@ -25,6 +25,9 @@ document.addEventListener('keydown', (ev) => {
   } else if ($('mediaDeleteModal').classList.contains('open')) {
     closeMediaDeleteModal();
     ev.preventDefault();
+  } else if ($('palacePagesGmsgConfirmModal').classList.contains('open')) {
+    closePalacePagesGmsgConfirm();
+    ev.preventDefault();
   } else if ($('backupsModal').classList.contains('open')) {
     const restoreConfirm = $('backupsRestoreConfirmOverlay');
     if (restoreConfirm && restoreConfirm.classList.contains('open')) {
