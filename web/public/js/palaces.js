@@ -10,6 +10,7 @@ function palaceSettingsSwitchTab(tab) {
   const tabs = [
     { id: 'pserver', btn: 'palacePrefsTabPserver', panel: 'palacePrefsPanelPserver' },
     { id: 'misc', btn: 'palacePrefsTabMisc', panel: 'palacePrefsPanelMisc' },
+    { id: 'ranks', btn: 'palacePrefsTabRanks', panel: 'palacePrefsPanelRanks' },
     { id: 'ratbot', btn: 'palacePrefsTabRatbot', panel: 'palacePrefsPanelRatbot' },
   ];
   tabs.forEach(t => {
@@ -233,6 +234,39 @@ async function saveRatbotTrivia() {
   }
 }
 
+async function createBlankRatbotFileFromInput(ev) {
+  if (ev && ev.key !== 'Enter') return;
+  if (ev) ev.preventDefault();
+  if (!SETTINGS_PALACE) return;
+  $('ratbotEditorError').textContent = '';
+  $('ratbotEditorInfo').textContent = '';
+  const name = ($('ratbotNewFileName').value || '').trim();
+  if (!name) {
+    $('ratbotEditorError').textContent = 'Enter a file name first.';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/ratbot/file`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ name, questions: [] }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('ratbotEditorError').textContent = out.error || ('HTTP ' + res.status);
+      return;
+    }
+    SETTINGS_RATBOT_CURRENT_FILE = out.name || name;
+    $('ratbotNewFileName').value = '';
+    SETTINGS_RATBOT_ROWS = [];
+    ratbotRowsToDOM();
+    await refreshRatbotFileList();
+    $('ratbotEditorInfo').textContent = `Created blank trivia file ${SETTINGS_RATBOT_CURRENT_FILE}.`;
+  } catch (e) {
+    $('ratbotEditorError').textContent = e.message || String(e);
+  }
+}
+
 function populatePrefsFormFromDTO(f) {
   if (!f) return;
   $('psfServerName').value = f.serverName || '';
@@ -252,6 +286,113 @@ function populatePrefsFormFromDTO(f) {
   const cf = (f.chatLogFormat || '').toLowerCase();
   $('psfChatFormat').value = cf === 'csv' ? 'csv' : cf === 'json' ? 'json' : '';
   $('psfChatNoWarn').checked = !!f.chatLogNoWarn;
+}
+
+function rankTierLabel(n) {
+  const m = { 1: 'Member', 2: 'Wizard', 3: 'God', 4: 'Owner' };
+  return m[n] != null ? m[n] : String(n);
+}
+
+function renderPalaceRanksTable(commands) {
+  const tb = $('palaceRanksBody');
+  if (!tb) return;
+  if (!Array.isArray(commands) || !commands.length) {
+    tb.innerHTML = '<tr><td colspan="2" class="empty">No rank commands to configure.</td></tr>';
+    return;
+  }
+  tb.innerHTML = commands.map(c => {
+    const def = c.defaultRank;
+    const useDef = c.override == null;
+    const ovr = c.override;
+    return `<tr>
+      <td><code>${esc(c.name)}</code><div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;">${esc(c.label)}</div></td>
+      <td>
+        <select data-rank-cmd="${attrEsc(c.name)}" class="palace-rank-select" style="min-width:220px;">
+          <option value="def" ${useDef ? 'selected' : ''}>Built-in default (${esc(rankTierLabel(def))})</option>
+          <option value="1" ${!useDef && ovr === 1 ? 'selected' : ''}>Member</option>
+          <option value="2" ${!useDef && ovr === 2 ? 'selected' : ''}>Wizard</option>
+          <option value="3" ${!useDef && ovr === 3 ? 'selected' : ''}>God</option>
+          <option value="4" ${!useDef && ovr === 4 ? 'selected' : ''}>Owner</option>
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function collectCommandRanksPayload() {
+  const ranks = {};
+  document.querySelectorAll('select[data-rank-cmd]').forEach(sel => {
+    const cmd = sel.getAttribute('data-rank-cmd');
+    if (!cmd) return;
+    if (sel.value === 'def') {
+      ranks[cmd] = null;
+    } else {
+      const n = parseInt(sel.value, 10);
+      if (Number.isFinite(n)) ranks[cmd] = n;
+    }
+  });
+  return ranks;
+}
+
+async function savePalaceCommandRanks() {
+  if (!SETTINGS_PALACE) return;
+  $('palaceRanksError').textContent = '';
+  $('palaceRanksInfo').textContent = '';
+  const btn = $('palaceRanksSaveBtn');
+  const ranks = collectCommandRanksPayload();
+  if (!Object.keys(ranks).length) {
+    $('palaceRanksError').textContent = 'Nothing to save (no command rows).';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/command-ranks`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ ranks }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceRanksError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    $('palaceRanksInfo').textContent = out.note || 'Saved serverprefs.json. Use Reload server config to apply to the running pserver.';
+    const r2 = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/command-ranks`, { headers: headers() });
+    const again = await r2.json().catch(() => ({}));
+    if (r2.ok && Array.isArray(again.commands)) {
+      renderPalaceRanksTable(again.commands);
+    }
+    btn.disabled = false;
+  } catch (e) {
+    $('palaceRanksError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
+async function reloadPalaceServerConfig() {
+  if (!SETTINGS_PALACE) return;
+  $('palaceRanksError').textContent = '';
+  $('palaceRanksInfo').textContent = '';
+  const btn = $('palaceRanksReloadBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/reload-config`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceRanksError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    $('palaceRanksInfo').textContent = (out.note || 'Reload signal sent.') + ' You can confirm in the palace log that pat/prefs reloaded.';
+    btn.disabled = false;
+  } catch (e) {
+    $('palaceRanksError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
 }
 
 function collectPrefsFormDTO() {
@@ -292,6 +433,11 @@ async function openPalaceSettingsModal(name) {
   $('ratbotEditorInfo').textContent = '';
   $('ratbotSaveBtn').disabled = false;
   if ($('ratbotNewFileName')) $('ratbotNewFileName').value = '';
+  if ($('palaceRanksError')) $('palaceRanksError').textContent = '';
+  if ($('palaceRanksInfo')) $('palaceRanksInfo').textContent = '';
+  if ($('palaceRanksSaveBtn')) $('palaceRanksSaveBtn').disabled = false;
+  if ($('palaceRanksReloadBtn')) $('palaceRanksReloadBtn').disabled = false;
+  if ($('palaceRanksBody')) $('palaceRanksBody').innerHTML = '<tr><td colspan="2" class="empty">Loading…</td></tr>';
   $('palaceSettingsTitle').textContent = 'Palace Preferences — ' + name;
   $('palaceSettingsLead').textContent = '';
   $('palaceSettingsContent').value = '';
@@ -305,14 +451,16 @@ async function openPalaceSettingsModal(name) {
   $('palaceSettingsModal').classList.add('open');
 
   try {
-    const [pres, pform, fres] = await Promise.all([
+    const [pres, pform, fres, crr] = await Promise.all([
       fetch(`/api/palaces/${encodeURIComponent(name)}`, { headers: headers() }),
       fetch(`/api/palaces/${encodeURIComponent(name)}/prefs-form`, { headers: headers() }),
       fetch(`/api/palaces/${encodeURIComponent(name)}/server-files/pserver.prefs`, { headers: headers() }),
+      fetch(`/api/palaces/${encodeURIComponent(name)}/command-ranks`, { headers: headers() }),
     ]);
     const pd = await pres.json().catch(() => ({}));
     const formData = await pform.json().catch(() => ({}));
     const rawFile = await fres.json().catch(() => ({}));
+    const rankData = await crr.json().catch(() => ({}));
 
     if (!pres.ok) {
       $('palaceSettingsError').textContent = pd.error || ('HTTP ' + pres.status);
@@ -339,6 +487,16 @@ async function openPalaceSettingsModal(name) {
       $('palaceSettingsContent').value = SETTINGS_RAW_SNAPSHOT;
     } else if (!fres.ok && pform.ok) {
       $('palaceSettingsContent').value = SETTINGS_RAW_SNAPSHOT;
+    }
+    if (crr.ok && Array.isArray(rankData.commands)) {
+      renderPalaceRanksTable(rankData.commands);
+    } else if (!crr.ok) {
+      if ($('palaceRanksBody')) {
+        $('palaceRanksBody').innerHTML = '<tr><td colspan="2" class="empty">Could not load command ranks.</td></tr>';
+      }
+      if ($('palaceRanksError')) {
+        $('palaceRanksError').textContent = rankData.error || ('command-ranks HTTP ' + crr.status);
+      }
     }
     void loadPalaceMisc();
     void refreshRatbotFileList();

@@ -2036,6 +2036,7 @@
     <div class="prefs-tab-row">
       <button type="button" class="active" id="palacePrefsTabPserver" onclick="palaceSettingsSwitchTab('pserver')">Pserver.prefs</button>
       <button type="button" id="palacePrefsTabMisc" onclick="palaceSettingsSwitchTab('misc')">Misc</button>
+      <button type="button" id="palacePrefsTabRanks" onclick="palaceSettingsSwitchTab('ranks')">Ranks</button>
       <button type="button" id="palacePrefsTabRatbot" onclick="palaceSettingsSwitchTab('ratbot')">Ratbot</button>
     </div>
 
@@ -2141,6 +2142,29 @@
       </div>
     </div>
 
+    <div id="palacePrefsPanelRanks" class="prefs-panel">
+      <p class="prefs-hint" style="margin-top:0;">
+        Minimum <strong>user</strong> rank (member → wizard → god → owner) required to run each command. Values are stored in
+        <code>serverprefs.json</code> as <code>command_ranks</code> and match in-game
+        <code>rankset</code>. Saving updates the file on disk; use <strong>Reload server config</strong> to make the running
+        pserver reread <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code> (SIGHUP) without
+        a full service restart.
+      </p>
+      <div style="max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+        <table class="ratbot-table" style="width:100%;">
+          <thead><tr><th>Command</th><th>Minimum rank</th></tr></thead>
+          <tbody id="palaceRanksBody"><tr><td colspan="2" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div id="palaceRanksInfo" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:18px;"></div>
+      <div id="palaceRanksError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:4px;"></div>
+      <div class="modal-footer" style="margin-top:10px;">
+        <button type="button" onclick="closePalaceSettingsModal()">Close</button>
+        <button type="button" id="palaceRanksReloadBtn" onclick="reloadPalaceServerConfig()">Reload server config</button>
+        <button type="button" class="primary" id="palaceRanksSaveBtn" onclick="savePalaceCommandRanks()">Save rank settings</button>
+      </div>
+    </div>
+
     <div id="palacePrefsPanelRatbot" class="prefs-panel">
       <p class="prefs-hint">Edit trivia files in this palace's <code>ratbot</code> folder.</p>
       <div class="form-row">
@@ -2150,7 +2174,7 @@
         </div>
         <div class="field" style="min-width:260px;">
           <label>Or new file name</label>
-          <input id="ratbotNewFileName" type="text" placeholder="my-trivia.db" autocomplete="off" />
+          <input id="ratbotNewFileName" type="text" placeholder="my-trivia.db" autocomplete="off" onkeydown="void createBlankRatbotFileFromInput(event)" />
         </div>
         <button type="button" onclick="refreshRatbotFileList()">Refresh list</button>
       </div>

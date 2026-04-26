@@ -179,6 +179,11 @@ func (m *Manager) Restart(name string) error {
 	return systemctl("restart", unitName(name))
 }
 
+// Reload sends SIGHUP so pserver reloads pat, prefs, and serverprefs without a full restart.
+func (m *Manager) Reload(name string) error {
+	return systemctl("kill", "-s", "HUP", unitName(name))
+}
+
 // UnitPath returns the filesystem path for palman-<name>.service.
 func UnitPath(name string) string {
 	return filepath.Join("/etc/systemd/system", unitName(name))

@@ -347,6 +347,12 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalaceMiscGet(w, r, name)
 	case action == "misc" && r.Method == http.MethodPut:
 		s.handlePalaceMiscSave(w, r, name)
+	case action == "command-ranks" && r.Method == http.MethodGet:
+		s.handleCommandRanksGet(w, r, name)
+	case action == "command-ranks" && r.Method == http.MethodPut:
+		s.handleCommandRanksPut(w, r, name)
+	case action == "reload-config" && r.Method == http.MethodPost:
+		s.handlePalaceReloadConfig(w, r, name)
 	case action == "ratbot/files" && r.Method == http.MethodGet:
 		s.handlePalaceRatbotFilesList(w, r, name)
 	case action == "ratbot/file" && r.Method == http.MethodGet:

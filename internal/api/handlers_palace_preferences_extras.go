@@ -320,10 +320,6 @@ func (s *Server) handlePalaceRatbotFileSave(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if len(questions) == 0 {
-		writeError(w, http.StatusBadRequest, "add at least one question")
-		return
-	}
 	content := renderTriviaQuestions(questions)
 	if len(content) > ratbotMaxFileSize {
 		writeError(w, http.StatusRequestEntityTooLarge, "ratbot file too large")
