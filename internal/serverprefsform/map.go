@@ -89,6 +89,18 @@ func normalizeRoomAnnotations(s string) string {
 	}
 }
 
+func normalizeWizAuthoring(s string) string {
+	v := strings.ToLower(strings.TrimSpace(s))
+	switch v {
+	case "on", "off", "bless", "godonly":
+		return v
+	case "":
+		return "on"
+	default:
+		return "on"
+	}
+}
+
 func normalizeMediaManagerRank(s string) string {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "wizards", "wizard":
@@ -161,32 +173,34 @@ func MapToForm(top map[string]json.RawMessage) ServerPrefsFormDTO {
 	sl := soundLimitFromTop(top)
 	ps := passwordSecurityFromTop(top)
 	return ServerPrefsFormDTO{
-		Website:               getString(top, "website"),
-		YpLanguage:            getString(top, "yp_language"),
-		YpCategory:            getString(top, "yp_category"),
-		YpDescription:         getString(top, "yp_description"),
-		TimeoutRoomID:         int(getInt64(top, "timeout_room_id")),
-		AutopurgeBanlistDays:  getInt64(top, "autopurgebanlist_days"),
-		UnicodeNames:          getBool(top, "unicode_names", false),
-		UnicodeFull:           getBool(top, "unicode", true),
-		AltNames:              getBool(top, "alt_names", true),
-		NoLoosePropsNonOps:    getBool(top, "nolooseprops_non_ops", false),
-		EspEnabled:            getBool(top, "esp_enabled", true),
-		RoomAnnotations:       normalizeRoomAnnotations(getString(top, "room_annotations")),
-		NotifyLogon:           getBool(top, "notify_logon", false),
-		NotifyLogoff:          getBool(top, "notify_logoff", false),
-		PublicMedia:           getBool(top, "public_media", true),
-		SecureProps:           getBool(top, "secure_props", false),
-		MediaManagerEnabled:   getBool(top, "media_manager_enabled", true),
-		MediaManagerRank:      normalizeMediaManagerRank(getString(top, "media_manager_rank")),
-		MediaUploadConfigRank: normalizeMediaUploadRank(getString(top, "media_upload_config_rank")),
-		LegacyClientsBlock:      getBool(top, "legacyclients", false),
-		OverflowRoomIDs:       overflowFromTop(top),
-		PropFreezeRoomIDs:     intRoomSetFromMapObj(top, "propfreeze_rooms"),
-		RatbotsAllowedRoomIDs: intRoomSetFromMapObj(top, "ratbots_allowed_rooms"),
-		FloodKill:             fk,
-		SoundLimit:            sl,
-		PasswordSecurity:      ps,
+		Website:                getString(top, "website"),
+		YpLanguage:             getString(top, "yp_language"),
+		YpCategory:             getString(top, "yp_category"),
+		YpDescription:          getString(top, "yp_description"),
+		TimeoutRoomID:          int(getInt64(top, "timeout_room_id")),
+		AutopurgeBanlistDays:   getInt64(top, "autopurgebanlist_days"),
+		UnicodeNames:           getBool(top, "unicode_names", false),
+		UnicodeFull:            getBool(top, "unicode", true),
+		AltNames:               getBool(top, "alt_names", true),
+		NoLoosePropsNonOps:     getBool(top, "nolooseprops_non_ops", false),
+		EspEnabled:             getBool(top, "esp_enabled", true),
+		RoomAnnotations:        normalizeRoomAnnotations(getString(top, "room_annotations")),
+		WizAuthoring:           normalizeWizAuthoring(getString(top, "wiz_authoring")),
+		WizAuthoringAnnotation: getBool(top, "wiz_authoring_annotation", true),
+		NotifyLogon:            getBool(top, "notify_logon", false),
+		NotifyLogoff:           getBool(top, "notify_logoff", false),
+		PublicMedia:            getBool(top, "public_media", true),
+		SecureProps:            getBool(top, "secure_props", false),
+		MediaManagerEnabled:    getBool(top, "media_manager_enabled", true),
+		MediaManagerRank:       normalizeMediaManagerRank(getString(top, "media_manager_rank")),
+		MediaUploadConfigRank:  normalizeMediaUploadRank(getString(top, "media_upload_config_rank")),
+		LegacyClientsBlock:     getBool(top, "legacyclients", false),
+		OverflowRoomIDs:        overflowFromTop(top),
+		PropFreezeRoomIDs:      intRoomSetFromMapObj(top, "propfreeze_rooms"),
+		RatbotsAllowedRoomIDs:  intRoomSetFromMapObj(top, "ratbots_allowed_rooms"),
+		FloodKill:              fk,
+		SoundLimit:             sl,
+		PasswordSecurity:       ps,
 	}
 }
 
@@ -351,6 +365,21 @@ func ApplyFormToMap(orig map[string]json.RawMessage, f ServerPrefsFormDTO) (map[
 		delete(top, "room_annotations")
 	} else {
 		if err := setJSON(top, "room_annotations", ra); err != nil {
+			return nil, err
+		}
+	}
+	wa := normalizeWizAuthoring(f.WizAuthoring)
+	if wa == "on" {
+		delete(top, "wiz_authoring")
+	} else {
+		if err := setJSON(top, "wiz_authoring", wa); err != nil {
+			return nil, err
+		}
+	}
+	if f.WizAuthoringAnnotation {
+		delete(top, "wiz_authoring_annotation")
+	} else {
+		if err := setJSON(top, "wiz_authoring_annotation", false); err != nil {
 			return nil, err
 		}
 	}

@@ -42,6 +42,11 @@ function populateServerPrefsGuidedFromForm(f) {
     const ra = (f.roomAnnotations || 'everyone').toLowerCase();
     $('spfRoomAnnotations').value = ['everyone', 'wizards', 'off'].includes(ra) ? ra : 'everyone';
   }
+  if ($('spfWizAuthoring')) {
+    const wz = (f.wizAuthoring || 'on').toLowerCase();
+    $('spfWizAuthoring').value = ['on', 'off', 'bless', 'godonly'].includes(wz) ? wz : 'on';
+  }
+  if ($('spfWizAuthoringAnnotation')) $('spfWizAuthoringAnnotation').checked = f.wizAuthoringAnnotation !== false;
   if ($('spfNotifyLogon')) $('spfNotifyLogon').checked = !!f.notifyLogon;
   if ($('spfNotifyLogoff')) $('spfNotifyLogoff').checked = !!f.notifyLogoff;
   if ($('spfPublicMedia')) $('spfPublicMedia').checked = f.publicMedia !== false;
@@ -117,6 +122,8 @@ function collectServerPrefsFormDTO() {
     noLoosePropsNonOps: $('spfNoLooseProps').checked,
     espEnabled: $('spfEspEnabled').checked,
     roomAnnotations: ($('spfRoomAnnotations') && $('spfRoomAnnotations').value) || 'everyone',
+    wizAuthoring: ($('spfWizAuthoring') && $('spfWizAuthoring').value) || 'on',
+    wizAuthoringAnnotation: !$('spfWizAuthoringAnnotation') || $('spfWizAuthoringAnnotation').checked,
     notifyLogon: $('spfNotifyLogon').checked,
     notifyLogoff: $('spfNotifyLogoff').checked,
     publicMedia: $('spfPublicMedia').checked,

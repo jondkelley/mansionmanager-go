@@ -11,14 +11,16 @@ type ServerPrefsFormDTO struct {
 	TimeoutRoomID        int   `json:"timeoutRoomId"`        // 0 = omit key
 	AutopurgeBanlistDays int64 `json:"autopurgeBanlistDays"` // 0 = omit
 
-	UnicodeNames       bool `json:"unicodeNames"`
-	UnicodeFull        bool `json:"unicodeFull"`        // serverprefs "unicode"
-	AltNames           bool `json:"altNames"`           // serverprefs "alt_names"
-	NoLoosePropsNonOps bool `json:"noLoosePropsNonOps"` // nolooseprops_non_ops
-	EspEnabled         bool `json:"espEnabled"`
-	RoomAnnotations    string `json:"roomAnnotations"` // everyone | wizards | off
-	NotifyLogon        bool   `json:"notifyLogon"`
-	NotifyLogoff       bool   `json:"notifyLogoff"`
+	UnicodeNames           bool   `json:"unicodeNames"`
+	UnicodeFull            bool   `json:"unicodeFull"`        // serverprefs "unicode"
+	AltNames               bool   `json:"altNames"`           // serverprefs "alt_names"
+	NoLoosePropsNonOps     bool   `json:"noLoosePropsNonOps"` // nolooseprops_non_ops
+	EspEnabled             bool   `json:"espEnabled"`
+	RoomAnnotations        string `json:"roomAnnotations"`        // everyone | wizards | off
+	WizAuthoring           string `json:"wizAuthoring"`           // on | off | bless | godonly (serverprefs wiz_authoring)
+	WizAuthoringAnnotation bool   `json:"wizAuthoringAnnotation"` // wiz_authoring_annotation; default true
+	NotifyLogon            bool   `json:"notifyLogon"`
+	NotifyLogoff           bool   `json:"notifyLogoff"`
 
 	PublicMedia           bool   `json:"publicMedia"`
 	SecureProps           bool   `json:"secureProps"`
@@ -28,9 +30,9 @@ type ServerPrefsFormDTO struct {
 
 	LegacyClientsBlock bool `json:"legacyClientsBlock"` // legacyclients in file
 
-	OverflowRoomIDs         []int `json:"overflowRoomIds"`
-	PropFreezeRoomIDs       []int `json:"propFreezeRoomIds"`
-	RatbotsAllowedRoomIDs   []int `json:"ratbotsAllowedRoomIds"`
+	OverflowRoomIDs       []int `json:"overflowRoomIds"`
+	PropFreezeRoomIDs     []int `json:"propFreezeRoomIds"`
+	RatbotsAllowedRoomIDs []int `json:"ratbotsAllowedRoomIds"`
 
 	FloodKill        FloodKillDTO        `json:"floodKill"`
 	SoundLimit       SoundLimitDTO       `json:"soundLimit"`

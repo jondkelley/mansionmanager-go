@@ -831,11 +831,28 @@
     display: flex;
     flex-direction: column;
     max-height: 92vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #palaceSettingsModal .modal > h3,
+  #palaceSettingsModal .modal > #palaceSettingsLead,
+  #palaceSettingsModal .modal > .prefs-tab-row {
+    flex-shrink: 0;
+  }
+  /* Let the active tab body fill remaining viewport height and scroll inside */
+  #palaceSettingsModal .prefs-panel.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
   }
   .prefs-modal-scroll {
     overflow: auto;
-    flex: 1;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 1 0;
     min-height: 0;
+    max-height: 100%;
     padding-right: 6px;
     margin-right: -4px;
   }
@@ -872,7 +889,11 @@
   .prefs-tab-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .prefs-tab-row button.active { background: var(--accent); border-color: var(--accent); color:#fff; }
   .prefs-panel { display:none; }
-  .prefs-panel.active { display:block; }
+  .prefs-panel.active { display: block; }
+  #palaceSettingsModal .prefs-panel.active .modal-footer {
+    flex-shrink: 0;
+    margin-top: auto;
+  }
   .ratbot-table input, .ratbot-table select { width: 100%; max-width: none; }
   .ratbot-table td { vertical-align: top; }
   .ratbot-table .narrow { width: 80px; }
@@ -2129,7 +2150,7 @@
 
     <div id="palacePrefsPanelServerprefs" class="prefs-panel">
       <p style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text);">Server preferences (<code>serverprefs.json</code>)</p>
-      <p class="prefs-hint" style="margin-top:0;">Parsed by <strong>mansionsource-go</strong> <code>internal/serverprefs</code>. The <strong>guided form</strong> only changes documented keys; bans, promotion hashes, command ranks, bless config, operator hold, name gag, nick registration, and ratbot avatar JSON stay exactly as on disk.</p>
+      <p class="prefs-hint" style="margin-top:0;">Parsed by <strong>mansionsource-go</strong> <code>internal/serverprefs</code>. The <strong>guided form</strong> only changes documented keys (including <code>wiz_authoring</code> / <code>wiz_authoring_annotation</code>); bans, promotion hashes, command ranks, bless config, operator hold, name gag, nick registration, and ratbot avatar JSON stay exactly as on disk.</p>
       <p id="palaceServerprefsPreservedNote" class="prefs-hint" style="display:none;background:rgba(100,160,255,.08);border:1px solid rgba(100,160,255,.22);border-radius:8px;padding:8px 12px;"></p>
       <div class="prefs-mode-row" style="margin-top:10px;">
         <label><input type="radio" name="palaceServerprefsEditMode" id="palaceServerprefsModeGuided" value="guided" checked onchange="syncPalaceServerprefsEditMode()" /> Guided form</label>
@@ -2173,6 +2194,16 @@
               <option value="off">Off</option>
             </select>
           </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Wizard authoring policy</label>
+            <select id="spfWizAuthoring">
+              <option value="on">On — normal wizard rules (<code>wiz_authoring</code>, default)</option>
+              <option value="off">Off — wizards cannot author rooms/spots/pics</option>
+              <option value="bless">Bless — blessed operator accounts with author rights only</option>
+              <option value="godonly">God only — only gods may author</option>
+            </select>
+          </div>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfWizAuthoringAnnotation" /> <span>Wiz-global “; …” lines when operators author (<code>wiz_authoring_annotation</code>, default on; not for new-room)</span></label>
           <div class="field"><label>Prop‑freeze room IDs</label><input id="spfPropFreezeRooms" type="text" style="width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;" placeholder="Comma-separated room IDs, e.g. 1, 42, 99" /></div>
         </details>
         <details class="prefs-sec">

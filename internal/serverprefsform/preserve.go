@@ -3,7 +3,8 @@ package serverprefsform
 import "encoding/json"
 
 // Keys we never read or write through the guided form (copied verbatim from the
-// previous serverprefs.json on each save).
+// previous serverprefs.json on each save). Form-managed keys such as
+// wiz_authoring and wiz_authoring_annotation are merged in map.go, not listed here.
 var preservedKeys = []string{
 	"moderation_records",
 	"moderation_schema",

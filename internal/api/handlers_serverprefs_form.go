@@ -37,7 +37,7 @@ func (s *Server) handleServerPrefsFormGet(w http.ResponseWriter, r *http.Request
 		"form":           serverprefsform.MapToForm(top),
 		"fileExists":     statErr == nil,
 		"preservedKeys":  serverprefsform.PreservedKeysPresent(top),
-		"schema":         "serverprefs-form v1 — aligned with mansionsource-go internal/serverprefs",
+		"schema":         "serverprefs-form v1 — aligned with mansionsource-go internal/serverprefs (incl. wiz_authoring, wiz_authoring_annotation)",
 	})
 }
 

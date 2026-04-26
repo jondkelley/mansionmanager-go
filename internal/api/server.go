@@ -341,6 +341,7 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalaceAction(w, r, name, action)
 	case action == "prefs-form" && r.Method == http.MethodGet:
 		s.handlePalacePrefsForm(w, r, name)
+	// Guided serverprefs.json editor (keys merged per internal/serverprefsform; includes wiz_authoring / wiz_authoring_annotation).
 	case action == "serverprefs-form" && r.Method == http.MethodGet:
 		s.handleServerPrefsFormGet(w, r, name)
 	case action == "serverprefs-form" && r.Method == http.MethodPut:
