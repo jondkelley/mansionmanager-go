@@ -242,11 +242,18 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 
 	if result != nil {
 		prefsPath := filepath.Join(result.DataDir, "pserver.prefs")
-		prefsBody, readErr := os.ReadFile(prefsPath)
-		if readErr != nil {
+		var prefsContent string
+		b, readErr := os.ReadFile(prefsPath)
+		switch {
+		case readErr == nil:
+			prefsContent = string(b)
+		case os.IsNotExist(readErr):
+			prefsContent = ""
+		default:
 			streamLine(sw, fmt.Sprintf("WARNING: could not read pserver.prefs for SERVERNAME/SYSOP: %v", readErr))
-		} else {
-			mergedID := pserverprefs.MergeServerNameSysop(string(prefsBody), req.ServerName, req.Sysop)
+		}
+		if readErr == nil || os.IsNotExist(readErr) {
+			mergedID := pserverprefs.MergeServerNameSysop(prefsContent, req.ServerName, req.Sysop)
 			if err := writeFileAtomicAs(prefsPath, result.User, strings.NewReader(mergedID)); err != nil {
 				streamLine(sw, fmt.Sprintf("WARNING: could not write SERVERNAME/SYSOP to pserver.prefs: %v", err))
 			}

@@ -113,8 +113,9 @@ Common options:
 After install: copy pserver.pat + media, then:
   systemctl enable --now palman-<user>.service
 
-  --from-template       Copy pserver binary, media/, ratbot, pserver.pat from PALACE_TEMPLATE_DIR
-                        (default /root/palace-template). Does not copy scripts/ into the palace dir.
+  --from-template       Copy pserver binary, media/, ratbot, pserver.pat, and pserver.prefs (when present
+                        in the template) from PALACE_TEMPLATE_DIR (default /root/palace-template).
+                        Does not copy scripts/ into the palace dir.
   --force-template-pat  With --from-template, overwrite an existing pserver.pat (default: keep existing)
 
 Env (optional): PSERVER_BIN, GEN_MEDIA_NGINX, PALACE_CRON_SCHEDULE, PALACE_TEMPLATE_DIR — see --help-all
@@ -137,7 +138,7 @@ Advanced options (same script; for automation / tuning):
   --cron-tag NAME          /etc/cron.d/<NAME> (default: palace-media-scan-homes)
   --match-scheme https|http|both   Passed to gen-media-nginx in cron (default: both)
   --edge-scheme https|http|dual    nginx edge (default: https — TLS + redirect on :80)
-  --from-template        Install pserver, media, ratbot, pserver.pat from PALACE_TEMPLATE_DIR
+  --from-template        Install pserver, media, ratbot, pserver.pat, pserver.prefs (if in template) from PALACE_TEMPLATE_DIR
   --force-template-pat   With --from-template, replace existing pserver.pat in the palace dir
   --lab                    Shorthand: --edge-scheme http for local dev (no TLS termination story)
 
@@ -282,7 +283,8 @@ run mkdir -p "${PALACE_DATA_DIR}/media"
 run chown -R "${PALACE_USER}:${PALACE_USER}" "$PALACE_DATA_DIR"
 
 # Optional: populate from shared sdist template (see deploy/update-install-pserver.sh).
-# Copies only pserver → PSERVER_BIN, media/, ratbot, and pserver.pat — never scripts/.
+# Copies pserver → PSERVER_BIN, media/, ratbot, pserver.pat, and pserver.prefs (when the template
+# ships it) — never scripts/.
 if $FROM_TEMPLATE; then
   echo ""
   echo "Populating from template ${PALACE_TEMPLATE_DIR} ..."
@@ -312,6 +314,17 @@ if $FROM_TEMPLATE; then
     run chown "${PALACE_USER}:${PALACE_USER}" "${PALACE_DATA_DIR}/pserver.pat"
   else
     echo "  → keeping existing ${PALACE_DATA_DIR}/pserver.pat (use --force-template-pat to replace)"
+  fi
+  if [[ -f "${PALACE_TEMPLATE_DIR}/pserver.prefs" ]]; then
+    if [[ ! -f "${PALACE_DATA_DIR}/pserver.prefs" ]]; then
+      echo "  → pserver.prefs → ${PALACE_DATA_DIR}/pserver.prefs"
+      run cp -a "${PALACE_TEMPLATE_DIR}/pserver.prefs" "${PALACE_DATA_DIR}/pserver.prefs"
+      run chown "${PALACE_USER}:${PALACE_USER}" "${PALACE_DATA_DIR}/pserver.prefs"
+    else
+      echo "  → keeping existing ${PALACE_DATA_DIR}/pserver.prefs"
+    fi
+  else
+    echo "  (no pserver.prefs in template — palace-manager will create SERVERNAME/SYSOP on provision)"
   fi
   echo "Template scripts/ left under ${PALACE_TEMPLATE_DIR}/scripts (not copied into palace dir)."
   echo ""
