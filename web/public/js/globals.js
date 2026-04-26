@@ -21,3 +21,4 @@ let SF_FILE_ENCODING = 'utf8';
 /** Logs / logrotate files are view-only (no Save / backup modal). */
 let SF_ALLOW_SAVE = false;
 let PAT_UPLOAD_NAME = '';
+let PROPS_PALACE = '';

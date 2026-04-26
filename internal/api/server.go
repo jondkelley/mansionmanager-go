@@ -392,6 +392,14 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalaceBanlist(w, r, name)
 	case action == "banlist/unban" && r.Method == http.MethodPost:
 		s.handlePalaceBanlistUnban(w, r, name)
+	case action == "props" && r.Method == http.MethodGet:
+		s.handlePalaceProps(w, r, name)
+	case action == "props/command" && r.Method == http.MethodPost:
+		s.handlePalacePropsCommand(w, r, name)
+	case action == "pages" && r.Method == http.MethodGet:
+		s.handlePalacePages(w, r, name)
+	case action == "pages/send" && r.Method == http.MethodPost:
+		s.handlePalacePagesSend(w, r, name)
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 	}

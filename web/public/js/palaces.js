@@ -557,6 +557,12 @@ async function loadPalaces() {
       const bansBtn = (p.httpPort && (isAdmin || isTenant))
         ? `<button type="button" onclick='openPalaceBansModal(${nm})'>Bans</button>`
         : '';
+      const propsBtn = (p.httpPort && isAdmin)
+        ? `<button type="button" onclick='openPalacePropsModal(${nm})'>Props</button>`
+        : '';
+      const pagesBtn = p.httpPort
+        ? `<button type="button" onclick='openPalacePagesModal(${nm})'>Pages</button>`
+        : '';
       const summaryClass = isAdmin ? 'palace-row-summary' : '';
       const sid = palaceStatId(p.name);
       const controlBtns = palaceServiceControlButtonsHTML(nm);
@@ -599,6 +605,8 @@ async function loadPalaces() {
                   ${logsBtn}
                   ${usersBtn}
                   ${bansBtn}
+                  ${propsBtn}
+                  ${pagesBtn}
                 </div>
               </div>
             </div>
@@ -615,6 +623,12 @@ async function loadPalaces() {
               <div class="palace-stat-item" id="${sid}-ops"><span class="palace-stat-value">—</span><span class="palace-stat-label">Operators</span></div>
               <div class="palace-stat-item" id="${sid}-gods"><span class="palace-stat-value">—</span><span class="palace-stat-label">Gods</span></div>
               <div class="palace-stat-item" id="${sid}-owners"><span class="palace-stat-value">—</span><span class="palace-stat-label">Owners</span></div>
+              <div class="palace-stat-item" id="${sid}-uniquevis"><span class="palace-stat-value">—</span><span class="palace-stat-label">Unique Visitors</span></div>
+              <div class="palace-stat-item" id="${sid}-visitsper"><span class="palace-stat-value">—</span><span class="palace-stat-label">Visits / User</span></div>
+              <div class="palace-stat-item" id="${sid}-avgtime"><span class="palace-stat-value">—</span><span class="palace-stat-label">Avg Visit Time</span></div>
+              <div class="palace-stat-item" id="${sid}-avgpop"><span class="palace-stat-value">—</span><span class="palace-stat-label">Avg Population</span></div>
+              <div class="palace-stat-item" id="${sid}-peakpop"><span class="palace-stat-value">—</span><span class="palace-stat-label">Peak Population</span></div>
+              <div class="palace-stat-item" id="${sid}-peakat"><span class="palace-stat-value">—</span><span class="palace-stat-label">Peak At</span></div>
             </div>
           </div>` : ''}
         </td> 
@@ -1192,6 +1206,19 @@ function formatUptime(startIso) {
   return `${m}m ${s}s`;
 }
 
+function formatStatFloat(v, digits = 2) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toFixed(digits);
+}
+
+function formatPeakAt(iso) {
+  if (!iso) return 'Unknown';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return String(iso);
+  return d.toLocaleString();
+}
+
 function setStatEl(sid, key, value) {
   const el = document.getElementById(`${sid}-${key}`);
   if (!el) return;
@@ -1209,6 +1236,12 @@ function applyPalaceStats(sid, d) {
   setStatEl(sid, 'ops',    (d.operators ?? 0));
   setStatEl(sid, 'gods',   (d.gods ?? 0) + (d.hosts ?? 0));
   setStatEl(sid, 'owners', d.owners ?? '—');
+  setStatEl(sid, 'uniquevis', d.total_unique_visitors ?? '—');
+  setStatEl(sid, 'visitsper', formatStatFloat(d.visits_per_user, 2));
+  setStatEl(sid, 'avgtime', `${Math.round(Number(d.average_visit_seconds) || 0)}s`);
+  setStatEl(sid, 'avgpop', formatStatFloat(d.average_population, 2));
+  setStatEl(sid, 'peakpop', d.peak_population ?? '—');
+  setStatEl(sid, 'peakat', formatPeakAt(d.peak_population_at));
   setStatEl(sid, 'uptime', formatUptime(d.start_time));
 }
 

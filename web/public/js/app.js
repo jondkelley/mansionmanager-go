@@ -60,6 +60,12 @@ document.addEventListener('keydown', (ev) => {
   } else if ($('palaceUsersModal').classList.contains('open')) {
     closePalaceUsersModal();
     ev.preventDefault();
+  } else if ($('palacePagesModal').classList.contains('open')) {
+    closePalacePagesModal();
+    ev.preventDefault();
+  } else if ($('palacePropsModal').classList.contains('open')) {
+    closePalacePropsModal();
+    ev.preventDefault();
   } else if ($('palaceBansModal').classList.contains('open')) {
     closePalaceBansModal();
     ev.preventDefault();

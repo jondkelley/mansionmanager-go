@@ -339,8 +339,28 @@ func PatchUnitExecStart(unitPath, binaryPath string) error {
 	return os.Rename(tmp, unitPath)
 }
 
-func unitPathForUser(linuxUser string) string {
-	return filepath.Join("/etc/systemd/system", fmt.Sprintf("palman-%s.service", linuxUser))
+func unitPathForUnitName(unitName string) string {
+	return filepath.Join("/etc/systemd/system", unitName)
+}
+
+func unitNameForPalace(p registry.Palace) string {
+	return fmt.Sprintf("palman-%s.service", p.Name)
+}
+
+func resolveUnitForPalace(p registry.Palace) (unitName string, unitPath string) {
+	// Primary layout: palman-<palace-name>.service (current behavior).
+	primary := unitNameForPalace(p)
+	primaryPath := unitPathForUnitName(primary)
+	if fileExists(primaryPath) {
+		return primary, primaryPath
+	}
+	// Back-compat: older data may still have units named after Linux user.
+	legacy := fmt.Sprintf("palman-%s.service", p.User)
+	legacyPath := unitPathForUnitName(legacy)
+	if fileExists(legacyPath) {
+		return legacy, legacyPath
+	}
+	return primary, primaryPath
 }
 
 func (s *Store) canonicalSemverEntry(pin string) (string, error) {
@@ -371,11 +391,11 @@ func (s *Store) ApplyPalaceVersion(reg *registry.Registry, palaceName, semver st
 	if err != nil {
 		return err
 	}
-	unit := unitPathForUser(p.User)
-	if !fileExists(unit) {
-		return fmt.Errorf("systemd unit not found: %s", unit)
+	unitName, unitPath := resolveUnitForPalace(p)
+	if !fileExists(unitPath) {
+		return fmt.Errorf("systemd unit not found: %s", unitPath)
 	}
-	if err := PatchUnitExecStart(unit, binPath); err != nil {
+	if err := PatchUnitExecStart(unitPath, binPath); err != nil {
 		return err
 	}
 	dr := exec.Command("systemctl", "daemon-reload")
@@ -398,8 +418,7 @@ func (s *Store) ApplyPalaceVersion(reg *registry.Registry, palaceName, semver st
 		return err
 	}
 	if restart {
-		u := fmt.Sprintf("palman-%s.service", p.User)
-		rs := exec.Command("systemctl", "restart", u)
+		rs := exec.Command("systemctl", "restart", unitName)
 		rs.Stdout = os.Stdout
 		rs.Stderr = os.Stderr
 		if err := rs.Run(); err != nil {
@@ -426,8 +445,8 @@ func (s *Store) ApplyAllPalaces(reg *registry.Registry, semver string, restart b
 	}
 	if restart {
 		for _, p := range all {
-			u := fmt.Sprintf("palman-%s.service", p.User)
-			cmd := exec.Command("systemctl", "restart", u)
+			unitName, _ := resolveUnitForPalace(p)
+			cmd := exec.Command("systemctl", "restart", unitName)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
