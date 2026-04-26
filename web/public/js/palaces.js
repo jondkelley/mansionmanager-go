@@ -1487,22 +1487,74 @@ async function loadPalaces() {
           </div>
           ${p.httpPort ? `
           <div class="palace-stats-strip" id="${sid}">
-            <div class="palace-stats-grid">
-              <div class="palace-stat-item" id="${sid}-rooms"><span class="palace-stat-value">—</span><span class="palace-stat-label">Rooms</span></div>
-              <div class="palace-stat-item" id="${sid}-uptime"><span class="palace-stat-value">—</span><span class="palace-stat-label">Uptime</span></div>
-              <div class="palace-stat-item" id="${sid}-online"><span class="palace-stat-value">—</span><span class="palace-stat-label">Online</span></div>
-              <div class="palace-stat-item" id="${sid}-max"><span class="palace-stat-value">—</span><span class="palace-stat-label">Max Users</span></div>
-              <div class="palace-stat-item" id="${sid}-today"><span class="palace-stat-value">—</span><span class="palace-stat-label">Today</span></div>
-              <div class="palace-stat-item" id="${sid}-week"><span class="palace-stat-value">—</span><span class="palace-stat-label">This Week</span></div>
-              <div class="palace-stat-item" id="${sid}-ops"><span class="palace-stat-value">—</span><span class="palace-stat-label">Wizzes</span></div>
-              <div class="palace-stat-item" id="${sid}-gods"><span class="palace-stat-value">—</span><span class="palace-stat-label">Gods</span></div>
-              <div class="palace-stat-item" id="${sid}-owners"><span class="palace-stat-value">—</span><span class="palace-stat-label">Owners</span></div>
-              <div class="palace-stat-item" id="${sid}-uniquevis"><span class="palace-stat-value">—</span><span class="palace-stat-label">Unique Visitors</span></div>
-              <div class="palace-stat-item" id="${sid}-visitsper"><span class="palace-stat-value">—</span><span class="palace-stat-label">Visits / User</span></div>
-              <div class="palace-stat-item" id="${sid}-avgtime"><span class="palace-stat-value">—</span><span class="palace-stat-label">Avg Visit Time</span></div>
-              <div class="palace-stat-item" id="${sid}-avgpop"><span class="palace-stat-value">—</span><span class="palace-stat-label">Avg Population</span></div>
-              <div class="palace-stat-item" id="${sid}-peakpop"><span class="palace-stat-value">—</span><span class="palace-stat-label">Peak Population</span></div>
-              <div class="palace-stat-item" id="${sid}-peakat"><span class="palace-stat-value">—</span><span class="palace-stat-label">Peak At</span></div>
+            <div class="palace-stats-layout">
+              <section class="palace-stat-group palace-stat-group--live" aria-label="Live server stats">
+                <h4 class="palace-stat-group-title">Now</h4>
+                <div class="palace-stat-group--live-inner">
+                  <div class="palace-gauge-wrap" id="${sid}-gauge">
+                    <svg class="palace-gauge-svg" viewBox="0 0 100 100" role="img" aria-label="Load vs max users (concentric rings)">
+                      <g transform="translate(50,50)">
+                        <circle class="palace-gauge-track" r="34" cx="0" cy="0" fill="none" stroke-width="5" />
+                        <circle class="palace-gauge-track" r="26" cx="0" cy="0" fill="none" stroke-width="5" />
+                        <circle class="palace-gauge-track" r="18" cx="0" cy="0" fill="none" stroke-width="5" />
+                        <circle class="palace-gauge-fill palace-gauge-fill--online" data-gauge="online" r="34" cx="0" cy="0" fill="none" stroke-width="5" stroke-dasharray="0 9999" transform="rotate(-90)">
+                          <title>Online vs max (outer ring)</title>
+                        </circle>
+                        <circle class="palace-gauge-fill palace-gauge-fill--peak" data-gauge="peak" r="26" cx="0" cy="0" fill="none" stroke-width="5" stroke-dasharray="0 9999" transform="rotate(-90)">
+                          <title>Record peak vs max (middle ring)</title>
+                        </circle>
+                        <circle class="palace-gauge-fill palace-gauge-fill--avg" data-gauge="avg" r="18" cx="0" cy="0" fill="none" stroke-width="5" stroke-dasharray="0 9999" transform="rotate(-90)">
+                          <title>Average population vs max (inner ring)</title>
+                        </circle>
+                      </g>
+                    </svg>
+                    <ul class="palace-gauge-key">
+                      <li><span class="palace-gauge-key-swatch palace-gauge-key-swatch--online" aria-hidden="true"></span> Outer — online ÷ max</li>
+                      <li><span class="palace-gauge-key-swatch palace-gauge-key-swatch--peak" aria-hidden="true"></span> Middle — peak ÷ max</li>
+                      <li><span class="palace-gauge-key-swatch palace-gauge-key-swatch--avg" aria-hidden="true"></span> Inner — avg pop. ÷ max</li>
+                    </ul>
+                  </div>
+                  <div class="palace-stat-group-cells">
+                    <div class="palace-stat-item palace-stat-item--hero" id="${sid}-online"><span class="palace-stat-value">—</span><span class="palace-stat-label">Online</span></div>
+                    <div class="palace-stat-item palace-stat-item--tight" id="${sid}-max"><span class="palace-stat-value">—</span><span class="palace-stat-label">Max users</span></div>
+                    <div class="palace-stat-item palace-stat-item--tight" id="${sid}-uptime"><span class="palace-stat-value">—</span><span class="palace-stat-label">Uptime</span></div>
+                    <div class="palace-stat-item palace-stat-item--tight" id="${sid}-rooms"><span class="palace-stat-value">—</span><span class="palace-stat-label">Rooms</span></div>
+                  </div>
+                </div>
+              </section>
+              <section class="palace-stat-group" aria-label="Staff">
+                <h4 class="palace-stat-group-title">Staff<span class="palace-stat-group-sub">Stack = share of connected staff · not vs max users</span></h4>
+                <div class="palace-staff-stack" id="${sid}-staff-stack">
+                  <div class="palace-staff-stack-bar" role="presentation">
+                    <div class="palace-staff-stack-seg palace-staff-stack-wiz" data-staff="wiz" style="width:0%"></div>
+                    <div class="palace-staff-stack-seg palace-staff-stack-god" data-staff="god" style="width:0%"></div>
+                    <div class="palace-staff-stack-seg palace-staff-stack-owner" data-staff="owner" style="width:0%"></div>
+                  </div>
+                </div>
+                <div class="palace-stat-group-cells">
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-ops"><span class="palace-stat-value">—</span><span class="palace-stat-label">Wizzes</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-gods"><span class="palace-stat-value">—</span><span class="palace-stat-label">Gods</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-owners"><span class="palace-stat-value">—</span><span class="palace-stat-label">Owners</span></div>
+                </div>
+              </section>
+              <section class="palace-stat-group" aria-label="Visitors">
+                <h4 class="palace-stat-group-title">Visitors</h4>
+                <div class="palace-stat-group-cells">
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-today"><span class="palace-stat-value">—</span><span class="palace-stat-label">Today</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-week"><span class="palace-stat-value">—</span><span class="palace-stat-label">This week</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-uniquevis"><span class="palace-stat-value">—</span><span class="palace-stat-label">Unique</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-visitsper"><span class="palace-stat-value">—</span><span class="palace-stat-label">Visits / user</span></div>
+                </div>
+              </section>
+              <section class="palace-stat-group" aria-label="Sessions and peak">
+                <h4 class="palace-stat-group-title">Sessions &amp; peak</h4>
+                <div class="palace-stat-group-cells">
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-avgtime"><span class="palace-stat-value">—</span><span class="palace-stat-label">Avg visit</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-avgpop"><span class="palace-stat-value">—</span><span class="palace-stat-label">Avg pop.</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight" id="${sid}-peakpop"><span class="palace-stat-value">—</span><span class="palace-stat-label">Peak pop.</span></div>
+                  <div class="palace-stat-item palace-stat-item--tight palace-stat-item--wrap" id="${sid}-peakat"><span class="palace-stat-value">—</span><span class="palace-stat-label">Peak at</span></div>
+                </div>
+              </section>
             </div>
           </div>` : ''}
         </td> 
@@ -2423,6 +2475,128 @@ function setStatEl(sid, key, value) {
   if (val) val.textContent = value;
 }
 
+function _palaceGaugeRingFraction(circle, fraction) {
+  if (!circle) return;
+  const r = parseFloat(circle.getAttribute('r'));
+  if (!Number.isFinite(r) || r <= 0) return;
+  const C = 2 * Math.PI * r;
+  const f = Math.max(0, Math.min(1, Number(fraction) || 0));
+  circle.setAttribute('stroke-dasharray', `${f * C} ${C}`);
+}
+
+function _palaceGaugeSetTitle(circle, text) {
+  if (!circle) return;
+  let t = circle.querySelector('title');
+  if (!t) {
+    t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    circle.appendChild(t);
+  }
+  t.textContent = text;
+}
+
+/** Concentric rings: online/max (outer), peak/max (middle), avg pop/max (inner). Tooltips: SVG title elements. */
+function applyPalaceGauge(sid, d) {
+  const wrap = document.getElementById(`${sid}-gauge`);
+  if (!wrap) return;
+  const onlineRing = wrap.querySelector('[data-gauge="online"]');
+  const peakRing = wrap.querySelector('[data-gauge="peak"]');
+  const avgRing = wrap.querySelector('[data-gauge="avg"]');
+  if (!d) {
+    _palaceGaugeRingFraction(onlineRing, 0);
+    _palaceGaugeRingFraction(peakRing, 0);
+    _palaceGaugeRingFraction(avgRing, 0);
+    _palaceGaugeSetTitle(onlineRing, 'Online vs max — no data');
+    _palaceGaugeSetTitle(peakRing, 'Peak vs max — no data');
+    _palaceGaugeSetTitle(avgRing, 'Avg population vs max — no data');
+    return;
+  }
+  const maxU = Number(d.max_users);
+  if (!Number.isFinite(maxU) || maxU <= 0) {
+    _palaceGaugeRingFraction(onlineRing, 0);
+    _palaceGaugeRingFraction(peakRing, 0);
+    _palaceGaugeRingFraction(avgRing, 0);
+    _palaceGaugeSetTitle(onlineRing, 'Online vs max — max users not available');
+    _palaceGaugeSetTitle(peakRing, 'Peak vs max — max users not available');
+    _palaceGaugeSetTitle(avgRing, 'Avg population vs max — max users not available');
+    return;
+  }
+  const online = Number(d.user_count) || 0;
+  const peak = Number(d.peak_population) || 0;
+  const avgPop = Number(d.average_population) || 0;
+  _palaceGaugeRingFraction(onlineRing, online / maxU);
+  _palaceGaugeRingFraction(peakRing, peak / maxU);
+  _palaceGaugeRingFraction(avgRing, avgPop / maxU);
+  const pct = n => `${Math.round((Math.min(n, maxU) / maxU) * 1000) / 10}%`;
+  _palaceGaugeSetTitle(
+    onlineRing,
+    `Now online: ${online} / ${maxU} users (${pct(online)}) — outer ring; full circle = 100% of max`
+  );
+  _palaceGaugeSetTitle(
+    peakRing,
+    `Record peak: ${peak} / ${maxU} users (${pct(peak)}) — middle ring`
+  );
+  _palaceGaugeSetTitle(
+    avgRing,
+    `Average population: ${formatStatFloat(avgPop, 2)} / ${maxU} (${pct(avgPop)}) — inner ring`
+  );
+}
+
+/** Horizontal stack: wizzes / gods / owners as share of total connected staff (not vs max users). */
+function applyPalaceStaffStack(sid, d) {
+  const root = document.getElementById(`${sid}-staff-stack`);
+  if (!root) return;
+  const wizEl = root.querySelector('[data-staff="wiz"]');
+  const godEl = root.querySelector('[data-staff="god"]');
+  const ownEl = root.querySelector('[data-staff="owner"]');
+  if (!wizEl || !godEl || !ownEl) return;
+
+  const zeroBar = () => {
+    wizEl.style.width = '0%';
+    godEl.style.width = '0%';
+    ownEl.style.width = '0%';
+  };
+
+  if (!d) {
+    zeroBar();
+    wizEl.removeAttribute('title');
+    godEl.removeAttribute('title');
+    ownEl.removeAttribute('title');
+    return;
+  }
+
+  const wiz = Math.max(0, Math.floor(Number(d.operators) || 0));
+  const god = Math.max(0, Math.floor((Number(d.gods) || 0) + (Number(d.hosts) || 0)));
+  let own = Number(d.owners);
+  if (!Number.isFinite(own)) own = 0;
+  own = Math.max(0, Math.floor(own));
+  const total = wiz + god + own;
+
+  if (total <= 0) {
+    zeroBar();
+    wizEl.title = 'Wizzes: 0';
+    godEl.title = 'Gods: 0';
+    ownEl.title = 'Owners: 0';
+    return;
+  }
+
+  let pw = (100 * wiz) / total;
+  let pg = (100 * god) / total;
+  let po = (100 * own) / total;
+  const drift = 100 - (pw + pg + po);
+  if (Math.abs(drift) > 0.001) {
+    po += drift;
+  }
+
+  wizEl.style.width = `${pw}%`;
+  godEl.style.width = `${pg}%`;
+  ownEl.style.width = `${po}%`;
+
+  const share = n => `${Math.round((n / total) * 1000) / 10}%`;
+  wizEl.title = `Wizzes: ${wiz} (${share(wiz)} of connected staff)`;
+  godEl.title = `Gods: ${god} (${share(god)} of connected staff)`;
+  ownEl.title = `Owners: ${own} (${share(own)} of connected staff)`;
+}
+
 // Write a full stats payload into the DOM elements for a given stat-strip ID.
 function applyPalaceStats(sid, d) {
   setStatEl(sid, 'rooms',  d.room_count  ?? '—');
@@ -2440,6 +2614,8 @@ function applyPalaceStats(sid, d) {
   setStatEl(sid, 'peakpop', d.peak_population ?? '—');
   setStatEl(sid, 'peakat', formatPeakAt(d.peak_population_at));
   setStatEl(sid, 'uptime', formatUptime(d.start_time));
+  applyPalaceGauge(sid, d);
+  applyPalaceStaffStack(sid, d);
 }
 
 async function fetchPalaceStats(name) {
@@ -2454,6 +2630,8 @@ async function fetchPalaceStats(name) {
     if (!res.ok) {
       setStatEl(sid, 'rooms', '—');
       setStatEl(sid, 'online', '—');
+      applyPalaceGauge(sid, null);
+      applyPalaceStaffStack(sid, null);
       return;
     }
     const d = await res.json();
