@@ -111,10 +111,6 @@ func ParsePrefState(content string) (st PrefState, unknownTail string, warnings 
 			if s, ok := parseCStringRest(rest); ok {
 				st.Description = s
 			}
-		case "ANNOUNCEMENT":
-			if s, ok := parseCStringRest(rest); ok {
-				st.Announcement = s
-			}
 		case "HTTP_URL":
 			if s, ok := parseCStringRest(rest); ok {
 				st.HTTPServer = s

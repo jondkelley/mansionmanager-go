@@ -29,7 +29,6 @@ type PrefState struct {
 	Website      string
 	MOTD         string
 	Description  string // BLURB
-	Announcement string
 	HTTPServer   string // HTTP_URL
 	AutoAnnounce string
 

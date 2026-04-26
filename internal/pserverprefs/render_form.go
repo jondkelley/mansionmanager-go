@@ -74,9 +74,6 @@ func RenderPrefState(st PrefState) string {
 	if st.Description != "" {
 		fmt.Fprintf(&w, "BLURB %s\n", palaceQuoted(st.Description))
 	}
-	if st.Announcement != "" {
-		fmt.Fprintf(&w, "ANNOUNCEMENT %s\n", palaceQuoted(st.Announcement))
-	}
 	if st.HTTPServer != "" {
 		fmt.Fprintf(&w, "HTTP_URL %s\n", palaceQuoted(st.HTTPServer))
 	}

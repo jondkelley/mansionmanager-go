@@ -5,6 +5,234 @@ function syncPalaceSettingsMode() {
   $('palaceSettingsRawWrap').style.display = raw ? '' : 'none';
 }
 
+function palaceSettingsSwitchTab(tab) {
+  SETTINGS_PREFS_TAB = tab || 'pserver';
+  const tabs = [
+    { id: 'pserver', btn: 'palacePrefsTabPserver', panel: 'palacePrefsPanelPserver' },
+    { id: 'misc', btn: 'palacePrefsTabMisc', panel: 'palacePrefsPanelMisc' },
+    { id: 'ratbot', btn: 'palacePrefsTabRatbot', panel: 'palacePrefsPanelRatbot' },
+  ];
+  tabs.forEach(t => {
+    const active = t.id === SETTINGS_PREFS_TAB;
+    const btn = $(t.btn);
+    const panel = $(t.panel);
+    if (btn) btn.classList.toggle('active', active);
+    if (panel) panel.classList.toggle('active', active);
+  });
+}
+
+function ratbotRowsToDOM() {
+  const tbody = $('ratbotQuestionsBody');
+  if (!tbody) return;
+  if (!Array.isArray(SETTINGS_RATBOT_ROWS) || SETTINGS_RATBOT_ROWS.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No questions yet. Click + Add question.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = SETTINGS_RATBOT_ROWS.map((row, idx) => `
+    <tr>
+      <td><input type="text" data-rb="${idx}" data-k="question" value="${attrEsc(row.question || '')}" /></td>
+      <td><input type="text" data-rb="${idx}" data-k="a" value="${attrEsc((row.options && row.options[0]) || '')}" /></td>
+      <td><input type="text" data-rb="${idx}" data-k="b" value="${attrEsc((row.options && row.options[1]) || '')}" /></td>
+      <td><input type="text" data-rb="${idx}" data-k="c" value="${attrEsc((row.options && row.options[2]) || '')}" /></td>
+      <td><input type="text" data-rb="${idx}" data-k="d" value="${attrEsc((row.options && row.options[3]) || '')}" /></td>
+      <td class="narrow">
+        <select data-rb="${idx}" data-k="correct">
+          <option value="A" ${row.correct === 'A' ? 'selected' : ''}>A</option>
+          <option value="B" ${row.correct === 'B' ? 'selected' : ''}>B</option>
+          <option value="C" ${row.correct === 'C' ? 'selected' : ''}>C</option>
+          <option value="D" ${row.correct === 'D' ? 'selected' : ''}>D</option>
+        </select>
+      </td>
+      <td><button type="button" onclick="removeRatbotQuestionRow(${idx})">Remove</button></td>
+    </tr>
+  `).join('');
+}
+
+function addRatbotQuestionRow() {
+  SETTINGS_RATBOT_ROWS.push({ question: '', options: ['', '', '', ''], correct: 'A' });
+  ratbotRowsToDOM();
+}
+
+function removeRatbotQuestionRow(idx) {
+  SETTINGS_RATBOT_ROWS.splice(idx, 1);
+  ratbotRowsToDOM();
+}
+
+function collectRatbotRowsFromDOM() {
+  const rows = SETTINGS_RATBOT_ROWS.map((row, idx) => {
+    const get = key => {
+      const el = document.querySelector(`[data-rb="${idx}"][data-k="${key}"]`);
+      return el ? el.value : '';
+    };
+    return {
+      question: get('question').trim(),
+      options: [get('a').trim(), get('b').trim(), get('c').trim(), get('d').trim()],
+      correct: get('correct').trim().toUpperCase(),
+    };
+  });
+  return rows;
+}
+
+async function loadPalaceMisc() {
+  if (!SETTINGS_PALACE) return;
+  $('palaceMiscError').textContent = '';
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/misc`, { headers: headers() });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceMiscError').textContent = out.error || ('HTTP ' + res.status);
+      return;
+    }
+    $('palaceMiscVerbosity').value = String(out.verbosity || 1);
+  } catch (e) {
+    $('palaceMiscError').textContent = e.message || String(e);
+  }
+}
+
+async function savePalaceMisc() {
+  if (!SETTINGS_PALACE) return;
+  $('palaceMiscError').textContent = '';
+  const btn = $('palaceMiscSaveBtn');
+  const v = parseInt($('palaceMiscVerbosity').value, 10);
+  if (!Number.isFinite(v) || v < 1 || v > 5) {
+    $('palaceMiscError').textContent = 'Verbosity must be between 1 and 5.';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/misc`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ verbosity: v }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceMiscError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    closePalaceSettingsModal();
+    loadPalaces();
+  } catch (e) {
+    $('palaceMiscError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
+async function refreshRatbotFileList() {
+  if (!SETTINGS_PALACE) return;
+  $('ratbotEditorError').textContent = '';
+  $('ratbotEditorInfo').textContent = '';
+  const sel = $('ratbotFileSelect');
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/ratbot/files`, { headers: headers() });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('ratbotEditorError').textContent = out.error || ('HTTP ' + res.status);
+      return;
+    }
+    const files = Array.isArray(out.files) ? out.files : [];
+    sel.innerHTML = files.map(f => `<option value="${attrEsc(f)}">${esc(f)}</option>`).join('');
+    if (files.length === 0) {
+      sel.innerHTML = '<option value="">(none yet)</option>';
+      SETTINGS_RATBOT_CURRENT_FILE = '';
+      SETTINGS_RATBOT_ROWS = [];
+      ratbotRowsToDOM();
+      $('ratbotEditorInfo').textContent = 'No files found yet. Enter a new file name and add questions.';
+      return;
+    }
+    if (SETTINGS_RATBOT_CURRENT_FILE && files.includes(SETTINGS_RATBOT_CURRENT_FILE)) {
+      sel.value = SETTINGS_RATBOT_CURRENT_FILE;
+    }
+    SETTINGS_RATBOT_CURRENT_FILE = sel.value;
+    await loadSelectedRatbotFile();
+  } catch (e) {
+    $('ratbotEditorError').textContent = e.message || String(e);
+  }
+}
+
+async function loadSelectedRatbotFile() {
+  if (!SETTINGS_PALACE) return;
+  const sel = $('ratbotFileSelect');
+  const name = (sel && sel.value) || '';
+  SETTINGS_RATBOT_CURRENT_FILE = name;
+  if (!name) {
+    SETTINGS_RATBOT_ROWS = [];
+    ratbotRowsToDOM();
+    return;
+  }
+  $('ratbotEditorError').textContent = '';
+  $('ratbotEditorInfo').textContent = '';
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/ratbot/file?name=${encodeURIComponent(name)}`, { headers: headers() });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('ratbotEditorError').textContent = out.error || ('HTTP ' + res.status);
+      return;
+    }
+    SETTINGS_RATBOT_ROWS = Array.isArray(out.questions) ? out.questions.map(q => ({
+      question: q.question || '',
+      options: Array.isArray(q.options) ? [q.options[0] || '', q.options[1] || '', q.options[2] || '', q.options[3] || ''] : ['', '', '', ''],
+      correct: (q.correct || 'A').toUpperCase(),
+    })) : [];
+    ratbotRowsToDOM();
+    const invalid = Number(out.invalidLineCount || 0);
+    $('ratbotEditorInfo').textContent = invalid > 0
+      ? `Loaded ${SETTINGS_RATBOT_ROWS.length} questions. ${invalid} non-empty line(s) were ignored because they do not match ratbot format.`
+      : `Loaded ${SETTINGS_RATBOT_ROWS.length} questions.`;
+  } catch (e) {
+    $('ratbotEditorError').textContent = e.message || String(e);
+  }
+}
+
+async function saveRatbotTrivia() {
+  if (!SETTINGS_PALACE) return;
+  $('ratbotEditorError').textContent = '';
+  $('ratbotEditorInfo').textContent = '';
+  const btn = $('ratbotSaveBtn');
+  const newName = ($('ratbotNewFileName').value || '').trim();
+  const chosen = (($('ratbotFileSelect') && $('ratbotFileSelect').value) || '').trim();
+  const name = newName || chosen;
+  if (!name) {
+    $('ratbotEditorError').textContent = 'Choose an existing file or enter a new file name.';
+    return;
+  }
+  const questions = collectRatbotRowsFromDOM();
+  if (!questions.length) {
+    $('ratbotEditorError').textContent = 'Add at least one question before saving.';
+    return;
+  }
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    if (!q.question || q.options.some(o => !o) || !['A', 'B', 'C', 'D'].includes(q.correct)) {
+      $('ratbotEditorError').textContent = `Question ${i + 1} is incomplete.`;
+      return;
+    }
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/ratbot/file`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ name, questions }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('ratbotEditorError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    SETTINGS_RATBOT_CURRENT_FILE = out.name || name;
+    $('ratbotNewFileName').value = '';
+    $('ratbotEditorInfo').textContent = `Saved ${out.questionCount || questions.length} questions to ${SETTINGS_RATBOT_CURRENT_FILE}.`;
+    await refreshRatbotFileList();
+    btn.disabled = false;
+  } catch (e) {
+    $('ratbotEditorError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
 function populatePrefsFormFromDTO(f) {
   if (!f) return;
   $('psfServerName').value = f.serverName || '';
@@ -13,7 +241,6 @@ function populatePrefsFormFromDTO(f) {
   $('psfWebsite').value = f.website || '';
   $('psfMOTD').value = f.motd || '';
   $('psfBlurb').value = f.blurb || '';
-  $('psfAnnouncement').value = f.announcement || '';
   $('psfDeathPenalty').value = f.deathPenalty != null && f.deathPenalty !== '' ? String(f.deathPenalty) : '';
   $('psfMaxOcc').value = f.maxOccupancy != null && f.maxOccupancy !== '' ? String(f.maxOccupancy) : '';
   $('psfRoomOcc').value = f.roomOccupancy != null && f.roomOccupancy !== '' ? String(f.roomOccupancy) : '';
@@ -39,7 +266,6 @@ function collectPrefsFormDTO() {
     website: $('psfWebsite').value,
     motd: $('psfMOTD').value,
     blurb: $('psfBlurb').value,
-    announcement: $('psfAnnouncement').value,
     deathPenalty: num('psfDeathPenalty'),
     maxOccupancy: num('psfMaxOcc'),
     roomOccupancy: num('psfRoomOcc'),
@@ -56,8 +282,16 @@ function collectPrefsFormDTO() {
 async function openPalaceSettingsModal(name) {
   SETTINGS_PALACE = name;
   SETTINGS_RAW_SNAPSHOT = '';
+  SETTINGS_RATBOT_ROWS = [];
+  SETTINGS_RATBOT_CURRENT_FILE = '';
   $('palaceSettingsError').textContent = '';
   $('palaceSettingsSaveBtn').disabled = false;
+  $('palaceMiscError').textContent = '';
+  $('palaceMiscSaveBtn').disabled = false;
+  $('ratbotEditorError').textContent = '';
+  $('ratbotEditorInfo').textContent = '';
+  $('ratbotSaveBtn').disabled = false;
+  if ($('ratbotNewFileName')) $('ratbotNewFileName').value = '';
   $('palaceSettingsTitle').textContent = 'Palace Preferences — ' + name;
   $('palaceSettingsLead').textContent = '';
   $('palaceSettingsContent').value = '';
@@ -65,6 +299,7 @@ async function openPalaceSettingsModal(name) {
   $('palaceSettingsWarnings').style.display = 'none';
   $('palaceSettingsWarnings').textContent = '';
   $('palaceSettingsModeForm').checked = true;
+  palaceSettingsSwitchTab('pserver');
   syncPalaceSettingsMode();
 
   $('palaceSettingsModal').classList.add('open');
@@ -105,6 +340,8 @@ async function openPalaceSettingsModal(name) {
     } else if (!fres.ok && pform.ok) {
       $('palaceSettingsContent').value = SETTINGS_RAW_SNAPSHOT;
     }
+    void loadPalaceMisc();
+    void refreshRatbotFileList();
   } catch (e) {
     $('palaceSettingsError').textContent = e.message || String(e);
   }
@@ -114,6 +351,9 @@ function closePalaceSettingsModal() {
   $('palaceSettingsModal').classList.remove('open');
   SETTINGS_PALACE = null;
   SETTINGS_RAW_SNAPSHOT = '';
+  SETTINGS_PREFS_TAB = 'pserver';
+  SETTINGS_RATBOT_ROWS = [];
+  SETTINGS_RATBOT_CURRENT_FILE = '';
 }
 
 async function savePalaceSettings() {

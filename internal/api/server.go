@@ -343,6 +343,16 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalacePrefsForm(w, r, name)
 	case action == "server-prefs" && r.Method == http.MethodPut:
 		s.handlePalaceServerPrefsSave(w, r, name)
+	case action == "misc" && r.Method == http.MethodGet:
+		s.handlePalaceMiscGet(w, r, name)
+	case action == "misc" && r.Method == http.MethodPut:
+		s.handlePalaceMiscSave(w, r, name)
+	case action == "ratbot/files" && r.Method == http.MethodGet:
+		s.handlePalaceRatbotFilesList(w, r, name)
+	case action == "ratbot/file" && r.Method == http.MethodGet:
+		s.handlePalaceRatbotFileGet(w, r, name)
+	case action == "ratbot/file" && r.Method == http.MethodPut:
+		s.handlePalaceRatbotFileSave(w, r, name)
 	case action == "pserver-version" && r.Method == http.MethodPost:
 		s.handlePalacePserverVersion(w, r, name)
 	case action == "media/files" && r.Method == http.MethodGet:

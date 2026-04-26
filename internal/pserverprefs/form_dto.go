@@ -10,7 +10,6 @@ type PrefsFormDTO struct {
 	Website       string `json:"website"`
 	MOTD          string `json:"motd"`
 	Blurb         string `json:"blurb"`
-	Announcement  string `json:"announcement"`
 	DeathPenalty  int    `json:"deathPenalty"`
 	MaxOccupancy  int    `json:"maxOccupancy"`
 	RoomOccupancy int    `json:"roomOccupancy"`
@@ -32,7 +31,6 @@ func StateToDTO(st PrefState) PrefsFormDTO {
 		Website:       st.Website,
 		MOTD:          st.MOTD,
 		Blurb:         st.Description,
-		Announcement:  st.Announcement,
 		DeathPenalty:  int(st.DeathPenaltyMinutes),
 		MaxOccupancy:  int(st.MaxOccupancy),
 		RoomOccupancy: int(st.RoomOccupancy),
@@ -57,7 +55,6 @@ func MergeDTO(d PrefsFormDTO, old PrefState) PrefState {
 		Website:       d.Website,
 		MOTD:          d.MOTD,
 		Description:   d.Blurb,
-		Announcement:  d.Announcement,
 		DeathPenaltyMinutes: int16(clampShort(d.DeathPenalty)),
 		MaxOccupancy:        int16(clampShort(d.MaxOccupancy)),
 		RoomOccupancy:       int16(clampShort(d.RoomOccupancy)),

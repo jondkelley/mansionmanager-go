@@ -10,6 +10,9 @@ let DELETE_USER_NAME = null;
 let REGISTER_PALACE_NAME = null;
 let SETTINGS_PALACE = null;
 let SETTINGS_RAW_SNAPSHOT = '';
+let SETTINGS_PREFS_TAB = 'pserver';
+let SETTINGS_RATBOT_ROWS = [];
+let SETTINGS_RATBOT_CURRENT_FILE = '';
 /** After unregister-only removal, scroll the unregistered panel into view once. */
 let SCROLL_UNREGISTER_PANEL = false;
 /** @type {string} */

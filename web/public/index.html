@@ -858,6 +858,13 @@
     font-size: 13px;
   }
   .prefs-mode-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .prefs-tab-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .prefs-tab-row button.active { background: var(--accent); border-color: var(--accent); color:#fff; }
+  .prefs-panel { display:none; }
+  .prefs-panel.active { display:block; }
+  .ratbot-table input, .ratbot-table select { width: 100%; max-width: none; }
+  .ratbot-table td { vertical-align: top; }
+  .ratbot-table .narrow { width: 80px; }
   #palaceSettingsWarnings {
     font-size: 12px;
     color: var(--yellow);
@@ -1711,7 +1718,7 @@
     </div>
     <div id="palacePagesAlert" class="bans-alert" style="flex-shrink:0;margin-bottom:8px;"></div>
     <div class="pages-compose-row" style="flex-shrink:0;">
-      <textarea id="palacePagesCompose" rows="2" placeholder="Message to all connected wizards..." autocomplete="off" spellcheck="false"></textarea>
+      <textarea id="palacePagesCompose" rows="2" placeholder="Message here" autocomplete="off" spellcheck="false"></textarea>
       <button type="button" class="primary" id="palacePagesSendBtn">Page</button>
       <button type="button" class="button-danger-solid" id="palacePagesGmsgBtn">Gmsg</button>
     </div>
@@ -2026,7 +2033,13 @@
   <div class="modal" style="width:96%;">
     <h3 id="palaceSettingsTitle">Palace Preferences</h3>
     <p id="palaceSettingsLead" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;"></p>
+    <div class="prefs-tab-row">
+      <button type="button" class="active" id="palacePrefsTabPserver" onclick="palaceSettingsSwitchTab('pserver')">Pserver.prefs</button>
+      <button type="button" id="palacePrefsTabMisc" onclick="palaceSettingsSwitchTab('misc')">Misc</button>
+      <button type="button" id="palacePrefsTabRatbot" onclick="palaceSettingsSwitchTab('ratbot')">Ratbot</button>
+    </div>
 
+    <div id="palacePrefsPanelPserver" class="prefs-panel active">
     <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text);">Server preferences (<code>pserver.prefs</code>)</p>
     <div class="prefs-mode-row">
       <label><input type="radio" name="palaceSettingsEditMode" id="palaceSettingsModeForm" value="form" checked onchange="syncPalaceSettingsMode()" /> Structured form</label>
@@ -2050,7 +2063,6 @@
         </div>
         <div class="field" style="margin-bottom:10px;"><label>Short description (<code>BLURB</code>)</label><input id="psfBlurb" type="text" style="width:100%;max-width:none;" /></div>
         <div class="field" style="margin-bottom:10px;"><label>Message of the day (<code>MOTD</code>)</label><textarea id="psfMOTD" rows="3" style="width:100%;max-width:none;font-family:inherit;font-size:13px;"></textarea></div>
-        <div class="field"><label>Announcement (<code>ANNOUNCEMENT</code>)</label><input id="psfAnnouncement" type="text" style="width:100%;max-width:none;" /></div>
       </details>
 
       <details class="prefs-sec" open>
@@ -2099,6 +2111,64 @@
     <div class="modal-footer">
       <button type="button" onclick="closePalaceSettingsModal()">Cancel</button>
       <button type="button" class="primary" id="palaceSettingsSaveBtn" onclick="savePalaceSettings()">Save &amp; restart</button>
+    </div>
+    </div>
+
+    <div id="palacePrefsPanelMisc" class="prefs-panel">
+      <p class="prefs-hint">Set runtime options for this palace instance.</p>
+      <div class="card" style="margin-top:0;">
+        <h2 style="margin-bottom:10px;">Logging verbosity (-v)</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;">
+          Controls pserver log detail level passed to the service command line. Higher values are noisier.
+        </p>
+        <div class="form-row">
+          <div class="field">
+            <label>Verbosity level</label>
+            <select id="palaceMiscVerbosity">
+              <option value="1">1 (minimal)</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5 (maximum)</option>
+            </select>
+          </div>
+        </div>
+        <div id="palaceMiscError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
+        <div class="modal-footer" style="margin-top:8px;">
+          <button type="button" onclick="closePalaceSettingsModal()">Close</button>
+          <button type="button" class="primary" id="palaceMiscSaveBtn" onclick="savePalaceMisc()">Save &amp; restart</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="palacePrefsPanelRatbot" class="prefs-panel">
+      <p class="prefs-hint">Edit trivia files in this palace's <code>ratbot</code> folder.</p>
+      <div class="form-row">
+        <div class="field" style="min-width:260px;">
+          <label>Existing trivia file</label>
+          <select id="ratbotFileSelect" onchange="loadSelectedRatbotFile()"></select>
+        </div>
+        <div class="field" style="min-width:260px;">
+          <label>Or new file name</label>
+          <input id="ratbotNewFileName" type="text" placeholder="my-trivia.db" autocomplete="off" />
+        </div>
+        <button type="button" onclick="refreshRatbotFileList()">Refresh list</button>
+      </div>
+      <div class="form-row">
+        <button type="button" onclick="addRatbotQuestionRow()">+ Add question</button>
+      </div>
+      <div style="max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+        <table class="ratbot-table">
+          <thead><tr><th>Question</th><th>A</th><th>B</th><th>C</th><th>D</th><th class="narrow">Correct</th><th></th></tr></thead>
+          <tbody id="ratbotQuestionsBody"><tr><td colspan="7" class="empty">Select a file or create a new one.</td></tr></tbody>
+        </table>
+      </div>
+      <div id="ratbotEditorInfo" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:18px;"></div>
+      <div id="ratbotEditorError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
+      <div class="modal-footer" style="margin-top:10px;">
+        <button type="button" onclick="closePalaceSettingsModal()">Close</button>
+        <button type="button" class="primary" id="ratbotSaveBtn" onclick="saveRatbotTrivia()">Save trivia file</button>
+      </div>
     </div>
   </div>
 </div>
