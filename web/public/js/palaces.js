@@ -289,8 +289,17 @@ function populatePrefsFormFromDTO(f) {
 }
 
 function rankTierLabel(n) {
-  const m = { 1: 'Member', 2: 'Wizard', 3: 'God', 4: 'Owner' };
+  const m = { 0: 'Guest', 1: 'Member', 2: 'Wizard', 3: 'God', 4: 'Owner' };
   return m[n] != null ? m[n] : String(n);
+}
+
+function filterPalaceRanksRows() {
+  const inp = $('palaceRanksFilter');
+  const q = inp ? inp.value.trim().toLowerCase() : '';
+  document.querySelectorAll('#palaceRanksBody tr[data-rank-row="1"]').forEach(tr => {
+    const hay = (tr.getAttribute('data-search') || '').toLowerCase();
+    tr.style.display = !q || hay.includes(q) ? '' : 'none';
+  });
 }
 
 function renderPalaceRanksTable(commands) {
@@ -304,11 +313,13 @@ function renderPalaceRanksTable(commands) {
     const def = c.defaultRank;
     const useDef = c.override == null;
     const ovr = c.override;
-    return `<tr>
-      <td><code>${esc(c.name)}</code><div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;">${esc(c.label)}</div></td>
+    const searchBlob = (c.name + ' ' + (c.label || '')).toLowerCase().replace(/`/g, '');
+    return `<tr data-rank-row="1" data-search="${attrEsc(searchBlob)}">
+      <td><code>${esc(c.name)}</code>${c.extraInPrefs ? ' <span style="font-size:11px;color:var(--muted);">(prefs only)</span>' : ''}<div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;">${esc(c.label)}</div></td>
       <td>
         <select data-rank-cmd="${attrEsc(c.name)}" class="palace-rank-select" style="min-width:220px;">
           <option value="def" ${useDef ? 'selected' : ''}>Built-in default (${esc(rankTierLabel(def))})</option>
+          <option value="0" ${!useDef && ovr === 0 ? 'selected' : ''}>Guest</option>
           <option value="1" ${!useDef && ovr === 1 ? 'selected' : ''}>Member</option>
           <option value="2" ${!useDef && ovr === 2 ? 'selected' : ''}>Wizard</option>
           <option value="3" ${!useDef && ovr === 3 ? 'selected' : ''}>God</option>
@@ -317,6 +328,7 @@ function renderPalaceRanksTable(commands) {
       </td>
     </tr>`;
   }).join('');
+  filterPalaceRanksRows();
 }
 
 function collectCommandRanksPayload() {
@@ -438,6 +450,7 @@ async function openPalaceSettingsModal(name) {
   if ($('palaceRanksSaveBtn')) $('palaceRanksSaveBtn').disabled = false;
   if ($('palaceRanksReloadBtn')) $('palaceRanksReloadBtn').disabled = false;
   if ($('palaceRanksBody')) $('palaceRanksBody').innerHTML = '<tr><td colspan="2" class="empty">Loading…</td></tr>';
+  if ($('palaceRanksFilter')) $('palaceRanksFilter').value = '';
   $('palaceSettingsTitle').textContent = 'Palace Preferences — ' + name;
   $('palaceSettingsLead').textContent = '';
   $('palaceSettingsContent').value = '';

@@ -2144,13 +2144,18 @@
 
     <div id="palacePrefsPanelRanks" class="prefs-panel">
       <p class="prefs-hint" style="margin-top:0;">
-        Minimum <strong>user</strong> rank (member → wizard → god → owner) required to run each command. Values are stored in
-        <code>serverprefs.json</code> as <code>command_ranks</code> and match in-game
-        <code>rankset</code>. Saving updates the file on disk; use <strong>Reload server config</strong> to make the running
-        pserver reread <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code> (SIGHUP) without
-        a full service restart.
+        Minimum <strong>user</strong> rank (guest through owner) required to run each backtick command. This list mirrors
+        <code>DefaultCommandRanks</code> in mansionsource-go; extra keys from <code>serverprefs.json</code> appear if you used
+        <code>rankset</code> on other names. Values are stored as <code>command_ranks</code>. Use <strong>Reload server config</strong>
+        (SIGHUP) so the running pserver rereads <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code>.
       </p>
-      <div style="max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+      <div class="form-row" style="margin-bottom:10px;">
+        <div class="field" style="flex:1;min-width:220px;">
+          <label for="palaceRanksFilter">Filter</label>
+          <input type="search" id="palaceRanksFilter" placeholder="Command name…" autocomplete="off" oninput="filterPalaceRanksRows()" style="width:100%;max-width:none;" />
+        </div>
+      </div>
+      <div style="max-height:min(520px,55vh);overflow:auto;border:1px solid var(--border);border-radius:8px;">
         <table class="ratbot-table" style="width:100%;">
           <thead><tr><th>Command</th><th>Minimum rank</th></tr></thead>
           <tbody id="palaceRanksBody"><tr><td colspan="2" class="empty">Loading…</td></tr></tbody>

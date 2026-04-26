@@ -10,32 +10,27 @@ import (
 	"strings"
 )
 
-// Command names whose minimum user rank (member/wizard/god/owner) is configurable, matching
-// mansionsource-go internal/server/rank_cmds.go DefaultCommandRanks and wizard promotion commands.
-var rankConfigCommands = []struct {
-	Name  string
-	Label string
-}{
-	{"rankset", "`rankset` — set required rank for a command"},
-	{"setrank", "`setrank` — same as rankset"},
-	{"rankshow", "`rankshow` — list command rank settings"},
-	{"rankclear", "`rankclear` — clear a rank override"},
-	{"wizpass", "`wizpass` — set wizard/operator promotion password"},
-	{"oppass", "`oppass` — same as wizpass"},
-	{"godpass", "`godpass` — set god promotion password"},
-	{"ownerpass", "`ownerpass` — set owner promotion password"},
-}
-
-// Built-in default ranks (config.CommandRank: 1=member … 4=owner)
-var rankPromotionDefaults = map[string]int{
-	"rankset":   4,
-	"setrank":   4,
-	"rankshow":  4,
-	"rankclear": 4,
-	"wizpass":   3,
-	"oppass":    3,
-	"godpass":   4,
-	"ownerpass": 4,
+func isAllowedRankCommandKey(key string) bool {
+	key = strings.TrimSpace(strings.ToLower(key))
+	if _, ok := defaultCommandRanks[key]; ok {
+		return true
+	}
+	if len(key) == 0 || len(key) > 48 {
+		return false
+	}
+	for i, r := range key {
+		if i == 0 {
+			if r < 'a' || r > 'z' {
+				return false
+			}
+			continue
+		}
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func readCommandRanksMap(path string) (map[string]int, error) {
@@ -59,6 +54,15 @@ func readCommandRanksMap(path string) (map[string]int, error) {
 		return nil, fmt.Errorf("command_ranks: %w", err)
 	}
 	return m, nil
+}
+
+func sortedCommandKeys(m map[string]int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, palaceName string) {
@@ -86,19 +90,21 @@ func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, p
 	}
 
 	type row struct {
-		Name        string `json:"name"`
-		Label       string `json:"label"`
-		DefaultRank int    `json:"defaultRank"`
-		Override    *int   `json:"override"`
-		Effective   int    `json:"effective"`
+		Name         string `json:"name"`
+		Label        string `json:"label"`
+		DefaultRank  int    `json:"defaultRank"`
+		Override     *int   `json:"override"`
+		Effective    int    `json:"effective"`
+		ExtraInPrefs bool   `json:"extraInPrefs,omitempty"`
 	}
-	rows := make([]row, 0, len(rankConfigCommands))
-	for _, c := range rankConfigCommands {
-		def, ok := rankPromotionDefaults[strings.ToLower(c.Name)]
-		if !ok {
-			continue
-		}
-		ov, has := overrides[strings.ToLower(c.Name)]
+
+	seen := make(map[string]struct{})
+	rows := make([]row, 0, len(defaultCommandRanks)+len(overrides))
+
+	for _, cmd := range sortedCommandKeys(defaultCommandRanks) {
+		seen[cmd] = struct{}{}
+		def := defaultCommandRanks[cmd]
+		ov, has := overrides[cmd]
 		var op *int
 		if has {
 			i := ov
@@ -109,17 +115,42 @@ func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, p
 			eff = ov
 		}
 		rows = append(rows, row{
-			Name:        c.Name,
-			Label:       c.Label,
+			Name:        cmd,
+			Label:     fmt.Sprintf("`%s` — built-in default: %s", cmd, rankTierWord(def)),
 			DefaultRank: def,
 			Override:    op,
 			Effective:   eff,
 		})
 	}
+
+	for _, cmd := range sortedCommandKeys(overrides) {
+		if _, ok := seen[cmd]; ok {
+			continue
+		}
+		def := intrinsicDefaultRank(cmd)
+		ov := overrides[cmd]
+		op := ov
+		rows = append(rows, row{
+			Name:         cmd,
+			Label:        fmt.Sprintf("`%s` — not in server DefaultCommandRanks; implicit default: wizard", cmd),
+			DefaultRank:  def,
+			Override:     &op,
+			Effective:    ov,
+			ExtraInPrefs: true,
+		})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"commands":  rows,
-		"schema":    "command-ranks v1 — see mansionsource-go config.CommandRank and serverprefs command_ranks",
-		"rankNames": map[int]string{1: "member", 2: "wizard", 3: "god", 4: "owner"},
+		"commands": rows,
+		"schema":   "command-ranks v2 — full DefaultCommandRanks + extra serverprefs keys; sync with mansionsource-go internal/server/rank_cmds.go",
+		"rankNames": map[int]string{
+			0: "guest",
+			1: "member",
+			2: "wizard",
+			3: "god",
+			4: "owner",
+		},
+		"commandCount": len(rows),
 	})
 }
 
@@ -143,16 +174,11 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 		req.Ranks = make(map[string]*int)
 	}
 
-	allowed := make(map[string]struct{})
-	for k := range rankPromotionDefaults {
-		allowed[k] = struct{}{}
-	}
-
 	norm := make(map[string]*int)
 	for k, v := range req.Ranks {
 		ks := strings.ToLower(strings.TrimSpace(k))
-		if _, ok := allowed[ks]; !ok {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("unknown or unsupported command name %q", k))
+		if !isAllowedRankCommandKey(ks) {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid command name %q (use a-z, digits, underscore; or a known server command)", k))
 			return
 		}
 		norm[ks] = v
@@ -167,8 +193,8 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 		if p == nil {
 			continue
 		}
-		if *p < 1 || *p > 4 {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("ranks in this panel must be member (1) through owner (4), or use default: clear %q", cmd))
+		if *p < 0 || *p > 4 {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("rank for %q must be 0 (guest) through 4 (owner), or null for built-in default", cmd))
 			return
 		}
 	}
@@ -190,13 +216,12 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 		overrides = make(map[string]int)
 	}
 
-	// Other commands' overrides are preserved; we only update keys we were sent
 	for cmd, p := range req.Ranks {
 		if p == nil {
 			delete(overrides, cmd)
 			continue
 		}
-		def := rankPromotionDefaults[cmd]
+		def := intrinsicDefaultRank(cmd)
 		if *p == def {
 			delete(overrides, cmd)
 		} else {
@@ -227,12 +252,7 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 	if len(overrides) == 0 {
 		delete(top, "command_ranks")
 	} else {
-		// Stable order in JSON: sort keys
-		keys := make([]string, 0, len(overrides))
-		for k := range overrides {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := sortedCommandKeys(overrides)
 		ord := make(map[string]int, len(overrides))
 		for _, k := range keys {
 			ord[k] = overrides[k]
