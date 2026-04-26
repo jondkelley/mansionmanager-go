@@ -1,5 +1,8 @@
 // Tab switching
 function showTab(name, btn) {
+  if (name !== 'palaces') {
+    pauseCollapsedJoinPolling();
+  }
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   $('tab-' + name).classList.add('active');

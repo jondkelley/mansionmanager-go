@@ -513,6 +513,67 @@
   }
   .toggle-inline input { width: auto; margin: 0; accent-color: var(--accent); }
   .toggle-inline .hint { color: var(--muted); }
+
+  .palace-join-notify-bar {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border, rgba(255,255,255,.1));
+  }
+  .join-notify-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .join-notify-switch {
+    position: relative;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .join-notify-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+  .join-notify-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: rgba(120,120,130,.35);
+    border-radius: 26px;
+    transition: background .2s;
+  }
+  .join-notify-slider::before {
+    content: '';
+    position: absolute;
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  .join-notify-switch input:focus-visible + .join-notify-slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .join-notify-switch input:checked + .join-notify-slider {
+    background: var(--accent, #3b82f6);
+  }
+  .join-notify-switch input:checked + .join-notify-slider::before {
+    transform: translateX(18px);
+  }
+  .join-notify-label-text {
+    font-size: 13px;
+    color: var(--text);
+    user-select: none;
+    cursor: pointer;
+  }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
   .badge-active { background: rgba(95,212,160,.15); color: var(--green); }
   .badge-inactive { background: rgba(255,255,255,.06); color: var(--muted); }
@@ -1235,6 +1296,15 @@
       </tr></thead>
       <tbody id="palaceBody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
     </table>
+    <div id="palaceJoinNotifyBar" class="palace-join-notify-bar" style="display:none;">
+      <div class="join-notify-row">
+        <label class="join-notify-switch" title="Play a sound when online count goes up">
+          <input type="checkbox" id="palaceJoinNotifyToggle" />
+          <span class="join-notify-slider" aria-hidden="true"></span>
+        </label>
+        <label class="join-notify-label-text" for="palaceJoinNotifyToggle">Notify when user joins a server</label>
+      </div>
+    </div>
     <div id="unregisteredPalacesPanel" class="unregistered-palaces-box" style="display:none;">
       <h3>Unregistered palaces</h3>
       <p class="unregistered-lead">

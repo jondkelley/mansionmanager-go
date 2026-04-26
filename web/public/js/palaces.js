@@ -934,6 +934,117 @@ const PROVISION_TCP_RANGE = [9990, 10990];
 const PROVISION_HTTP_RANGE = [6000, 7000];
 const PALACE_EXPANDED = new Set();
 
+// ----- Join notify (sound when online count increases; localStorage + smart polling) -----
+const JOIN_NOTIFY_STORAGE_KEY = 'palaceJoinNotify';
+const JOIN_DING_URL = '/assets/dingdong.mp3';
+let JOIN_NOTIFY_ENABLED = false;
+try {
+  JOIN_NOTIFY_ENABLED = localStorage.getItem(JOIN_NOTIFY_STORAGE_KEY) === '1';
+} catch (_) {}
+
+let LAST_PALACE_MAIN_LIST = [];
+let LAST_PALACE_LIST_META = { isAdmin: false, isTenant: false };
+const JOIN_NOTIFY_BASELINE = new Map();
+let collapsedJoinMasterTimer = null;
+let collapsedJoinTimeoutIds = [];
+let joinNotifyBarWired = false;
+
+function isPalacesTabActive() {
+  const el = $('tab-palaces');
+  return !!(el && el.classList.contains('active'));
+}
+
+function playJoinNotifyDing() {
+  try {
+    const a = new Audio(JOIN_DING_URL);
+    a.volume = 0.65;
+    a.play().catch(() => {});
+  } catch (_) {}
+}
+
+function maybeNotifyPalaceUserJoin(name, d) {
+  if (!JOIN_NOTIFY_ENABLED || !d) return;
+  const cur = Number(d.user_count);
+  if (!Number.isFinite(cur)) return;
+  const prev = JOIN_NOTIFY_BASELINE.get(name);
+  if (prev !== undefined && cur > prev) {
+    playJoinNotifyDing();
+  }
+  JOIN_NOTIFY_BASELINE.set(name, cur);
+}
+
+async function fetchPalaceStatsForJoinNotify(name) {
+  if (!JOIN_NOTIFY_ENABLED || !name) return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/stats`, { headers: headers() });
+    if (!res.ok) return;
+    const d = await res.json();
+    maybeNotifyPalaceUserJoin(name, d);
+  } catch (_) {}
+}
+
+function pauseCollapsedJoinPolling() {
+  if (collapsedJoinMasterTimer) {
+    clearInterval(collapsedJoinMasterTimer);
+    collapsedJoinMasterTimer = null;
+  }
+  for (const id of collapsedJoinTimeoutIds) {
+    clearTimeout(id);
+  }
+  collapsedJoinTimeoutIds = [];
+}
+
+function syncCollapsedJoinPolling() {
+  pauseCollapsedJoinPolling();
+  if (!JOIN_NOTIFY_ENABLED || !isPalacesTabActive()) return;
+  const { isAdmin, isTenant } = LAST_PALACE_LIST_META;
+  if (!isAdmin || isTenant) return;
+
+  const collapsed = LAST_PALACE_MAIN_LIST.filter(
+    p => p.httpPort && !PALACE_EXPANDED.has(p.name)
+  );
+  if (collapsed.length === 0) return;
+
+  const period = 20000;
+  const n = collapsed.length;
+  const gap = Math.min(1500, Math.max(200, Math.floor(16000 / n)));
+
+  const runRound = () => {
+    for (const id of collapsedJoinTimeoutIds) {
+      clearTimeout(id);
+    }
+    collapsedJoinTimeoutIds = [];
+    collapsed.forEach((p, i) => {
+      const id = setTimeout(() => fetchPalaceStatsForJoinNotify(p.name), i * gap);
+      collapsedJoinTimeoutIds.push(id);
+    });
+  };
+
+  runRound();
+  collapsedJoinMasterTimer = setInterval(runRound, period);
+}
+
+function updatePalaceJoinNotifyBar() {
+  const bar = $('palaceJoinNotifyBar');
+  const toggle = $('palaceJoinNotifyToggle');
+  if (!bar || !toggle) return;
+  const show = !!(SESSION && (SESSION.role === 'admin' || SESSION.role === 'tenant'));
+  bar.style.display = show ? '' : 'none';
+  if (!show) return;
+  toggle.checked = JOIN_NOTIFY_ENABLED;
+  if (!joinNotifyBarWired) {
+    joinNotifyBarWired = true;
+    toggle.addEventListener('change', () => {
+      JOIN_NOTIFY_ENABLED = !!toggle.checked;
+      try {
+        localStorage.setItem(JOIN_NOTIFY_STORAGE_KEY, JOIN_NOTIFY_ENABLED ? '1' : '0');
+      } catch (_) {}
+      JOIN_NOTIFY_BASELINE.clear();
+      syncCollapsedJoinPolling();
+    });
+  }
+}
+
 /** Preset + custom slider for new-palace home quota (binary MB / GB to match server usage). */
 const PROVISION_QUOTA_LEVELS = (function () {
   const MB = 1024 * 1024;
@@ -1221,16 +1332,20 @@ async function loadPalaces() {
         SESSION = SESSION || {};
         SESSION.mustChangePassword = true;
         showPasswordGate();
+        pauseCollapsedJoinPolling();
         return;
       }
     }
     if (!res.ok) {
       tbody.innerHTML = `<tr><td colspan="5" class="empty">Could not load palaces (HTTP ${res.status})</td></tr>`;
       if (unregPanel) unregPanel.style.display = 'none';
+      pauseCollapsedJoinPolling();
       return;
     }
     const data = await res.json();
-    const canAdmin = SESSION && SESSION.role === 'admin';
+    const isAdmin = !!(SESSION && SESSION.role === 'admin');
+    const isTenant = !!(SESSION && SESSION.role === 'tenant');
+    const canAdmin = isAdmin;
     const orphans = canAdmin && Array.isArray(data) ? data.filter(p => p.registered === false) : [];
     const mainList = canAdmin && Array.isArray(data)
       ? data.filter(p => p.registered !== false)
@@ -1278,14 +1393,20 @@ async function loadPalaces() {
 
     if (!Array.isArray(data) || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty">No palaces found. Provision one to get started.</td></tr>';
+      LAST_PALACE_MAIN_LIST = [];
+      LAST_PALACE_LIST_META = { isAdmin, isTenant };
+      pauseCollapsedJoinPolling();
+      updatePalaceJoinNotifyBar();
       return;
     }
     if (mainList.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty">No registered palaces in the manager. Unregistered instances are listed below.</td></tr>';
+      LAST_PALACE_MAIN_LIST = [];
+      LAST_PALACE_LIST_META = { isAdmin, isTenant };
+      pauseCollapsedJoinPolling();
+      updatePalaceJoinNotifyBar();
       return;
     }
-    const isAdmin = !!(SESSION && SESSION.role === 'admin');
-    const isTenant = !!(SESSION && SESSION.role === 'tenant');
     const expandedList = mainList.filter(p => p.httpPort && (isTenant || PALACE_EXPANDED.has(p.name)));
     tbody.innerHTML = mainList.map(p => {
       const { dotClass, title } = palaceStatusDot(p.status);
@@ -1387,10 +1508,15 @@ async function loadPalaces() {
         </td> 
       </tr>`;
     }).join('');
+    LAST_PALACE_MAIN_LIST = mainList;
+    LAST_PALACE_LIST_META = { isAdmin, isTenant };
     syncPalaceStatsPolling(expandedList);
+    syncCollapsedJoinPolling();
+    updatePalaceJoinNotifyBar();
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(e.message)}</td></tr>`;
     if (unregPanel) unregPanel.style.display = 'none';
+    pauseCollapsedJoinPolling();
   }
 }
 
@@ -2337,6 +2463,7 @@ async function fetchPalaceStats(name) {
     PALACE_STAT_TIMERS.set(name, entry);
 
     applyPalaceStats(sid, d);
+    maybeNotifyPalaceUserJoin(name, d);
   } catch (_) {
     // Silently ignore fetch errors between polls.
   }
