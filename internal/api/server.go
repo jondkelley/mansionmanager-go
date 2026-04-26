@@ -333,6 +333,8 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handleDeletePalace(w, r, name)
 	case action == "logs" && r.Method == http.MethodGet:
 		s.handleLogs(w, r, name)
+	case action == "chat-logs" && r.Method == http.MethodGet:
+		s.handleChatLogs(w, r, name)
 	case action == "discover" && r.Method == http.MethodGet:
 		s.handleDiscoverPalace(w, r, name)
 	case action == "register" && r.Method == http.MethodPost:

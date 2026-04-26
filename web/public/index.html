@@ -282,6 +282,32 @@
   .log-file-tabs button { font-size: 11px; padding: 3px 10px; border-radius: 12px; }
   .log-file-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
   .log-auto-update-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .log-view-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .log-view-toolbar label { font-size: 13px; color: var(--muted); }
+  .log-view-toolbar select { font-size: 13px; padding: 4px 10px; border-radius: 8px; min-width: 160px; }
+  .log-chat-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 4px; }
+  .log-chat-toolbar input[type="text"] { flex: 1; min-width: 140px; }
+  .log-chat-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 12px; color: var(--muted); }
+  .log-chat-filter-label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+  .log-chat-stream { margin-top: 0; }
+  .log-chat-entry { border-bottom: 1px solid var(--border, rgba(255,255,255,.08)); padding: 10px 4px; font-size: 12px; line-height: 1.45; }
+  .log-chat-entry:last-child { border-bottom: none; }
+  .log-chat-entry-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .log-chat-ts { color: #93a4b7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .log-chat-kind-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+  .log-chat-kind-basic { background: rgba(125,201,240,.18); color: #7bc9f0; }
+  .log-chat-kind-whisper { background: rgba(196,128,196,.2); color: #c9a0c9; }
+  .log-chat-kind-esp { background: rgba(200,168,78,.2); color: #d4b86a; }
+  .log-chat-kind-other { background: rgba(158,163,176,.15); color: var(--muted); }
+  .log-chat-meta { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+  .log-chat-meta strong { color: var(--text); font-weight: 600; }
+  .log-chat-users { font-size: 12px; margin-bottom: 4px; }
+  .log-chat-user { font-weight: 600; color: var(--text); }
+  .log-chat-id { color: #9ea3b0; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  .log-chat-text { white-space: pre-wrap; word-break: break-word; color: var(--text); }
+  .log-chat-flags { font-size: 10px; color: var(--yellow); margin-left: 8px; }
+  .log-chat-empty { text-align: center; color: var(--muted); padding: 28px 16px; font-size: 14px; border-radius: 8px; background: var(--panel-2, rgba(0,0,0,.12)); margin-top: 8px; }
+  .log-chat-nomatch { text-align: center; color: var(--muted); padding: 20px; font-size: 13px; }
   /* Server-stats strip shown below the service-user / actions row */
   .palace-stats-strip {
     margin-top: 10px;
@@ -1884,10 +1910,31 @@
 <div class="modal-bg" id="logModal">
   <div class="modal" style="max-width:900px;">
     <h3 id="logModalTitle">Logs</h3>
-    <div id="logFileSelector" class="log-file-tabs"></div>
-    <div id="logContent" class="stream" style="max-height:420px;margin-top:0;"></div>
-    <div style="margin-top:8px;">
-      <input type="text" id="logSearch" placeholder="Search log…" style="width:100%;" oninput="applyLogSearch()" />
+    <div class="log-view-toolbar">
+      <label for="logViewKind">View</label>
+      <select id="logViewKind" onchange="onLogViewKindChange()">
+        <option value="server">Server log</option>
+        <option value="chat">Chat log</option>
+      </select>
+    </div>
+    <div id="logServerPanel">
+      <div id="logFileSelector" class="log-file-tabs"></div>
+      <div id="logContent" class="stream" style="max-height:420px;margin-top:0;"></div>
+      <div style="margin-top:8px;">
+        <input type="text" id="logSearch" placeholder="Search log…" style="width:100%;" oninput="applyLogSearch()" />
+      </div>
+    </div>
+    <div id="logChatPanel" style="display:none;">
+      <div class="log-chat-toolbar">
+        <input type="text" id="logChatSearch" placeholder="Search chat log…" oninput="applyChatLogFilter()" />
+        <div class="log-chat-filters">
+          <label class="log-chat-filter-label"><input type="checkbox" id="logChatKindBasic" checked onchange="applyChatLogFilter()" /> Message</label>
+          <label class="log-chat-filter-label"><input type="checkbox" id="logChatKindWhisper" checked onchange="applyChatLogFilter()" /> Whisper</label>
+          <label class="log-chat-filter-label"><input type="checkbox" id="logChatKindEsp" checked onchange="applyChatLogFilter()" /> ESP</label>
+        </div>
+      </div>
+      <div id="logChatContent" class="stream log-chat-stream" style="max-height:420px;margin-top:8px;"></div>
+      <div id="logChatEmpty" class="log-chat-empty" style="display:none;">No chat logs to view.</div>
     </div>
     <div class="modal-footer" style="justify-content:space-between;">
       <label class="log-auto-update-label">

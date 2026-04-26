@@ -1696,11 +1696,311 @@ function gotoUpdateTab() {
   if (btn) showTab('update', btn);
 }
 
-// Log modal (polls while open — near–real-time tail of pserver.log)
+// Log modal (polls while open — near–real-time tail of pserver.log / chat.log)
 let logLiveTimer = null;
 let logLiveName = null;
 let logActiveFile = 'pserver.log';
 let logAllLines = [];
+let logViewMode = 'server'; // 'server' | 'chat'
+let logChatRawLines = [];
+let logChatFormatHint = 'json';
+let logChatFetchError = null;
+
+function syncLogPanels() {
+  const server = logViewMode === 'server';
+  const sp = $('logServerPanel');
+  const cp = $('logChatPanel');
+  if (sp) sp.style.display = server ? '' : 'none';
+  if (cp) cp.style.display = server ? 'none' : '';
+}
+
+function _parseCSVLine(line) {
+  const out = [];
+  let i = 0;
+  const s = String(line || '');
+  while (i < s.length) {
+    if (s[i] === '"') {
+      i++;
+      let cell = '';
+      while (i < s.length) {
+        if (s[i] === '"' && s[i + 1] === '"') {
+          cell += '"';
+          i += 2;
+          continue;
+        }
+        if (s[i] === '"') {
+          i++;
+          break;
+        }
+        cell += s[i++];
+      }
+      out.push(cell);
+      if (s[i] === ',') i++;
+      continue;
+    }
+    const comma = s.indexOf(',', i);
+    if (comma < 0) {
+      out.push(s.slice(i));
+      break;
+    }
+    out.push(s.slice(i, comma));
+    i = comma + 1;
+  }
+  return out;
+}
+
+const _CHAT_CSV_HEADER = [
+  'ts', 'kind', 'room_id', 'room_name', 'target_room_id', 'target_room_name',
+  'from_user_id', 'from_name', 'from_prefs_key', 'from_puid_ctr', 'from_crc', 'from_counter', 'from_guest',
+  'to_user_id', 'to_name', 'to_prefs_key', 'to_puid_ctr', 'to_crc', 'to_counter', 'to_guest',
+  'text', 'xtalk', 'undecrypted',
+];
+
+function _parseChatJSONLines(lines) {
+  const out = [];
+  for (const line of lines) {
+    const t = String(line || '').trim();
+    if (!t || !t.startsWith('{')) continue;
+    try {
+      out.push(JSON.parse(t));
+    } catch (_) { /* skip */ }
+  }
+  return out;
+}
+
+function _parseChatCSV(lines) {
+  if (!lines.length) return [];
+  let start = 0;
+  let header = _parseCSVLine(lines[0]);
+  if (
+    header.length >= 2 &&
+    header[0].toLowerCase() === 'ts' &&
+    header[1].toLowerCase() === 'kind'
+  ) {
+    start = 1;
+  } else {
+    header = _CHAT_CSV_HEADER.slice();
+  }
+  const out = [];
+  for (let i = start; i < lines.length; i++) {
+    const row = _parseCSVLine(lines[i].replace(/\r$/, ''));
+    if (!row.length) continue;
+    const o = {};
+    header.forEach((h, idx) => {
+      o[h.trim()] = row[idx];
+    });
+    out.push(o);
+  }
+  return out;
+}
+
+function parseChatLogLines(rawLines, formatHint) {
+  const lines = (rawLines || []).map(l => String(l || '').replace(/\r$/, ''));
+  const hint = String(formatHint || '').toLowerCase();
+  let fmt = hint === 'csv' || hint === 'json' ? hint : '';
+  if (!fmt) {
+    const first = lines.find(l => l.trim());
+    if (first && first.trim().startsWith('{')) fmt = 'json';
+    else if (first && /^ts\s*,\s*kind\s*,/i.test(first.trim())) fmt = 'csv';
+    else fmt = 'json';
+  }
+  return fmt === 'csv' ? _parseChatCSV(lines) : _parseChatJSONLines(lines);
+}
+
+function _chatEntryKindFilters() {
+  return {
+    basic: $('logChatKindBasic') && $('logChatKindBasic').checked,
+    whisper: $('logChatKindWhisper') && $('logChatKindWhisper').checked,
+    esp: $('logChatKindEsp') && $('logChatKindEsp').checked,
+  };
+}
+
+function _chatEntryMatches(e, kinds, term) {
+  const kind = String(e.kind || '').toLowerCase();
+  if (kind === 'basic' && !kinds.basic) return false;
+  if (kind === 'whisper' && !kinds.whisper) return false;
+  if (kind === 'esp' && !kinds.esp) return false;
+  if (kind && kind !== 'basic' && kind !== 'whisper' && kind !== 'esp') {
+    if (!kinds.basic && !kinds.whisper && !kinds.esp) return false;
+  }
+  if (!term) return true;
+  const fields = [
+    e.ts, e.kind, e.room_name, e.room_id, e.target_room_name, e.target_room_id,
+    e.from_name, e.to_name, e.text, e.from_user_id, e.to_user_id,
+    e.from_prefs_key, e.to_prefs_key,
+  ].map(x => String(x ?? '').toLowerCase());
+  return fields.some(f => f.includes(term));
+}
+
+function _fmtChatTs(ts) {
+  if (ts == null || ts === '') return '—';
+  const d = new Date(ts);
+  if (Number.isFinite(d.getTime())) return d.toLocaleString();
+  return esc(String(ts));
+}
+
+function _fmtRoomLine(roomId, roomName) {
+  const idPart = roomId !== undefined && roomId !== '' && String(roomId) !== '0'
+    ? `#${esc(String(roomId))}`
+    : (roomName ? '' : '—');
+  const namePart = roomName ? esc(String(roomName)) : '';
+  if (idPart && namePart) return `${idPart} ${namePart}`;
+  if (namePart) return namePart;
+  if (idPart) return idPart;
+  return '—';
+}
+
+function _renderOneChatEntry(e) {
+  const kind = String(e.kind || '').toLowerCase();
+  const kindLabel = kind === 'basic' ? 'Message' : kind === 'whisper' ? 'Whisper' : kind === 'esp' ? 'ESP' : esc(kind || '?');
+  let badgeClass = 'log-chat-kind-other';
+  if (kind === 'basic') badgeClass = 'log-chat-kind-basic';
+  else if (kind === 'whisper') badgeClass = 'log-chat-kind-whisper';
+  else if (kind === 'esp') badgeClass = 'log-chat-kind-esp';
+
+  let meta = '';
+  if (kind === 'esp') {
+    meta =
+      `<div class="log-chat-meta">` +
+      `<strong>From</strong> ${_fmtRoomLine(e.room_id, e.room_name)} · ` +
+      `<strong>To</strong> ${_fmtRoomLine(e.target_room_id, e.target_room_name)}` +
+      `</div>`;
+  } else {
+    meta = `<div class="log-chat-meta"><strong>Room</strong> ${_fmtRoomLine(e.room_id, e.room_name)}</div>`;
+  }
+
+  let users = '';
+  if (kind === 'basic') {
+    users =
+      `<div class="log-chat-users">` +
+      `<span class="log-chat-user">${esc(e.from_name)}</span> ` +
+      `<span class="log-chat-id">(${esc(String(e.from_user_id ?? ''))})</span>` +
+      `</div>`;
+  } else {
+    users =
+      `<div class="log-chat-users">` +
+      `<span class="log-chat-user">${esc(e.from_name)}</span> ` +
+      `<span class="log-chat-id">(${esc(String(e.from_user_id ?? ''))})</span>` +
+      ` → ` +
+      `<span class="log-chat-user">${esc(e.to_name)}</span> ` +
+      `<span class="log-chat-id">(${esc(String(e.to_user_id ?? ''))})</span>` +
+      `</div>`;
+  }
+
+  const flags = [];
+  if (e.xtalk === true || e.xtalk === 'true') flags.push('xtalk');
+  if (e.undecrypted === true || e.undecrypted === 'true') flags.push('undecrypted');
+  const flagHtml = flags.length
+    ? `<span class="log-chat-flags">${flags.map(f => esc(f)).join(', ')}</span>`
+    : '';
+
+  return (
+    `<div class="log-chat-entry">` +
+    `<div class="log-chat-entry-head">` +
+    `<span class="log-chat-ts">${_fmtChatTs(e.ts)}</span>` +
+    `<span class="log-chat-kind-badge ${badgeClass}">${kindLabel}</span>${flagHtml}` +
+    `</div>${meta}${users}` +
+    `<div class="log-chat-text">${esc(e.text ?? '')}</div>` +
+    `</div>`
+  );
+}
+
+function renderChatLogView() {
+  const content = $('logChatContent');
+  const emptyEl = $('logChatEmpty');
+  if (!content) return;
+
+  const fromBottom = content.scrollHeight - content.scrollTop;
+  const stickBottom = fromBottom <= content.clientHeight + 80;
+
+  if (logChatFetchError) {
+    content.innerHTML = `<div class="log-line"><span class="log-evt-error">${esc(logChatFetchError)}</span></div>`;
+    if (emptyEl) emptyEl.style.display = 'none';
+    return;
+  }
+
+  const entries = parseChatLogLines(logChatRawLines, logChatFormatHint);
+  const term = ($('logChatSearch') && $('logChatSearch').value.toLowerCase().trim()) || '';
+  const kinds = _chatEntryKindFilters();
+  const filtered = entries.filter(e => _chatEntryMatches(e, kinds, term));
+
+  if (entries.length === 0) {
+    content.innerHTML = '';
+    if (emptyEl) {
+      emptyEl.textContent = 'No chat logs to view.';
+      emptyEl.style.display = '';
+    }
+    return;
+  }
+
+  if (filtered.length === 0) {
+    content.innerHTML = '<div class="log-chat-nomatch">No entries match your filters or search.</div>';
+    if (emptyEl) emptyEl.style.display = 'none';
+  } else {
+    content.innerHTML = filtered.map(_renderOneChatEntry).join('');
+    if (emptyEl) emptyEl.style.display = 'none';
+  }
+
+  if (stickBottom) {
+    content.scrollTop = content.scrollHeight;
+  } else {
+    content.scrollTop = Math.max(0, content.scrollHeight - fromBottom);
+  }
+}
+
+function applyChatLogFilter() {
+  renderChatLogView();
+}
+
+async function fetchPalaceChatLogs(name) {
+  if (!$('logModal').classList.contains('open') || name !== logLiveName) return;
+  if (logViewMode !== 'chat') return;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/chat-logs?lines=500`, { headers: headers() });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      logChatFetchError = data.error || `HTTP ${res.status}`;
+      logChatRawLines = [];
+      renderChatLogView();
+      return;
+    }
+    const data = await res.json();
+    logChatFetchError = null;
+    logChatRawLines = data.lines || [];
+    logChatFormatHint = data.format || 'json';
+    renderChatLogView();
+  } catch (e) {
+    logChatFetchError = e.message || String(e);
+    logChatRawLines = [];
+    renderChatLogView();
+  }
+}
+
+async function onLogViewKindChange() {
+  const sel = $('logViewKind');
+  logViewMode = sel && sel.value === 'chat' ? 'chat' : 'server';
+  syncLogPanels();
+  if (logLiveTimer) {
+    clearInterval(logLiveTimer);
+    logLiveTimer = null;
+  }
+  if (!logLiveName) return;
+  if (logViewMode === 'chat') {
+    const cs = $('logChatSearch');
+    if (cs) cs.value = '';
+    logChatFetchError = null;
+    await fetchPalaceChatLogs(logLiveName);
+    if ($('logAutoUpdate') && $('logAutoUpdate').checked) {
+      logLiveTimer = setInterval(() => fetchPalaceChatLogs(logLiveName), 2000);
+    }
+  } else {
+    await _loadLogFileSelector(logLiveName);
+    await selectLogFile(logLiveName, logActiveFile);
+    if ($('logAutoUpdate') && $('logAutoUpdate').checked && logActiveFile === 'pserver.log') {
+      logLiveTimer = setInterval(() => fetchPalaceLogs(logLiveName), 2000);
+    }
+  }
+}
 
 function _statusClass(code) {
   const n = Number(code);
@@ -1777,7 +2077,7 @@ function applyLogSearch() {
 
 async function fetchPalaceLogs(name) {
   if (!$('logModal').classList.contains('open') || name !== logLiveName) return;
-  if (logActiveFile !== 'pserver.log') return;
+  if (logViewMode !== 'server' || logActiveFile !== 'pserver.log') return;
   try {
     const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/logs?lines=500`, { headers: headers() });
     if (!res.ok) {
@@ -1793,15 +2093,15 @@ async function fetchPalaceLogs(name) {
 
 function onLogAutoUpdateChange() {
   const checked = $('logAutoUpdate') && $('logAutoUpdate').checked;
-  if (checked && logLiveName && logActiveFile === 'pserver.log') {
-    if (!logLiveTimer) {
-      logLiveTimer = setInterval(() => fetchPalaceLogs(logLiveName), 2000);
-    }
-  } else {
-    if (logLiveTimer) {
-      clearInterval(logLiveTimer);
-      logLiveTimer = null;
-    }
+  if (logLiveTimer) {
+    clearInterval(logLiveTimer);
+    logLiveTimer = null;
+  }
+  if (!checked || !logLiveName) return;
+  if (logViewMode === 'server' && logActiveFile === 'pserver.log') {
+    logLiveTimer = setInterval(() => fetchPalaceLogs(logLiveName), 2000);
+  } else if (logViewMode === 'chat') {
+    logLiveTimer = setInterval(() => fetchPalaceChatLogs(logLiveName), 2000);
   }
 }
 
@@ -1857,7 +2157,7 @@ async function selectLogFile(name, fileName) {
     $('logContent').textContent = 'Loading…';
     await fetchPalaceLogs(name);
     const autoUpdate = $('logAutoUpdate');
-    if (autoUpdate && autoUpdate.checked && !logLiveTimer) {
+    if (autoUpdate && autoUpdate.checked && !logLiveTimer && logViewMode === 'server') {
       logLiveTimer = setInterval(() => fetchPalaceLogs(name), 2000);
     }
   } else {
@@ -1905,12 +2205,21 @@ async function viewLogs(name) {
   logLiveName = name;
   logActiveFile = 'pserver.log';
   logAllLines = [];
+  logViewMode = 'server';
+  logChatRawLines = [];
+  logChatFormatHint = 'json';
+  logChatFetchError = null;
+  const vk = $('logViewKind');
+  if (vk) vk.value = 'server';
+  syncLogPanels();
 
   $('logModalTitle').textContent = `Logs — ${name}`;
   $('logContent').textContent = 'Loading…';
   $('logFileSelector').innerHTML = '';
   const searchEl = $('logSearch');
   if (searchEl) searchEl.value = '';
+  const chatSearch = $('logChatSearch');
+  if (chatSearch) chatSearch.value = '';
   const autoUpdate = $('logAutoUpdate');
   if (autoUpdate) autoUpdate.checked = true;
 
@@ -1921,7 +2230,9 @@ async function viewLogs(name) {
     fetchPalaceLogs(name),
   ]);
 
-  logLiveTimer = setInterval(() => fetchPalaceLogs(name), 2000);
+  if ($('logAutoUpdate') && $('logAutoUpdate').checked) {
+    logLiveTimer = setInterval(() => fetchPalaceLogs(name), 2000);
+  }
 }
 
 function closeLogModal() {
@@ -1932,6 +2243,13 @@ function closeLogModal() {
   logLiveName = null;
   logActiveFile = 'pserver.log';
   logAllLines = [];
+  logViewMode = 'server';
+  logChatRawLines = [];
+  logChatFormatHint = 'json';
+  logChatFetchError = null;
+  const vk = $('logViewKind');
+  if (vk) vk.value = 'server';
+  syncLogPanels();
   $('logModal').classList.remove('open');
 }
 

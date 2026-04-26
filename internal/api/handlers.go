@@ -486,6 +486,33 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request, name string)
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "lines": tail})
 }
 
+func (s *Server) handleChatLogs(w http.ResponseWriter, r *http.Request, name string) {
+	if !canAccessPalace(r.Context(), name) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+		return
+	}
+	linesStr := r.URL.Query().Get("lines")
+	lines := 500
+	if linesStr != "" {
+		if n, err := strconv.Atoi(linesStr); err == nil && n > 0 {
+			lines = n
+		}
+	}
+	tail, fileExists, configured, format, logPath, err := s.instances.TailChatLog(name, lines)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":               name,
+		"lines":              tail,
+		"format":             format,
+		"chatlogConfigured":  configured,
+		"fileExists":         fileExists,
+		"path":               logPath,
+	})
+}
+
 // --- binary update -----------------------------------------------------------
 
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
