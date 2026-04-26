@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"palace-manager/internal/authstore"
 )
 
 // palaceManagerClient is a shared HTTP client for forwarding requests to individual
@@ -38,8 +40,7 @@ func (s *Server) handlePalaceStats(w http.ResponseWriter, r *http.Request, name 
 // handlePalaceUsers proxies GET /api/palaces/:name/palace-users to the palace's own
 // HTTP server at http://127.0.0.1:<httpPort>/api/v1/palacemanager/users.json.
 func (s *Server) handlePalaceUsers(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermUsers) {
 		return
 	}
 	inst, err := s.instances.Get(name)

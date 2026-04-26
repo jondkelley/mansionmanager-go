@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"palace-manager/internal/authstore"
 )
 
 // handlePalaceBanlist proxies GET /api/palaces/:name/banlist to the palace's own
 // HTTP server at http://127.0.0.1:<httpPort>/api/v1/palacemanager/banlist.json.
 func (s *Server) handlePalaceBanlist(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermBans) {
 		return
 	}
 	inst, err := s.instances.Get(name)
@@ -31,8 +32,7 @@ func (s *Server) handlePalaceBanlist(w http.ResponseWriter, r *http.Request, nam
 // injecting the requesting user's username as the operator so the in-game page reads
 // "Page from System: Unbanned by PalaceManager (<username>)".
 func (s *Server) handlePalaceBanlistUnban(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermBans) {
 		return
 	}
 	inst, err := s.instances.Get(name)

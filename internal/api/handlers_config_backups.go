@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"palace-manager/internal/authstore"
 )
 
 // Config backup filenames: <basename>-mm-dd-yy.bak (UTC date tag).
@@ -71,8 +73,7 @@ func (s *Server) handlePalaceConfigBackupsList(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermBackups) {
 		return
 	}
 	dir, err := s.palaceDataDir(palaceName)
@@ -162,8 +163,7 @@ func (s *Server) handlePalaceConfigBackupsSnapshot(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermBackups) {
 		return
 	}
 	s.configBackupMu.Lock()
@@ -282,8 +282,7 @@ func (s *Server) handlePalaceConfigBackupsRestore(w http.ResponseWriter, r *http
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermBackups) {
 		return
 	}
 	var req struct {

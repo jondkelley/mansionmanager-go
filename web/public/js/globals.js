@@ -2,6 +2,17 @@
 // sessionStorage survives page refreshes but not tab close.
 let AUTH_HEADER = sessionStorage.getItem('pm_auth') || '';
 let SESSION = null;
+
+/** Subaccounts: delegated permission on a palace. Admin and tenant have full access. */
+function palaceRBAC(palaceName, perm) {
+  if (!SESSION) return false;
+  const r = SESSION.role;
+  if (r === 'admin' || r === 'tenant') return true;
+  if (r !== 'subaccount') return false;
+  const m = SESSION.palacePerms || {};
+  const arr = m[palaceName];
+  return Array.isArray(arr) && arr.indexOf(perm) >= 0;
+}
 let EDIT_USER = null;
 let REMOVE_PALACE_NAME = null;
 /** @type {string|null} Palace registry name when opening the admin Edit modal */

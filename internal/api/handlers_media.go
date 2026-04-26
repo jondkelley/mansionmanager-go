@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"palace-manager/internal/authstore"
 	"palace-manager/internal/instance"
 	"palace-manager/internal/mediadisk"
 	"palace-manager/internal/patgrep"
@@ -21,8 +22,7 @@ func (s *Server) handlePalaceMediaFiles(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermMedia) {
 		return
 	}
 	root, err := instance.DiscoverMediaDir(palaceName)
@@ -66,8 +66,7 @@ func (s *Server) handlePalaceMediaDownload(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermMedia) {
 		return
 	}
 	q := strings.TrimSpace(r.URL.Query().Get("name"))
@@ -110,8 +109,7 @@ func (s *Server) handlePalaceMediaRename(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermMedia) {
 		return
 	}
 	var body struct {
@@ -183,8 +181,7 @@ func (s *Server) handlePalaceMediaDelete(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermMedia) {
 		return
 	}
 	q := strings.TrimSpace(r.URL.Query().Get("name"))
@@ -223,8 +220,7 @@ func (s *Server) handlePalaceMediaUpload(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermMedia) {
 		return
 	}
 

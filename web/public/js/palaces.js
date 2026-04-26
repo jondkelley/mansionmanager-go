@@ -922,7 +922,10 @@ const PALACE_CTL_SVG = {
 };
 
 /** Stop / Start / Restart — runs immediately (no confirmation). */
-function palaceServiceControlButtonsHTML(nameJson) {
+function palaceServiceControlButtonsHTML(nameJson, palaceName) {
+  if (!palaceRBAC(palaceName, 'control')) {
+    return '<span style="color:var(--muted);font-size:12px;">—</span>';
+  }
   return (
     `<button type="button" class="palace-ctl-btn" title="Stop" aria-label="Stop" onclick='void palaceAction(${nameJson},"stop")'>${PALACE_CTL_SVG.stop}Stop</button>` +
     `<button type="button" class="palace-ctl-btn" title="Start" aria-label="Start" onclick='void palaceAction(${nameJson},"start")'>${PALACE_CTL_SVG.start}Start</button>` +
@@ -943,7 +946,7 @@ try {
 } catch (_) {}
 
 let LAST_PALACE_MAIN_LIST = [];
-let LAST_PALACE_LIST_META = { isAdmin: false, isTenant: false };
+let LAST_PALACE_LIST_META = { isAdmin: false, isTenant: false, isSubaccount: false };
 const JOIN_NOTIFY_BASELINE = new Map();
 let collapsedJoinMasterTimer = null;
 let collapsedJoinTimeoutIds = [];
@@ -997,8 +1000,8 @@ function pauseCollapsedJoinPolling() {
 function syncCollapsedJoinPolling() {
   pauseCollapsedJoinPolling();
   if (!JOIN_NOTIFY_ENABLED || !isPalacesTabActive()) return;
-  const { isAdmin, isTenant } = LAST_PALACE_LIST_META;
-  if (!isAdmin || isTenant) return;
+  const { isAdmin, isTenant, isSubaccount } = LAST_PALACE_LIST_META;
+  if (!isAdmin || isTenant || isSubaccount) return;
 
   const collapsed = LAST_PALACE_MAIN_LIST.filter(
     p => p.httpPort && !PALACE_EXPANDED.has(p.name)
@@ -1438,6 +1441,7 @@ async function loadPalaces() {
     const data = await res.json();
     const isAdmin = !!(SESSION && SESSION.role === 'admin');
     const isTenant = !!(SESSION && SESSION.role === 'tenant');
+    const isSubaccount = !!(SESSION && SESSION.role === 'subaccount');
     const canAdmin = isAdmin;
     const orphans = canAdmin && Array.isArray(data) ? data.filter(p => p.registered === false) : [];
     const mainList = canAdmin && Array.isArray(data)
@@ -1451,7 +1455,7 @@ async function loadPalaces() {
         const nm = JSON.stringify(p.name);
         const removeBtn = `<button type="button" class="danger" onclick='openRemovePalaceModal(${nm})'>Remove</button>`;
         const orphanSettingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
-        const controlBtns = palaceServiceControlButtonsHTML(nm);
+        const controlBtns = palaceServiceControlButtonsHTML(nm, p.name);
         return `
       <tr>
         <td><strong>${esc(p.name)}</strong> <span class="badge badge-unregistered" title="Not in registry yet">Not registered</span></td>
@@ -1487,7 +1491,7 @@ async function loadPalaces() {
     if (!Array.isArray(data) || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty">No palaces found. Provision one to get started.</td></tr>';
       LAST_PALACE_MAIN_LIST = [];
-      LAST_PALACE_LIST_META = { isAdmin, isTenant };
+      LAST_PALACE_LIST_META = { isAdmin, isTenant, isSubaccount };
       pauseCollapsedJoinPolling();
       updatePalaceJoinNotifyBar();
       return;
@@ -1495,16 +1499,16 @@ async function loadPalaces() {
     if (mainList.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty">No registered palaces in the manager. Unregistered instances are listed below.</td></tr>';
       LAST_PALACE_MAIN_LIST = [];
-      LAST_PALACE_LIST_META = { isAdmin, isTenant };
+      LAST_PALACE_LIST_META = { isAdmin, isTenant, isSubaccount };
       pauseCollapsedJoinPolling();
       updatePalaceJoinNotifyBar();
       return;
     }
-    const expandedList = mainList.filter(p => p.httpPort && (isTenant || PALACE_EXPANDED.has(p.name)));
+    const expandedList = mainList.filter(p => p.httpPort && (isTenant || isSubaccount || PALACE_EXPANDED.has(p.name)));
     tbody.innerHTML = mainList.map(p => {
       const { dotClass, title } = palaceStatusDot(p.status);
       const nm = JSON.stringify(p.name);
-      const expanded = isTenant || PALACE_EXPANDED.has(p.name);
+      const expanded = isTenant || isSubaccount || PALACE_EXPANDED.has(p.name);
       const expandGlyph = expanded ? '&#9662;' : '&#9656;';
       const pserv = `<code>${esc(p.pserverVersion || 'latest')}</code>`;
       const editBtn = isAdmin
@@ -1513,26 +1517,36 @@ async function loadPalaces() {
       const removeBtn = isAdmin
         ? `<button type="button" class="danger" onclick='event.stopPropagation();openRemovePalaceModal(${nm})'>Remove</button>`
         : '';
-      const logsBtn = `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`;
-      const settingsBtn = `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`;
-      const mediaBtn = `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`;
-      const backupsBtn = `<button type="button" onclick='openPalaceBackupsModal(${nm})' title="Config snapshots and full-home download">Backups</button>`;
-      const filesBtn = `<button type="button" onclick='openServerFilesModal(${nm})'>Files</button>`;
-      const usersBtn = p.httpPort
+      const logsBtn = palaceRBAC(p.name, 'logs')
+        ? `<button type="button" onclick='viewLogs(${nm})'>Logs</button>`
+        : '';
+      const settingsBtn = palaceRBAC(p.name, 'settings')
+        ? `<button type="button" onclick='openPalaceSettingsModal(${nm})'>Settings</button>`
+        : '';
+      const mediaBtn = palaceRBAC(p.name, 'media')
+        ? `<button type="button" onclick='openPalaceMediaModal(${nm})' title="Media folder on disk (systemd -m)">Media</button>`
+        : '';
+      const backupsBtn = palaceRBAC(p.name, 'backups')
+        ? `<button type="button" onclick='openPalaceBackupsModal(${nm})' title="Config snapshots and full-home download">Backups</button>`
+        : '';
+      const filesBtn = palaceRBAC(p.name, 'files')
+        ? `<button type="button" onclick='openServerFilesModal(${nm})'>Files</button>`
+        : '';
+      const usersBtn = (p.httpPort && palaceRBAC(p.name, 'users'))
         ? `<button type="button" onclick='openPalaceUsersModal(${nm})'>Users</button>`
         : '';
-      const bansBtn = (p.httpPort && (isAdmin || isTenant))
+      const bansBtn = (p.httpPort && palaceRBAC(p.name, 'bans'))
         ? `<button type="button" onclick='openPalaceBansModal(${nm})'>Bans</button>`
         : '';
-      const propsBtn = (p.httpPort && (isAdmin || isTenant))
+      const propsBtn = (p.httpPort && palaceRBAC(p.name, 'props'))
         ? `<button type="button" onclick='openPalacePropsModal(${nm})'>Props</button>`
         : '';
-      const pagesBtn = p.httpPort
+      const pagesBtn = (p.httpPort && palaceRBAC(p.name, 'pages'))
         ? `<button type="button" onclick='openPalacePagesModal(${nm})'>Pages</button>`
         : '';
       const summaryClass = isAdmin ? 'palace-row-summary' : '';
       const sid = palaceStatId(p.name);
-      const controlBtns = palaceServiceControlButtonsHTML(nm);
+      const controlBtns = palaceServiceControlButtonsHTML(nm, p.name);
       const overQuotaBadge = p.quotaExceeded
         ? '<span class="badge badge-over-quota">OVER QUOTA</span>'
         : '';
@@ -1669,7 +1683,7 @@ async function loadPalaces() {
       </tr>`;
     }).join('');
     LAST_PALACE_MAIN_LIST = mainList;
-    LAST_PALACE_LIST_META = { isAdmin, isTenant };
+    LAST_PALACE_LIST_META = { isAdmin, isTenant, isSubaccount };
     syncPalaceStatsPolling(expandedList);
     syncCollapsedJoinPolling();
     updatePalaceJoinNotifyBar();

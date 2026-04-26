@@ -10,6 +10,8 @@ type Identity struct {
 	Username           string
 	Role               authstore.Role
 	Palaces            []string
+	ParentTenant       string
+	PalacePerms        map[string][]string // subaccount only
 	MustChangePassword bool
 }
 

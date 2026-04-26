@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"palace-manager/internal/authstore"
 )
 
 func isAllowedRankCommandKey(key string) bool {
@@ -70,8 +72,7 @@ func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	dir, err := s.palaceDataDir(palaceName)
@@ -165,8 +166,7 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	var req struct {
@@ -295,8 +295,7 @@ func (s *Server) handlePalaceReloadConfig(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	if err := s.instances.Reload(palaceName); err != nil {

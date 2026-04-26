@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"palace-manager/internal/authstore"
 )
 
 // handlePalacePages proxies GET /api/palaces/:name/pages to the palace's own
 // HTTP server at http://127.0.0.1:<httpPort>/api/v1/palacemanager/pages.json.
 func (s *Server) handlePalacePages(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermPages) {
 		return
 	}
 	inst, err := s.instances.Get(name)
@@ -31,8 +32,7 @@ func (s *Server) handlePalacePages(w http.ResponseWriter, r *http.Request, name 
 // injecting the requesting manager username as operator so in-game system pages
 // identify who sent them from Palace Manager.
 func (s *Server) handlePalacePagesSend(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermPages) {
 		return
 	}
 	inst, err := s.instances.Get(name)
@@ -80,8 +80,7 @@ func (s *Server) handlePalacePagesSend(w http.ResponseWriter, r *http.Request, n
 // injecting the requesting manager username as operator. The palace treats this
 // as a global server talk broadcast visible to all connected users.
 func (s *Server) handlePalacePagesGmsg(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermPages) {
 		return
 	}
 	inst, err := s.instances.Get(name)

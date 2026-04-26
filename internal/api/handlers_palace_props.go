@@ -7,13 +7,14 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"palace-manager/internal/authstore"
 )
 
 // handlePalaceProps proxies GET /api/palaces/:name/props to the palace endpoint
 // /api/v1/palacemanager/props.json.
 func (s *Server) handlePalaceProps(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermProps) {
 		return
 	}
 	inst, err := s.instances.Get(name)
@@ -31,8 +32,7 @@ func (s *Server) handlePalaceProps(w http.ResponseWriter, r *http.Request, name 
 // handlePalacePropsCommand proxies POST /api/palaces/:name/props/command to the palace
 // endpoint /api/v1/palacemanager/props/command, injecting the current manager user.
 func (s *Server) handlePalacePropsCommand(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermProps) {
 		return
 	}
 	inst, err := s.instances.Get(name)

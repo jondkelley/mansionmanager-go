@@ -36,13 +36,22 @@ function hidePasswordGate() {
 
 function applySessionUI() {
   const admin = SESSION && SESSION.role === 'admin';
+  const tenant = SESSION && SESSION.role === 'tenant';
   const primaryAdmin = admin && !!SESSION.isPrimaryAdmin;
-  ['navUpdate', 'navNginx', 'navUsers', 'btnNewPalace'].forEach(id => {
+  ['navUpdate', 'navNginx', 'btnNewPalace'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = admin ? '' : 'none';
   });
+  const navUsers = document.getElementById('navUsers');
+  if (navUsers) navUsers.style.display = admin || tenant ? '' : 'none';
   const wizBtn = document.getElementById('navWizPasses');
   if (wizBtn) wizBtn.style.display = primaryAdmin ? '' : 'none';
+  const adminPanel = document.getElementById('usersAdminPanel');
+  const tenantPanel = document.getElementById('usersTenantPanel');
+  if (adminPanel && tenantPanel) {
+    adminPanel.style.display = admin ? '' : 'none';
+    tenantPanel.style.display = tenant ? '' : 'none';
+  }
   if (admin) silentUpdateCheck();
 }
 

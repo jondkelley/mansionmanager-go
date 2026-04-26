@@ -186,6 +186,8 @@ func (s *Server) routes() {
 	s.mux.Handle("/api/session/password", auth(http.HandlerFunc(s.handleSessionPassword)))
 	s.mux.Handle("/api/users", auth(http.HandlerFunc(s.routeUsers)))
 	s.mux.Handle("/api/users/", auth(http.HandlerFunc(s.routeUserByName)))
+	s.mux.Handle("/api/subaccounts", auth(http.HandlerFunc(s.routeSubaccounts)))
+	s.mux.Handle("/api/subaccounts/", auth(http.HandlerFunc(s.routeSubaccountByName)))
 	s.mux.Handle("/api/wizpasses", auth(http.HandlerFunc(s.routeWizPasses)))
 
 	// Palace instances

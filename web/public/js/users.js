@@ -1,7 +1,73 @@
 // ----- Users (admin UI) -----
-function toggleUserPalacesField() {
+/** Palace names to pre-check when (re)building the tenant picker; updated when hiding the tenant row. */
+let USER_MODAL_INITIAL_PALACES = [];
+
+function getSelectedUserPalaces() {
+  return [...document.querySelectorAll('#userPalacesList input.user-palace-cb:checked')].map(cb => cb.value);
+}
+
+function userPalacesSelectAll(checked) {
+  document.querySelectorAll('#userPalacesList input.user-palace-cb').forEach(cb => { cb.checked = checked; });
+}
+
+async function refreshUserPalacesPicker(selectedNames) {
+  const container = $('userPalacesList');
+  if (!container) return;
+  const selected = new Set(Array.isArray(selectedNames) ? selectedNames : []);
+  container.innerHTML = '<span style="color:var(--muted);">Loading…</span>';
+  try {
+    const res = await fetch('/api/palaces', { headers: headers() });
+    if (!res.ok) {
+      container.innerHTML = `<span style="color:var(--red);">Could not load palaces (HTTP ${res.status})</span>`;
+      return;
+    }
+    const data = await res.json();
+    const names = (Array.isArray(data) ? data : [])
+      .filter(p => p && p.registered !== false && p.name)
+      .map(p => p.name)
+      .sort((a, b) => a.localeCompare(b));
+    container.innerHTML = '';
+    if (names.length === 0) {
+      container.innerHTML = '<span style="color:var(--muted);">No registered palaces yet.</span>';
+      return;
+    }
+    for (const name of names) {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'user-palace-cb';
+      cb.value = name;
+      cb.checked = selected.has(name);
+      const span = document.createElement('span');
+      span.textContent = name;
+      label.appendChild(cb);
+      label.appendChild(span);
+      container.appendChild(label);
+    }
+  } catch (e) {
+    container.innerHTML = `<span style="color:var(--red);">${esc(e.message)}</span>`;
+  }
+}
+
+/** Show/hide palace picker and refresh checkboxes from USER_MODAL_INITIAL_PALACES (does not read DOM). */
+function applyUserPalacesRowVisibility() {
   const admin = $('userRole').value === 'admin';
-  $('userPalacesRow').style.display = admin ? 'none' : '';
+  const row = $('userPalacesRow');
+  row.style.display = admin ? 'none' : '';
+  if (!admin) {
+    void refreshUserPalacesPicker(USER_MODAL_INITIAL_PALACES);
+  }
+}
+
+/** Persist checked palaces when switching tenant → admin so a later switch back restores them. */
+function onUserRoleChange() {
+  const row = $('userPalacesRow');
+  const switchingToAdmin = $('userRole').value === 'admin';
+  if (switchingToAdmin && row.style.display !== 'none') {
+    USER_MODAL_INITIAL_PALACES = getSelectedUserPalaces();
+  }
+  applyUserPalacesRowVisibility();
 }
 
 function openUserModal(record) {
@@ -14,12 +80,12 @@ function openUserModal(record) {
   $('userPassLabel').textContent = EDIT_USER ? 'New password (optional)' : 'Password';
   if (record) {
     $('userRole').value = record.role || 'tenant';
-    $('userPalaces').value = (record.palaces || []).join(', ');
+    USER_MODAL_INITIAL_PALACES = record.role === 'tenant' ? [...(record.palaces || [])] : [];
   } else {
     $('userRole').value = 'tenant';
-    $('userPalaces').value = '';
+    USER_MODAL_INITIAL_PALACES = [];
   }
-  toggleUserPalacesField();
+  applyUserPalacesRowVisibility();
   $('userModal').classList.add('open');
 }
 
@@ -32,8 +98,7 @@ async function saveUserModal() {
   $('userModalError').textContent = '';
   const name = $('userName').value.trim();
   const role = $('userRole').value;
-  const raw = $('userPalaces').value.trim();
-  const palaces = raw === '' ? [] : raw.split(',').map(s => s.trim()).filter(Boolean);
+  const palaces = role === 'tenant' ? getSelectedUserPalaces() : [];
   const pass = $('userPass').value;
 
   try {
@@ -131,13 +196,19 @@ async function loadUsers() {
     }
     tbody.innerHTML = rows.map(u => {
       const pj = JSON.stringify(u).replace(/</g, '\\u003c');
+      const palCol = u.role === 'subaccount'
+        ? esc((u.parentTenant || '') + ' · ' + JSON.stringify(u.palacePerms || {}))
+        : esc((u.palaces || []).join(', ') || (u.role === 'admin' ? '—' : ''));
+      const editBtn = u.role === 'subaccount'
+        ? ''
+        : `<button type="button" onclick='openUserModal(${pj})'>Edit</button>`;
       return `<tr>
         <td><strong>${esc(u.username)}</strong></td>
         <td><code>${esc(u.role)}</code></td>
-        <td style="max-width:280px;font-size:12px;">${esc((u.palaces || []).join(', ') || (u.role === 'admin' ? '—' : ''))}</td>
+        <td style="max-width:280px;font-size:12px;">${palCol}</td>
         <td>${u.mustChangePassword ? 'yes' : 'no'}</td>
         <td><div class="actions">
-          <button type="button" onclick='openUserModal(${pj})'>Edit</button>
+          ${editBtn}
           <button type="button" class="danger" onclick='openDeleteUserModal(${JSON.stringify(u.username)})'>Delete</button>
         </div></td>
       </tr>`;

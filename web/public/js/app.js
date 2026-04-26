@@ -8,7 +8,10 @@ function showTab(name, btn) {
   $('tab-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'palaces') loadPalaces();
-  if (name === 'users') loadUsers();
+  if (name === 'users') {
+    if (SESSION && SESSION.role === 'tenant') loadSubaccounts();
+    else loadUsers();
+  }
   if (name === 'wizpasses') loadWizPasses();
   if (name === 'update') { loadPserverUpdateStatus(); loadRolloutPanel(); loadManagerVersionInfo(); }
   if (name === 'nginx') { loadNginxSettingsForm(); loadNginxStatus(); loadBootstrapStatus(); }
@@ -50,6 +53,9 @@ document.addEventListener('keydown', (ev) => {
     ev.preventDefault();
   } else if ($('serverFilesModal').classList.contains('open')) {
     closeServerFilesModal();
+    ev.preventDefault();
+  } else if ($('subaccountModal').classList.contains('open')) {
+    closeSubaccountModal();
     ev.preventDefault();
   } else if ($('deleteUserModal').classList.contains('open')) {
     closeDeleteUserModal();

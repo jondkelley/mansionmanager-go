@@ -2,12 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"palace-manager/internal/authstore"
 	"palace-manager/internal/serverprefsform"
 )
 
@@ -17,8 +17,7 @@ func (s *Server) handleServerPrefsFormGet(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	dir, err := s.palaceDataDir(palaceName)
@@ -47,8 +46,7 @@ func (s *Server) handleServerPrefsFormPut(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	var req struct {

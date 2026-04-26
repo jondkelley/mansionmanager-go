@@ -26,13 +26,19 @@ func (s *Server) handleSessionGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"username":           id.Username,
 		"role":               string(id.Role),
 		"mustChangePassword": id.MustChangePassword,
 		"palaces":            id.Palaces,
 		"isPrimaryAdmin":     s.authStore.IsPrimaryAdmin(id.Username),
-	})
+		"validPalacePerms":   authstore.AllPalacePerms,
+	}
+	if id.Role == authstore.RoleSubaccount {
+		out["parentTenant"] = id.ParentTenant
+		out["palacePerms"] = id.PalacePerms
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleSessionPassword(w http.ResponseWriter, r *http.Request) {
@@ -72,10 +78,12 @@ func (s *Server) handleSessionPassword(w http.ResponseWriter, r *http.Request) {
 // --- users (admin) -----------------------------------------------------------
 
 type userResponse struct {
-	Username           string         `json:"username"`
-	Role               authstore.Role `json:"role"`
-	Palaces            []string       `json:"palaces"`
-	MustChangePassword bool           `json:"mustChangePassword"`
+	Username           string              `json:"username"`
+	Role               authstore.Role      `json:"role"`
+	Palaces            []string            `json:"palaces"`
+	ParentTenant       string              `json:"parentTenant,omitempty"`
+	PalacePerms        map[string][]string `json:"palacePerms,omitempty"`
+	MustChangePassword bool                `json:"mustChangePassword"`
 }
 
 func (s *Server) routeUsers(w http.ResponseWriter, r *http.Request) {
@@ -96,12 +104,17 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	list := s.authStore.List()
 	out := make([]userResponse, 0, len(list))
 	for _, u := range list {
-		out = append(out, userResponse{
+		ur := userResponse{
 			Username:           u.Username,
 			Role:               u.Role,
 			Palaces:            append([]string(nil), u.Palaces...),
 			MustChangePassword: u.MustChangePassword,
-		})
+		}
+		if u.Role == authstore.RoleSubaccount {
+			ur.ParentTenant = u.ParentTenant
+			ur.PalacePerms = authstore.NormalizePalacePerms(u.PalacePerms)
+		}
+		out = append(out, ur)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -182,6 +195,10 @@ func (s *Server) handleUserPatch(w http.ResponseWriter, r *http.Request, name st
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
+	if u.Role == authstore.RoleSubaccount {
+		writeError(w, http.StatusBadRequest, "subaccounts are managed by the owning tenant or delete them from the user list")
+		return
+	}
 	role := u.Role
 	if req.Role != nil {
 		role = *req.Role
@@ -200,6 +217,12 @@ func (s *Server) handleUserPatch(w http.ResponseWriter, r *http.Request, name st
 	var passPtr *string
 	if req.Password != nil && *req.Password != "" {
 		passPtr = req.Password
+	}
+	if u.Role == authstore.RoleTenant && req.Palaces != nil {
+		if err := s.authStore.PruneSubaccountPalacesForTenant(name, palaces); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	if err := s.authStore.Update(name, role, palaces, passPtr); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

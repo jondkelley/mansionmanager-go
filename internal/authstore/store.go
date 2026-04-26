@@ -17,16 +17,19 @@ const bcryptCost = bcrypt.DefaultCost
 type Role string
 
 const (
-	RoleAdmin  Role = "admin"
-	RoleTenant Role = "tenant"
+	RoleAdmin      Role = "admin"
+	RoleTenant     Role = "tenant"
+	RoleSubaccount Role = "subaccount"
 )
 
 type User struct {
-	Username           string   `json:"username"`
-	PasswordBcrypt     string   `json:"password_bcrypt"`
-	Role               Role     `json:"role"`
-	Palaces            []string `json:"palaces"` // tenant: palace names; admin: empty or ["*"] means all
-	MustChangePassword bool     `json:"must_change_password"`
+	Username           string              `json:"username"`
+	PasswordBcrypt     string              `json:"password_bcrypt"`
+	Role               Role                `json:"role"`
+	Palaces            []string            `json:"palaces"` // tenant: palace names; admin: empty or ["*"] means all
+	ParentTenant       string              `json:"parent_tenant,omitempty"` // subaccount: owning tenant username
+	PalacePerms        map[string][]string `json:"palace_perms,omitempty"`  // subaccount: palace -> permission keys
+	MustChangePassword bool                `json:"must_change_password"`
 }
 
 type Store struct {
@@ -103,24 +106,37 @@ func HashPassword(plaintext string) (string, error) {
 	return string(h), nil
 }
 
-// CanAccessPalace checks whether the user may see/control the named palace.
-func CanAccessPalace(role Role, allowed []string, palaceName string) bool {
-	if role == RoleAdmin {
+// CanAccessPalace checks whether the user may see the named palace in lists and GET metadata.
+// For subaccounts, palaceName must appear in palacePerms with a non-empty permission list.
+func CanAccessPalace(role Role, tenantPalaces []string, palacePerms map[string][]string, palaceName string) bool {
+	switch role {
+	case RoleAdmin:
 		return true
-	}
-	for _, p := range allowed {
-		if p == palaceName {
-			return true
+	case RoleTenant:
+		for _, p := range tenantPalaces {
+			if p == palaceName {
+				return true
+			}
 		}
+		return false
+	case RoleSubaccount:
+		if palacePerms == nil {
+			return false
+		}
+		list, ok := palacePerms[palaceName]
+		return ok && len(list) > 0
+	default:
+		return false
 	}
-	return false
 }
 
 var (
-	ErrNotFound      = errors.New("user not found")
-	ErrLastAdmin     = errors.New("cannot remove the last admin user")
-	ErrInvalidRole   = errors.New("invalid role")
-	ErrTenantPalaces = errors.New("tenant must have at least one palace")
+	ErrNotFound            = errors.New("user not found")
+	ErrLastAdmin           = errors.New("cannot remove the last admin user")
+	ErrInvalidRole         = errors.New("invalid role")
+	ErrTenantPalaces       = errors.New("tenant must have at least one palace")
+	ErrSubaccountPalaces = errors.New("subaccount must have at least one palace with permissions")
+	ErrSubaccountParent  = errors.New("subaccount parent must be an existing tenant")
 )
 
 func (s *Store) List() []User {
@@ -164,6 +180,9 @@ func (s *Store) Create(u User, plaintext string) error {
 	if u.Username == "" {
 		return errors.New("username required")
 	}
+	if u.Role == RoleSubaccount {
+		return errors.New("use CreateSubaccount for subaccount users")
+	}
 	if u.Role != RoleAdmin && u.Role != RoleTenant {
 		return ErrInvalidRole
 	}
@@ -200,6 +219,12 @@ func (s *Store) Update(username string, role Role, palaces []string, newPassword
 	if idx < 0 {
 		return ErrNotFound
 	}
+	if s.Users[idx].Role == RoleSubaccount {
+		return errors.New("cannot update subaccount via Update")
+	}
+	if role == RoleSubaccount {
+		return ErrInvalidRole
+	}
 	if role != RoleAdmin && role != RoleTenant {
 		return ErrInvalidRole
 	}
@@ -208,6 +233,8 @@ func (s *Store) Update(username string, role Role, palaces []string, newPassword
 	}
 	s.Users[idx].Role = role
 	s.Users[idx].Palaces = append([]string(nil), palaces...)
+	s.Users[idx].ParentTenant = ""
+	s.Users[idx].PalacePerms = nil
 	if newPasswordOptional != nil && *newPasswordOptional != "" {
 		h, err := HashPassword(*newPasswordOptional)
 		if err != nil {
@@ -219,7 +246,8 @@ func (s *Store) Update(username string, role Role, palaces []string, newPassword
 	return s.saveUnlocked()
 }
 
-// RenamePalaceInTenantBindings replaces oldName with newName in every tenant user's palace list.
+// RenamePalaceInTenantBindings replaces oldName with newName in every tenant user's palace list
+// and in every subaccount's palace_perms map keys.
 func (s *Store) RenamePalaceInTenantBindings(oldName, newName string) error {
 	if oldName == "" || newName == "" || oldName == newName {
 		return nil
@@ -227,15 +255,170 @@ func (s *Store) RenamePalaceInTenantBindings(oldName, newName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.Users {
-		if s.Users[i].Role != RoleTenant {
-			continue
+		if s.Users[i].Role == RoleTenant {
+			for j := range s.Users[i].Palaces {
+				if s.Users[i].Palaces[j] == oldName {
+					s.Users[i].Palaces[j] = newName
+				}
+			}
 		}
-		for j := range s.Users[i].Palaces {
-			if s.Users[i].Palaces[j] == oldName {
-				s.Users[i].Palaces[j] = newName
+		if s.Users[i].Role == RoleSubaccount && s.Users[i].PalacePerms != nil {
+			if perms, ok := s.Users[i].PalacePerms[oldName]; ok {
+				delete(s.Users[i].PalacePerms, oldName)
+				s.Users[i].PalacePerms[newName] = append([]string(nil), perms...)
 			}
 		}
 	}
+	return s.saveUnlocked()
+}
+
+// PruneSubaccountPalacesForTenant removes palace keys from all subaccounts of tenantUsername
+// that are not in allowedPalaces. Returns error if any subaccount would be left with no palaces.
+func (s *Store) PruneSubaccountPalacesForTenant(tenantUsername string, allowedPalaces []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	allowed := make(map[string]struct{}, len(allowedPalaces))
+	for _, p := range allowedPalaces {
+		if p != "" {
+			allowed[p] = struct{}{}
+		}
+	}
+	for i := range s.Users {
+		if s.Users[i].Role != RoleSubaccount || s.Users[i].ParentTenant != tenantUsername {
+			continue
+		}
+		m := s.Users[i].PalacePerms
+		if len(m) == 0 {
+			continue
+		}
+		newMap := make(map[string][]string)
+		for k, v := range m {
+			if _, ok := allowed[k]; ok {
+				newMap[k] = append([]string(nil), v...)
+			}
+		}
+		if len(newMap) == 0 {
+			return errors.New("cannot remove palaces: subaccount " + s.Users[i].Username + " would have no delegated palaces left")
+		}
+		s.Users[i].PalacePerms = newMap
+	}
+	return s.saveUnlocked()
+}
+
+// ListSubaccounts returns subaccounts owned by parentTenant (password hashes included — sanitize in API).
+func (s *Store) ListSubaccounts(parentTenant string) []User {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []User
+	for _, u := range s.Users {
+		if u.Role == RoleSubaccount && u.ParentTenant == parentTenant {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// CreateSubaccount adds a subaccount user under an existing tenant.
+func (s *Store) CreateSubaccount(u User, parentTenant, plaintext string) error {
+	if u.Username == "" {
+		return errors.New("username required")
+	}
+	if u.Role != RoleSubaccount {
+		return errors.New("role must be subaccount")
+	}
+	parent, ok := s.Get(parentTenant)
+	if !ok || parent.Role != RoleTenant {
+		return ErrSubaccountParent
+	}
+	perms := NormalizePalacePerms(u.PalacePerms)
+	if err := ValidateSubaccountPalacePerms(parent.Palaces, perms); err != nil {
+		return err
+	}
+	h, err := HashPassword(plaintext)
+	if err != nil {
+		return err
+	}
+	u.PasswordBcrypt = h
+	u.ParentTenant = parentTenant
+	u.PalacePerms = perms
+	u.Palaces = nil
+	u.Role = RoleSubaccount
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, ex := range s.Users {
+		if ex.Username == u.Username {
+			return errors.New("user already exists")
+		}
+	}
+	s.Users = append(s.Users, u)
+	return s.saveUnlocked()
+}
+
+// UpdateSubaccount replaces palace permissions (and optionally password) for a subaccount of parentTenant.
+func (s *Store) UpdateSubaccount(subUsername, parentTenant string, palacePerms map[string][]string, newPasswordOptional *string) error {
+	perms := NormalizePalacePerms(palacePerms)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := -1
+	for i := range s.Users {
+		if s.Users[i].Username == subUsername {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || s.Users[idx].Role != RoleSubaccount || s.Users[idx].ParentTenant != parentTenant {
+		return ErrNotFound
+	}
+	parent, ok := s.findUserUnlocked(parentTenant)
+	if !ok || parent.Role != RoleTenant {
+		return ErrSubaccountParent
+	}
+	if err := ValidateSubaccountPalacePerms(parent.Palaces, perms); err != nil {
+		return err
+	}
+	s.Users[idx].PalacePerms = perms
+	if newPasswordOptional != nil && *newPasswordOptional != "" {
+		h, err := HashPassword(*newPasswordOptional)
+		if err != nil {
+			return err
+		}
+		s.Users[idx].PasswordBcrypt = h
+		s.Users[idx].MustChangePassword = false
+	}
+	return s.saveUnlocked()
+}
+
+func (s *Store) findUserUnlocked(username string) (User, bool) {
+	for _, u := range s.Users {
+		if u.Username == username {
+			return u, true
+		}
+	}
+	return User{}, false
+}
+
+// DeleteSubaccount removes a subaccount if it belongs to parentTenant.
+func (s *Store) DeleteSubaccount(subUsername, parentTenant string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := -1
+	for i := range s.Users {
+		if s.Users[i].Username == subUsername {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || s.Users[idx].Role != RoleSubaccount || s.Users[idx].ParentTenant != parentTenant {
+		return ErrNotFound
+	}
+	filtered := s.Users[:0]
+	for _, u := range s.Users {
+		if u.Username != subUsername {
+			filtered = append(filtered, u)
+		}
+	}
+	s.Users = filtered
 	return s.saveUnlocked()
 }
 
@@ -265,9 +448,13 @@ func (s *Store) Delete(username string) error {
 	}
 	filtered := s.Users[:0]
 	for _, u := range s.Users {
-		if u.Username != username {
-			filtered = append(filtered, u)
+		if u.Username == username {
+			continue
 		}
+		if target.Role == RoleTenant && u.Role == RoleSubaccount && u.ParentTenant == username {
+			continue
+		}
+		filtered = append(filtered, u)
 	}
 	s.Users = filtered
 	return s.saveUnlocked()

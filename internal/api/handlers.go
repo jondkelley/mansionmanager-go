@@ -38,7 +38,7 @@ func filterInstances(ctx context.Context, instances []instance.Instance) []insta
 	}
 	out := make([]instance.Instance, 0, len(instances))
 	for _, inst := range instances {
-		if authstore.CanAccessPalace(id.Role, id.Palaces, inst.Name) {
+		if authstore.CanAccessPalace(id.Role, id.Palaces, id.PalacePerms, inst.Name) {
 			out = append(out, inst)
 		}
 	}
@@ -301,8 +301,7 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 // --- palace lifecycle --------------------------------------------------------
 
 func (s *Server) handlePalaceAction(w http.ResponseWriter, r *http.Request, name, action string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermControl) {
 		return
 	}
 	if err := s.ensurePalaceYPInPrefs(name); err != nil {
@@ -512,8 +511,7 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 // --- logs --------------------------------------------------------------------
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermLogs) {
 		return
 	}
 	linesStr := r.URL.Query().Get("lines")
@@ -533,8 +531,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request, name string)
 }
 
 func (s *Server) handleChatLogs(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermLogs) {
 		return
 	}
 	linesStr := r.URL.Query().Get("lines")
@@ -1037,8 +1034,7 @@ func onlyDigitsASCII(s string) bool {
 }
 
 func (s *Server) handlePalaceServerRoot(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermFiles) {
 		return
 	}
 	dir, err := s.palaceDataDir(palaceName)
@@ -1070,8 +1066,7 @@ func (s *Server) handlePalaceServerRoot(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *Server) handlePalaceServerFile(w http.ResponseWriter, r *http.Request, palaceName, fileName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermFiles) {
 		return
 	}
 	base := filepath.Base(fileName)
@@ -1176,8 +1171,7 @@ func (s *Server) handlePalaceServerFileSave(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermFiles) {
 		return
 	}
 	base := filepath.Base(fileName)
@@ -1246,8 +1240,7 @@ func (s *Server) handlePalacePrefsForm(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	dir, err := s.palaceDataDir(palaceName)
@@ -1282,8 +1275,7 @@ func (s *Server) handlePalaceServerPrefsSave(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	var req struct {
@@ -1437,8 +1429,7 @@ func (s *Server) resolvePalaceUnixHome(palaceName string) (string, error) {
 }
 
 func (s *Server) handlePalaceHomeBackup(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermBackups) {
 		return
 	}
 	homeAbs, err := s.resolvePalaceUnixHome(palaceName)
@@ -1556,8 +1547,7 @@ func (s *Server) handlePalacePatUpload(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermFiles) {
 		return
 	}
 	dir, err := s.palaceDataDir(palaceName)

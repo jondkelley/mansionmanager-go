@@ -11,6 +11,7 @@ import (
 
 	"net/http"
 
+	"palace-manager/internal/authstore"
 	"palace-manager/internal/instance"
 )
 
@@ -42,8 +43,7 @@ func (s *Server) palaceRatbotDir(palaceName string) (string, error) {
 }
 
 func (s *Server) handlePalaceMiscGet(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	v, err := instance.ReadUnitVerbosity(palaceName)
@@ -58,8 +58,7 @@ func (s *Server) handlePalaceMiscGet(w http.ResponseWriter, r *http.Request, pal
 }
 
 func (s *Server) handlePalaceMiscSave(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	var req struct {
@@ -85,8 +84,7 @@ func (s *Server) handlePalaceMiscSave(w http.ResponseWriter, r *http.Request, pa
 }
 
 func (s *Server) handlePalaceRatbotFilesList(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	dir, err := s.palaceRatbotDir(palaceName)
@@ -207,8 +205,7 @@ func parseTriviaQuestions(content string) ([]triviaQuestionDTO, int) {
 }
 
 func (s *Server) handlePalaceRatbotFileGet(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	name, err := normalizeRatbotFileName(r.URL.Query().Get("name"))
@@ -298,8 +295,7 @@ func validateTriviaQuestions(in []triviaQuestionDTO) ([]triviaQuestionDTO, error
 }
 
 func (s *Server) handlePalaceRatbotFileSave(w http.ResponseWriter, r *http.Request, palaceName string) {
-	if !canAccessPalace(r.Context(), palaceName) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", palaceName))
+	if !requirePalacePerm(w, r, palaceName, authstore.PermSettings) {
 		return
 	}
 	var req struct {

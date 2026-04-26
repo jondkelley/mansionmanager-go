@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"palace-manager/internal/authstore"
 )
 
 // handlePalaceUsersModerate proxies POST /api/palaces/:name/palace-users/moderate
 // to the palace at /api/v1/palacemanager/users/moderate and injects the current
 // manager username as the operator label for in-world audit pages.
 func (s *Server) handlePalaceUsersModerate(w http.ResponseWriter, r *http.Request, name string) {
-	if !canAccessPalace(r.Context(), name) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("palace %q not found", name))
+	if !requirePalacePerm(w, r, name, authstore.PermUsers) {
 		return
 	}
 	inst, err := s.instances.Get(name)
