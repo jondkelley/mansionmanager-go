@@ -319,7 +319,7 @@ The same flow is available through the web UI under **Host Setup**.
 ### Via the web UI
 
 1. Open the **Palaces** tab, click **+ New Palace**
-2. Enter a name (used as the Linux username), TCP port, and HTTP port
+2. Enter Linux username, Palace Server Name, SYSOP, ports (optional Palace Domain Name for directory listing), and quota
 3. Click **Provision** — live output streams in the modal
 
 ### Via the API
@@ -328,7 +328,7 @@ The same flow is available through the web UI under **Host Setup**.
 curl -X POST http://127.0.0.1:3000/api/palaces \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name":"mypalace","tcpPort":9998,"httpPort":8080}'
+  -d '{"name":"mypalace","serverName":"My Mansion","sysop":"Joe Sysop","tcpPort":9998,"httpPort":8080}'
 ```
 
 Output streams as SSE. After provisioning:
@@ -349,7 +349,7 @@ Use unique TCP and HTTP ports for each. The cron job is not needed — palace-ma
 curl -X POST http://127.0.0.1:3000/api/palaces \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name":"anotherpalace","tcpPort":9999,"httpPort":8081}'
+  -d '{"name":"anotherpalace","serverName":"Palace Two","sysop":"Owner","tcpPort":9999,"httpPort":8081}'
 ```
 
 ---

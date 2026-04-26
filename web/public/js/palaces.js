@@ -1536,6 +1536,9 @@ async function loadPalaces() {
       const overQuotaBadge = p.quotaExceeded
         ? '<span class="badge badge-over-quota">OVER QUOTA</span>'
         : '';
+      const srvName = (p.serverName && String(p.serverName).trim()) || '';
+      const sysopName = (p.sysop && String(p.sysop).trim()) || '';
+      const prefsDash = '<span class="palace-prefs-empty">—</span>';
       return `
       <tr class="${summaryClass}${expanded ? ' palace-row-open' : ''}"${isAdmin ? ` onclick='togglePalaceAccordion(${nm})'` : ''}>
         <td>
@@ -1553,9 +1556,19 @@ async function loadPalaces() {
         <td colspan="5">
           <div class="palace-details-top">
             <div class="palace-details-user-ctl">
-              <div class="palace-detail-block palace-detail-block--user">
-                <span class="palace-detail-label">Service user</span>
-                <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
+              <div class="palace-details-identity">
+                <div class="palace-detail-block palace-detail-block--user">
+                  <span class="palace-detail-label">Username</span>
+                  <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
+                </div>
+                <div class="palace-detail-block palace-detail-block--prefs">
+                  <span class="palace-detail-label">Server name</span>
+                  <span class="palace-detail-value">${srvName ? esc(srvName) : prefsDash}</span>
+                </div>
+                <div class="palace-detail-block palace-detail-block--prefs">
+                  <span class="palace-detail-label">Sysop</span>
+                  <span class="palace-detail-value">${sysopName ? esc(sysopName) : prefsDash}</span>
+                </div>
               </div>
               <div class="palace-details-ctl-manage">
                 <div class="palace-detail-block">
@@ -1857,7 +1870,10 @@ function openProvisionModal() {
   $('provisionFooter').innerHTML =
     `<button id="provisionCancelBtn" onclick="closeProvisionModal()">Cancel</button>` +
     `<button id="provisionBtn" class="primary" onclick="doProvision()">Provision</button>`;
-  ['pName','pTCP','pHTTP'].forEach(id => { $(id).value = ''; });
+  ['pName', 'pServerName', 'pSysop', 'pTCP', 'pHTTP', 'pYPHost'].forEach(id => {
+    const el = $(id);
+    if (el) el.value = '';
+  });
   if ($('pTCPAuto')) $('pTCPAuto').checked = true;
   if ($('pHTTPAuto')) $('pHTTPAuto').checked = true;
   if ($('pQuotaSlider')) $('pQuotaSlider').value = '6';
@@ -1871,7 +1887,7 @@ function closeProvisionModal() {
 }
 
 function _setProvisionRunning(running) {
-  ['pName','pYPHost','pYPPort','pTCPAuto','pHTTPAuto','pQuotaSlider','pQuotaCustomMiB'].forEach(id => {
+  ['pName', 'pServerName', 'pSysop', 'pYPHost', 'pTCPAuto', 'pHTTPAuto', 'pQuotaSlider', 'pQuotaCustomMiB'].forEach(id => {
     const el = $(id);
     if (el) el.disabled = running;
   });
@@ -1894,7 +1910,16 @@ async function doProvision() {
       httpPort = parseInt($('pHTTP').value, 10);
     }
   }
-  if (!name || !tcpPort || !httpPort) { alert('All fields required'); return; }
+  if (!name || !tcpPort || !httpPort) {
+    alert('Linux username and ports are required.');
+    return;
+  }
+  const serverName = ($('pServerName') && $('pServerName').value.trim()) || '';
+  const sysop = ($('pSysop') && $('pSysop').value.trim()) || '';
+  if (!serverName || !sysop) {
+    alert('Palace Server Name and SYSOP are required.');
+    return;
+  }
 
   const quotaBytesMax = provisionQuotaSelectedBytes();
   if (quotaBytesMax === null) {
@@ -1910,12 +1935,19 @@ async function doProvision() {
   _setProvisionRunning(true);
 
   const ypHost = $('pYPHost').value.trim();
-  let ypPort = parseInt($('pYPPort').value, 10);
-  if (!Number.isFinite(ypPort)) ypPort = 0;
   const res = await fetch('/api/palaces', {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ name, tcpPort, httpPort, ypHost, ypPort, quotaBytesMax }),
+    body: JSON.stringify({
+      name,
+      serverName,
+      sysop,
+      tcpPort,
+      httpPort,
+      ypHost,
+      ypPort: 0,
+      quotaBytesMax,
+    }),
   });
 
   if (res.status === 412) {

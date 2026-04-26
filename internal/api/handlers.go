@@ -133,6 +133,28 @@ func (s *Server) enrichInstance(inst *instance.Instance) {
 		inst.MediaDir = md
 	}
 	s.enrichQuota(inst)
+	s.enrichPrefsSummary(inst)
+}
+
+// enrichPrefsSummary fills SERVERNAME / SYSOP from pserver.prefs for the dashboard.
+func (s *Server) enrichPrefsSummary(inst *instance.Instance) {
+	dd := strings.TrimSpace(inst.DataDir)
+	if dd == "" {
+		if _, _, _, dDir, err := instance.DiscoverFromUnit(inst.Name); err == nil {
+			dd = strings.TrimSpace(dDir)
+		}
+	}
+	if dd == "" {
+		return
+	}
+	path := filepath.Join(dd, "pserver.prefs")
+	b, err := os.ReadFile(path)
+	if err != nil || len(b) == 0 {
+		return
+	}
+	st, _, _ := pserverprefs.ParsePrefState(string(b))
+	inst.ServerName = st.ServerName
+	inst.Sysop = st.Sysop
 }
 
 func (s *Server) handleListPalaces(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +192,8 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Name          string `json:"name"`
+		ServerName    string `json:"serverName"`
+		Sysop         string `json:"sysop"`
 		TCPPort       int    `json:"tcpPort"`
 		HTTPPort      int    `json:"httpPort"`
 		YPHost        string `json:"ypHost"`
@@ -182,6 +206,10 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Name == "" || req.TCPPort == 0 || req.HTTPPort == 0 {
 		writeError(w, http.StatusBadRequest, "name, tcpPort, and httpPort are required")
+		return
+	}
+	if strings.TrimSpace(req.ServerName) == "" || strings.TrimSpace(req.Sysop) == "" {
+		writeError(w, http.StatusBadRequest, "serverName and sysop are required")
 		return
 	}
 	if s.reg.PortInUse(req.TCPPort, req.HTTPPort) {
@@ -213,6 +241,17 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result != nil {
+		prefsPath := filepath.Join(result.DataDir, "pserver.prefs")
+		prefsBody, readErr := os.ReadFile(prefsPath)
+		if readErr != nil {
+			streamLine(sw, fmt.Sprintf("WARNING: could not read pserver.prefs for SERVERNAME/SYSOP: %v", readErr))
+		} else {
+			mergedID := pserverprefs.MergeServerNameSysop(string(prefsBody), req.ServerName, req.Sysop)
+			if err := writeFileAtomicAs(prefsPath, result.User, strings.NewReader(mergedID)); err != nil {
+				streamLine(sw, fmt.Sprintf("WARNING: could not write SERVERNAME/SYSOP to pserver.prefs: %v", err))
+			}
+		}
+
 		ypPort := resolveYPPort(req.YPHost, req.YPPort, req.TCPPort)
 		entry := provisioner.RegistryEntry(req.Name, result, req.YPHost, ypPort)
 		entry.ProvisionedAt = time.Now()

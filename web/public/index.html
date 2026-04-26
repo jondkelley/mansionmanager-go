@@ -301,6 +301,18 @@
     grid-row: 1;
     min-width: 0;
   }
+  .palace-details-identity {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 28px;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .palace-detail-block--prefs .palace-detail-value {
+    font-size: 13px;
+    word-break: break-word;
+  }
+  .palace-prefs-empty { color: var(--muted); font-weight: 400; }
   .palace-quota-slot {
     grid-column: 2;
     grid-row: 1;
@@ -361,6 +373,26 @@
     margin-left: 6px;
   }
   .provision-quota-row input[type="range"] { width: 100%; max-width: 420px; }
+  #provisionModal .modal { min-width: 400px; max-width: 520px; }
+  #provisionModal .provision-form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  #provisionModal .field-hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+    margin: 0 0 6px;
+  }
+  #provisionModal .provision-port-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+  }
+  #provisionModal .provision-port-line .field { min-width: 100px; }
+  #provisionModal .provision-port-line .toggle-inline { margin-bottom: 2px; }
   .unregistered-palace-actions {
     display: flex;
     flex-direction: column;
@@ -1840,52 +1872,53 @@
 <div class="modal-bg" id="provisionModal">
   <div class="modal">
     <h3>New Palace Instance</h3>
-    <div id="provisionForm">
-      <div class="form-row">
-        <div class="field">
-          <label>Palace Name (used as Linux user)</label>
-          <input id="pName" type="text" placeholder="mypalace" />
-        </div>
+    <div id="provisionForm" class="provision-form-stack">
+      <div class="field">
+        <label for="pName">Linux Username</label>
+        <input id="pName" type="text" placeholder="mypalace" autocomplete="off" />
       </div>
-      <div class="form-row">
-        <div class="field">
-          <label>TCP Port</label>
+      <div class="field">
+        <label for="pServerName">Palace Server Name</label>
+        <p class="field-hint">This is the name users see when signed into the palace.</p>
+        <input id="pServerName" type="text" placeholder="My Mansion" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="pSysop">SYSOP</label>
+        <p class="field-hint">This is the name of the server operator / owner.</p>
+        <input id="pSysop" type="text" placeholder="Joe Sysop" autocomplete="off" />
+      </div>
+      <div class="provision-port-line">
+        <div class="field field--compact">
+          <label for="pTCP">TCP Port</label>
           <input id="pTCP" type="number" placeholder="9998" />
         </div>
         <label class="toggle-inline">
           <input id="pTCPAuto" type="checkbox" checked onchange="syncProvisionPortMode()" />
-          <span>Auto-select port between 9990-10990</span>
+          <span>Auto (9990–10990)</span>
         </label>
-        <div class="field">
-          <label>HTTP Port</label>
+      </div>
+      <div class="provision-port-line">
+        <div class="field field--compact">
+          <label for="pHTTP">HTTP Port</label>
           <input id="pHTTP" type="number" placeholder="8080" />
         </div>
         <label class="toggle-inline">
           <input id="pHTTPAuto" type="checkbox" checked onchange="syncProvisionPortMode()" />
-          <span>Auto-select port between 6000-7000</span>
+          <span>Auto (6000–7000)</span>
         </label>
       </div>
-      <p style="font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:8px;">Directory listing (optional): host and port announced to the directory server — stored in <code>pserver.prefs</code> as <code>YPMYEXTADDR</code> / <code>YPMYEXTPORT</code> (same as mansionsource-go). Leave host blank to skip.</p>
-      <div class="form-row">
-        <div class="field" style="flex:1;min-width:200px;">
-          <label>YP host (public hostname)</label>
-          <input id="pYPHost" type="text" placeholder="e.g. mypalace.example.com" style="width:100%;max-width:none;" />
-        </div>
-        <div class="field">
-          <label>YP port</label>
-          <input id="pYPPort" type="number" min="0" max="65535" placeholder="defaults to TCP port" />
-        </div>
+      <div class="field">
+        <label for="pYPHost">Palace Domain Name</label>
+        <input id="pYPHost" type="text" placeholder="e.g. mypalace.example.com" autocomplete="off" />
       </div>
-      <div class="form-row provision-quota-row">
-        <div class="field" style="flex:1;min-width:260px;">
-          <label>Home directory quota (service user home)</label>
-          <input type="range" id="pQuotaSlider" min="0" max="13" value="6" step="1" oninput="syncProvisionQuotaLabel()" />
-          <div id="pQuotaLabel" style="font-size:13px;margin-top:6px;color:var(--text);">Max home storage: 4 GB</div>
-          <div id="pQuotaCustomWrap" style="display:none;margin-top:10px;">
-            <label style="font-size:12px;color:var(--muted);">Custom maximum (MiB)</label>
-            <input id="pQuotaCustomMiB" type="number" min="1" max="1048576" step="1" placeholder="8192" style="max-width:140px;" />
-            <span style="font-size:11px;color:var(--muted);margin-left:6px;">1024 MiB ≈ 1 GiB</span>
-          </div>
+      <div class="field provision-quota-row">
+        <label for="pQuotaSlider">Home directory quota</label>
+        <input type="range" id="pQuotaSlider" min="0" max="13" value="6" step="1" oninput="syncProvisionQuotaLabel()" />
+        <div id="pQuotaLabel" style="font-size:13px;margin-top:6px;color:var(--text);">Max home storage: 4 GB</div>
+        <div id="pQuotaCustomWrap" style="display:none;margin-top:10px;">
+          <label style="font-size:12px;color:var(--muted);">Custom maximum (MiB)</label>
+          <input id="pQuotaCustomMiB" type="number" min="1" max="1048576" step="1" placeholder="8192" style="max-width:140px;" />
+          <span style="font-size:11px;color:var(--muted);margin-left:6px;">1024 MiB ≈ 1 GiB</span>
         </div>
       </div>
     </div>

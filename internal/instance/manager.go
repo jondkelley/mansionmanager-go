@@ -41,6 +41,8 @@ type Instance struct {
 	QuotaBytesMax  int64  `json:"quotaBytesMax,omitempty"`  // 0 = unlimited
 	HomeUsedBytes  int64  `json:"homeUsedBytes,omitempty"`  // set when quotaBytesMax > 0
 	QuotaExceeded  bool   `json:"quotaExceeded,omitempty"`  // homeUsedBytes > quotaBytesMax
+	ServerName     string `json:"serverName,omitempty"`     // SERVERNAME from pserver.prefs (dashboard)
+	Sysop          string `json:"sysop,omitempty"`          // SYSOP from pserver.prefs (dashboard)
 }
 
 type systemdUnit struct {

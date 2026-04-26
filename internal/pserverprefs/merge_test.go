@@ -29,3 +29,28 @@ func TestMergeYPAnnounce_clear(t *testing.T) {
 		t.Fatalf("expected YP lines cleared, got %q", got)
 	}
 }
+
+func TestMergeServerNameSysop(t *testing.T) {
+	base := "SERVERNAME \"Old\"\nSYSOP \"OldOp\"\nMAXOCCUPANCY 50\n"
+	got := MergeServerNameSysop(base, "My Mansion", "Joe Sysop")
+	if strings.Count(got, "SERVERNAME") != 1 || strings.Count(got, "SYSOP") != 1 {
+		t.Fatalf("expected single SERVERNAME and SYSOP, got:\n%s", got)
+	}
+	if !strings.Contains(got, `SERVERNAME "My Mansion"`) {
+		t.Fatalf("server name: %q", got)
+	}
+	if !strings.Contains(got, `SYSOP "Joe Sysop"`) {
+		t.Fatalf("sysop: %q", got)
+	}
+	if !strings.Contains(got, "MAXOCCUPANCY") {
+		t.Fatalf("should keep other prefs: %q", got)
+	}
+}
+
+func TestMergeServerNameSysop_replacesOnlyIdentity(t *testing.T) {
+	base := "SERVERNAME \"x\"\nYPMYEXTADDR \"h\"\n"
+	got := MergeServerNameSysop(base, "N", "S")
+	if strings.Count(got, "YPMYEXTADDR") != 1 {
+		t.Fatalf("YP line should remain: %q", got)
+	}
+}
