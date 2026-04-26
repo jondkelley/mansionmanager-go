@@ -337,6 +337,8 @@
   }
   .palace-users-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--card); }
   .palace-users-table td code { font-size: 11px; }
+  .palace-users-table td:last-child { white-space: nowrap; }
+  .palace-user-moderate-btn { font-size: 11px; padding: 3px 9px; }
   .palace-users-ip-cell { white-space: nowrap; }
   a.palace-users-ipinfo {
     display: inline-flex;
@@ -355,6 +357,21 @@
   .palace-users-os-icon { width: 20px; height: auto; max-height: 22px; vertical-align: middle; display: block; }
   .palace-users-os-text { font-size: 12px; }
   .palace-users-scroll { max-height: 480px; overflow-y: auto; }
+  #palaceUserActionDetails {
+    white-space: pre-line;
+    max-height: 270px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.03);
+    font-size: 12px;
+    line-height: 1.45;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .palace-user-action-picks { display: flex; flex-wrap: wrap; gap: 7px; }
+  .palace-user-action-picks .palace-user-action-pick { min-width: 92px; }
   .toggle-inline {
     display: inline-flex;
     align-items: center;
@@ -841,6 +858,42 @@
   .media-dropzone-hint { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
   .media-dropzone-hint label.choose-files { color: var(--accent); cursor: pointer; text-decoration: underline; }
   .media-dropzone-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .media-preview-thumb-cell {
+    width: 72px;
+    min-width: 72px;
+  }
+  .media-preview-thumb {
+    width: 56px;
+    height: 42px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    object-fit: cover;
+    display: block;
+    background: rgba(0,0,0,.14);
+  }
+  .media-preview-thumb-empty {
+    width: 56px;
+    height: 42px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .media-sort-btn {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .media-sort-btn:hover { color: var(--text); }
+  .media-sort-btn.active { color: var(--text); }
   .media-file-sr-only {
     position: absolute;
     width: 1px;
@@ -1319,6 +1372,12 @@
         <label>Search</label>
         <input type="search" id="mediaSearch" placeholder="Filter by path…" style="width:100%;max-width:none;" oninput="scheduleMediaSearch()" />
       </div>
+      <div class="field" style="min-width:200px;">
+        <label>Filter</label>
+        <select id="mediaTypeFilter" style="width:100%;max-width:none;" onchange="refreshMediaModal()">
+          <option value="">All file extensions</option>
+        </select>
+      </div>
       <div class="field" style="flex:2;min-width:280px;">
         <label>Upload</label>
         <div id="mediaDropZone" class="media-dropzone">
@@ -1333,8 +1392,16 @@
     </div>
     <div style="flex:1;min-height:260px;max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;">
       <table style="font-size:12px;">
-        <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Room</th><th>Door</th><th></th></tr></thead>
-        <tbody id="mediaTableBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        <thead><tr>
+          <th>Preview</th>
+          <th><button type="button" class="media-sort-btn" data-media-sort="name" onclick="setMediaSort('name')">Name</button></th>
+          <th><button type="button" class="media-sort-btn" data-media-sort="type" onclick="setMediaSort('type')">Type</button></th>
+          <th><button type="button" class="media-sort-btn" data-media-sort="size" onclick="setMediaSort('size')">Size</button></th>
+          <th><button type="button" class="media-sort-btn" data-media-sort="room" onclick="setMediaSort('room')">Room</button></th>
+          <th><button type="button" class="media-sort-btn" data-media-sort="door" onclick="setMediaSort('door')">Door</button></th>
+          <th></th>
+        </tr></thead>
+        <tbody id="mediaTableBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
     <div class="modal-footer"><button type="button" onclick="closeMediaModal()">Close</button></div>
@@ -1456,13 +1523,46 @@
         <thead>
           <tr>
             <th>#</th><th>Online</th><th>Role</th><th>Name</th><th>Client</th><th>OS</th><th>Room</th>
-            <th>IP</th><th>UUID</th><th>PUID</th><th>CRC</th><th>CNT</th><th>Key</th>
+            <th>IP</th><th>UUID</th><th>PUID</th><th>CRC</th><th>CNT</th><th>Key</th><th>Actions</th>
           </tr>
         </thead>
-        <tbody id="palaceUsersBody"><tr><td colspan="13" class="empty">Loading…</td></tr></tbody>
+        <tbody id="palaceUsersBody"><tr><td colspan="14" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
     <div class="modal-footer" style="flex-shrink:0;"><button type="button" onclick="closePalaceUsersModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- Palace User Action Modal -->
+<div class="modal-bg modal-stacked" id="palaceUserActionModal">
+  <div class="modal" style="max-width:720px;width:95%;">
+    <h3 id="palaceUserActionTitle">Moderate User</h3>
+    <pre id="palaceUserActionDetails"></pre>
+    <div style="margin-top:10px;">
+      <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;">Action</label>
+      <div class="palace-user-action-picks">
+        <button type="button" class="palace-user-action-pick primary" data-action="ban">Ban</button>
+        <button type="button" class="palace-user-action-pick" data-action="kill">Kill</button>
+        <button type="button" class="palace-user-action-pick" data-action="track">Track</button>
+        <button type="button" class="palace-user-action-pick" data-action="disconnect">Disconnect</button>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:10px;align-items:flex-end;">
+      <div class="field" style="min-width:160px;max-width:200px;">
+        <label id="palaceUserActionDurationLabel">Duration</label>
+        <input id="palaceUserActionDuration" type="text" placeholder="5 / 1d / 1m / 1y" />
+      </div>
+      <div id="palaceUserActionHint" style="font-size:12px;color:var(--muted);padding-bottom:8px;">Permanent deny + kick.</div>
+    </div>
+    <div class="field">
+      <label>Reason / Note</label>
+      <textarea id="palaceUserActionReason" rows="3" placeholder="Optional"></textarea>
+    </div>
+    <div id="palaceUserActionAlert" class="bans-alert" style="margin-top:8px;"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closePalaceUserActionModal()">Cancel</button>
+      <button type="button" id="palaceUserActionSubmit" class="primary" onclick="submitPalaceUserAction()">Apply</button>
+    </div>
   </div>
 </div>
 

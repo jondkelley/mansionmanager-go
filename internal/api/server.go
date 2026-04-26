@@ -386,6 +386,8 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalaceStats(w, r, name)
 	case action == "palace-users" && r.Method == http.MethodGet:
 		s.handlePalaceUsers(w, r, name)
+	case action == "palace-users/moderate" && r.Method == http.MethodPost:
+		s.handlePalaceUsersModerate(w, r, name)
 	case action == "banlist" && r.Method == http.MethodGet:
 		s.handlePalaceBanlist(w, r, name)
 	case action == "banlist/unban" && r.Method == http.MethodPost:

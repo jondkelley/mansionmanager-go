@@ -1281,6 +1281,9 @@ function palaceUsersOsCell(os) {
 
 let palaceUsersLiveName = null;
 let palaceUsersTimer = null;
+let palaceUsersRows = [];
+let palaceUsersSelectedUser = null;
+let palaceUsersSelectedAction = 'ban';
 
 function formatSignonTime(secs) {
   const s = Math.max(0, Math.floor(secs));
@@ -1299,13 +1302,15 @@ async function fetchPalaceUsers(name) {
   try {
     const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/palace-users`, { headers: headers() });
     if (!res.ok) {
-      $('palaceUsersBody').innerHTML = `<tr><td colspan="13" class="empty">Error: HTTP ${res.status}</td></tr>`;
+      palaceUsersRows = [];
+      $('palaceUsersBody').innerHTML = `<tr><td colspan="14" class="empty">Error: HTTP ${res.status}</td></tr>`;
       return;
     }
     const users = await res.json();
+    palaceUsersRows = Array.isArray(users) ? users : [];
     if (!Array.isArray(users) || users.length === 0) {
       $('palaceUsersCount').textContent = '0 users';
-      $('palaceUsersBody').innerHTML = '<tr><td colspan="13" class="empty">No users connected</td></tr>';
+      $('palaceUsersBody').innerHTML = '<tr><td colspan="14" class="empty">No users connected</td></tr>';
       return;
     }
     $('palaceUsersCount').textContent = `${users.length} user${users.length === 1 ? '' : 's'}`;
@@ -1324,9 +1329,11 @@ async function fetchPalaceUsers(name) {
         <td><code>${esc(u.crc)}</code></td>
         <td><code>${u.cnt || 0}</code></td>
         <td><code>${esc(u.wiz_key)}</code></td>
+        <td><button type="button" class="palace-user-moderate-btn" data-user-id="${u.id}">Actions…</button></td>
       </tr>`).join('');
   } catch (e) {
-    $('palaceUsersBody').innerHTML = `<tr><td colspan="13" class="empty">Error: ${esc(e.message)}</td></tr>`;
+    palaceUsersRows = [];
+    $('palaceUsersBody').innerHTML = `<tr><td colspan="14" class="empty">Error: ${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1336,9 +1343,11 @@ async function openPalaceUsersModal(name) {
     palaceUsersTimer = null;
   }
   palaceUsersLiveName = name;
+  palaceUsersRows = [];
+  palaceUsersSelectedUser = null;
   $('palaceUsersModalTitle').textContent = `Connected Users — ${name}`;
   $('palaceUsersCount').textContent = '';
-  $('palaceUsersBody').innerHTML = '<tr><td colspan="13" class="empty">Loading…</td></tr>';
+  $('palaceUsersBody').innerHTML = '<tr><td colspan="14" class="empty">Loading…</td></tr>';
   $('palaceUsersModal').classList.add('open');
   await fetchPalaceUsers(name);
   palaceUsersTimer = setInterval(() => fetchPalaceUsers(name), 5000);
@@ -1350,5 +1359,148 @@ function closePalaceUsersModal() {
     palaceUsersTimer = null;
   }
   palaceUsersLiveName = null;
+  palaceUsersRows = [];
+  closePalaceUserActionModal();
   $('palaceUsersModal').classList.remove('open');
 }
+
+function palaceUserActionLabel(action) {
+  switch (action) {
+    case 'ban': return 'Ban';
+    case 'kill': return 'Kill';
+    case 'track': return 'Track';
+    case 'disconnect': return 'Disconnect';
+    default: return action;
+  }
+}
+
+function setPalaceUserActionAlert(msg, type) {
+  const el = $('palaceUserActionAlert');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'bans-alert' + (type ? ' ' + type : '');
+  el.style.display = type ? 'block' : 'none';
+}
+
+function setPalaceUserActionMode(action) {
+  palaceUsersSelectedAction = action;
+  const duration = $('palaceUserActionDuration');
+  const label = $('palaceUserActionDurationLabel');
+  const hint = $('palaceUserActionHint');
+  const buttons = document.querySelectorAll('.palace-user-action-pick');
+  buttons.forEach(btn => btn.classList.toggle('primary', btn.dataset.action === action));
+  buttons.forEach(btn => { if (btn.dataset.action !== action) btn.classList.remove('primary'); });
+
+  if (action === 'ban') {
+    duration.value = '';
+    duration.disabled = true;
+    label.textContent = 'Duration';
+    hint.textContent = 'Permanent deny + kick.';
+  } else if (action === 'kill') {
+    duration.disabled = false;
+    duration.value = duration.value || '5';
+    label.textContent = 'Duration';
+    hint.textContent = 'Timed lockout. Use 0 for kick-only.';
+  } else if (action === 'track') {
+    duration.disabled = false;
+    duration.value = duration.value || '60';
+    label.textContent = 'Track Duration';
+    hint.textContent = 'Creates a track record (no kick).';
+  } else {
+    duration.disabled = true;
+    duration.value = '0';
+    label.textContent = 'Duration';
+    hint.textContent = 'Immediate disconnect (same as kill 0).';
+  }
+}
+
+function openPalaceUserActionModal(userId) {
+  const targetID = parseInt(userId, 10);
+  const u = palaceUsersRows.find(row => parseInt(row.id, 10) === targetID);
+  if (!u) return;
+  palaceUsersSelectedUser = u;
+  setPalaceUserActionAlert('');
+  $('palaceUserActionTitle').textContent = `Moderate User — ${u.name || ('#' + u.id)}`;
+  $('palaceUserActionDetails').textContent = [
+    `ID: ${u.id}`,
+    `Online: ${formatSignonTime(u.signon_seconds || 0)}`,
+    `Role: ${u.role || '?'}`,
+    `Name: ${u.name || '?'}`,
+    `Client: ${u.client_version || '?'}`,
+    `OS: ${u.os || '?'}`,
+    `Room: ${u.room_name || '?'}`,
+    `IP: ${u.ip || '?'}`,
+    `UUID: ${u.uuid || ''}`,
+    `PUID: ${u.puid_ctr || 0}`,
+    `CRC: ${u.crc || ''}`,
+    `CNT: ${u.cnt || 0}`,
+    `Key: ${u.wiz_key || ''}`,
+  ].join('\n');
+  $('palaceUserActionReason').value = '';
+  $('palaceUserActionDuration').value = '';
+  $('palaceUserActionSubmit').disabled = false;
+  setPalaceUserActionMode('ban');
+  $('palaceUserActionModal').classList.add('open');
+}
+
+function closePalaceUserActionModal() {
+  palaceUsersSelectedUser = null;
+  $('palaceUserActionModal').classList.remove('open');
+}
+
+async function submitPalaceUserAction() {
+  if (!palaceUsersSelectedUser || !palaceUsersLiveName) return;
+  const action = palaceUsersSelectedAction;
+  const body = {
+    action,
+    target_user_id: palaceUsersSelectedUser.id,
+    reason: $('palaceUserActionReason').value.trim(),
+  };
+  const duration = ($('palaceUserActionDuration').value || '').trim();
+  if (action === 'kill' || action === 'track') {
+    if (!duration) {
+      setPalaceUserActionAlert('Duration is required for this action.', 'error');
+      return;
+    }
+    body.duration = duration;
+  } else if (action === 'disconnect') {
+    body.duration = '0';
+  }
+
+  const btn = $('palaceUserActionSubmit');
+  btn.disabled = true;
+  setPalaceUserActionAlert('');
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(palaceUsersLiveName)}/palace-users/moderate`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setPalaceUserActionAlert(out.error || out.message || ('HTTP ' + res.status), 'error');
+      btn.disabled = false;
+      return;
+    }
+    setPalaceUserActionAlert(out.message || `${palaceUserActionLabel(action)} sent.`, 'success');
+    await fetchPalaceUsers(palaceUsersLiveName);
+    setTimeout(() => {
+      if ($('palaceUserActionModal').classList.contains('open')) closePalaceUserActionModal();
+    }, 700);
+  } catch (e) {
+    setPalaceUserActionAlert('Network error: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('click', function (ev) {
+  const actionBtn = ev.target.closest('.palace-user-moderate-btn');
+  if (actionBtn) {
+    openPalaceUserActionModal(actionBtn.dataset.userId);
+    return;
+  }
+  const pickBtn = ev.target.closest('.palace-user-action-pick');
+  if (pickBtn) {
+    setPalaceUserActionMode(pickBtn.dataset.action || 'ban');
+  }
+});

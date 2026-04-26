@@ -1,11 +1,17 @@
 let MEDIA_MODAL_NAME = '';
 let MEDIA_PREVIEW_OBJECT_URL = '';
 const MEDIA_PREVIEW_MAX_BYTES = 20 << 20;
+const MEDIA_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'avif'];
+const MEDIA_VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogv', 'mov', 'm4v'];
+const MEDIA_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'opus', 'm4a', 'aac', 'flac'];
+const MEDIA_TEXT_EXTENSIONS = ['txt', 'log', 'json', 'xml', 'csv', 'md', 'html', 'htm', 'css', 'js', 'ts', 'mjs', 'c', 'cpp', 'h', 'hpp', 'plist', 'yaml', 'yml', 'sh', 'bat', 'ini', 'conf', 'cfg', 'pat', 'prefs'];
 /** @type {File[] | null} */
 let MEDIA_PENDING_UPLOAD_FILES = null;
 let MEDIA_RENAME_FROM = '';
 let MEDIA_DELETE_PATH = '';
 let mediaSearchDebounce = null;
+let MEDIA_SORT_KEY = 'name';
+let MEDIA_SORT_DIR = 'asc';
 
 function getMediaUploadFiles() {
   if (MEDIA_PENDING_UPLOAD_FILES && MEDIA_PENDING_UPLOAD_FILES.length) return MEDIA_PENDING_UPLOAD_FILES;
@@ -177,6 +183,27 @@ function scheduleMediaSearch() {
   mediaSearchDebounce = setTimeout(() => refreshMediaModal(), 280);
 }
 
+function setMediaSort(key) {
+  if (MEDIA_SORT_KEY === key) {
+    MEDIA_SORT_DIR = MEDIA_SORT_DIR === 'asc' ? 'desc' : 'asc';
+  } else {
+    MEDIA_SORT_KEY = key;
+    MEDIA_SORT_DIR = (key === 'size') ? 'desc' : 'asc';
+  }
+  refreshMediaModal();
+}
+
+function updateMediaSortHeaders() {
+  document.querySelectorAll('[data-media-sort]').forEach(el => {
+    const key = el.getAttribute('data-media-sort') || '';
+    const active = key === MEDIA_SORT_KEY;
+    const arrow = active ? (MEDIA_SORT_DIR === 'asc' ? ' ▲' : ' ▼') : '';
+    const label = key ? (key.charAt(0).toUpperCase() + key.slice(1)) : '';
+    el.classList.toggle('active', active);
+    el.textContent = label + arrow;
+  });
+}
+
 function openPalaceMediaModal(palaceName) {
   MEDIA_MODAL_NAME = palaceName;
   $('mediaModalTitle').textContent = 'Media — ' + palaceName;
@@ -185,7 +212,7 @@ function openPalaceMediaModal(palaceName) {
   $('mediaRefsNote').textContent = '';
   $('mediaSearch').value = '';
   clearMediaPendingUpload();
-  $('mediaTableBody').innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+  $('mediaTableBody').innerHTML = '<tr><td colspan="7" class="empty">Loading…</td></tr>';
   $('mediaModal').classList.add('open');
   refreshMediaModal();
 }
@@ -220,16 +247,115 @@ function mediaPreviewKind(relPath, mime) {
   if (m.startsWith('audio/')) return 'audio';
   if (m === 'application/pdf') return 'pdf';
   if (m.startsWith('text/')) return 'text';
-  const imageExt = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'avif'];
-  const videoExt = ['mp4', 'webm', 'ogv', 'mov', 'm4v'];
-  const audioExt = ['mp3', 'wav', 'ogg', 'opus', 'm4a', 'aac', 'flac'];
-  const textExt = ['txt', 'log', 'json', 'xml', 'csv', 'md', 'html', 'htm', 'css', 'js', 'ts', 'mjs', 'c', 'cpp', 'h', 'hpp', 'plist', 'yaml', 'yml', 'sh', 'bat', 'ini', 'conf', 'cfg', 'pat', 'prefs'];
-  if (imageExt.includes(ext)) return 'image';
-  if (videoExt.includes(ext)) return 'video';
-  if (audioExt.includes(ext)) return 'audio';
+  if (MEDIA_IMAGE_EXTENSIONS.includes(ext)) return 'image';
+  if (MEDIA_VIDEO_EXTENSIONS.includes(ext)) return 'video';
+  if (MEDIA_AUDIO_EXTENSIONS.includes(ext)) return 'audio';
   if (ext === 'pdf') return 'pdf';
-  if (textExt.includes(ext)) return 'text';
+  if (MEDIA_TEXT_EXTENSIONS.includes(ext)) return 'text';
   return '';
+}
+
+function mediaFileExtension(path) {
+  const base = path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path;
+  const idx = base.lastIndexOf('.');
+  if (idx <= 0 || idx >= base.length - 1) return '';
+  return base.slice(idx + 1).toLowerCase();
+}
+
+function mediaExtensionGroup(ext) {
+  if (!ext) return 'Other';
+  if (MEDIA_IMAGE_EXTENSIONS.includes(ext)) return 'Images';
+  if (MEDIA_VIDEO_EXTENSIONS.includes(ext)) return 'Video';
+  if (MEDIA_AUDIO_EXTENSIONS.includes(ext)) return 'Audio';
+  if (ext === 'pdf') return 'Documents';
+  if (MEDIA_TEXT_EXTENSIONS.includes(ext)) return 'Text / Data';
+  return 'Other';
+}
+
+function mediaThumbCell(name, isDir) {
+  if (isDir) return '<span class="media-preview-thumb-empty">dir</span>';
+  if (mediaPreviewKind(name, '') !== 'image') return '<span class="media-preview-thumb-empty">-</span>';
+  const nm = JSON.stringify(name);
+  const palace = encodeURIComponent(MEDIA_MODAL_NAME);
+  const rel = encodeURIComponent(name);
+  const src = `/api/palaces/${palace}/media/download?name=${rel}`;
+  return `<button type="button" title="Preview image" onclick='openMediaPreview(${nm})' style="padding:0;border:none;background:transparent;box-shadow:none;">
+    <img class="media-preview-thumb" src="${src}" alt="" loading="lazy" decoding="async" />
+  </button>`;
+}
+
+function rebuildMediaTypeFilter(files) {
+  const sel = $('mediaTypeFilter');
+  if (!sel) return;
+  const previous = sel.value || '';
+  const extMap = new Map();
+  for (const f of (files || [])) {
+    if (f && !f.is_dir) {
+      const ext = mediaFileExtension(f.name || '');
+      if (!ext) continue;
+      extMap.set(ext, (extMap.get(ext) || 0) + 1);
+    }
+  }
+  const groupOrder = ['Images', 'Video', 'Audio', 'Documents', 'Text / Data', 'Other'];
+  const grouped = {};
+  for (const [ext, count] of extMap.entries()) {
+    const g = mediaExtensionGroup(ext);
+    if (!grouped[g]) grouped[g] = [];
+    grouped[g].push({ ext, count });
+  }
+  let html = '<option value="">All file extensions</option>';
+  for (const group of groupOrder) {
+    const items = grouped[group];
+    if (!items || items.length === 0) continue;
+    items.sort((a, b) => a.ext.localeCompare(b.ext));
+    html += `<optgroup label="${esc(group)}">`;
+    for (const item of items) {
+      html += `<option value="${esc(item.ext)}">.${esc(item.ext)} (${item.count})</option>`;
+    }
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
+  if (previous && extMap.has(previous)) {
+    sel.value = previous;
+  } else {
+    sel.value = '';
+  }
+}
+
+function sortMediaFiles(files) {
+  const dirMul = MEDIA_SORT_DIR === 'asc' ? 1 : -1;
+  return (files || []).slice().sort((a, b) => {
+    const aIsDir = !!a.is_dir;
+    const bIsDir = !!b.is_dir;
+    if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+    let av = '';
+    let bv = '';
+    if (MEDIA_SORT_KEY === 'size') {
+      av = Number(a.size || 0);
+      bv = Number(b.size || 0);
+      if (av !== bv) return (av < bv ? -1 : 1) * dirMul;
+    } else if (MEDIA_SORT_KEY === 'type') {
+      av = String(a.file_type || '').toLowerCase();
+      bv = String(b.file_type || '').toLowerCase();
+      if (av !== bv) return (av < bv ? -1 : 1) * dirMul;
+    } else if (MEDIA_SORT_KEY === 'room') {
+      av = String(a.used_in_room || '').toLowerCase();
+      bv = String(b.used_in_room || '').toLowerCase();
+      if (av !== bv) return (av < bv ? -1 : 1) * dirMul;
+    } else if (MEDIA_SORT_KEY === 'door') {
+      av = String(a.used_in_door || '').toLowerCase();
+      bv = String(b.used_in_door || '').toLowerCase();
+      if (av !== bv) return (av < bv ? -1 : 1) * dirMul;
+    } else {
+      av = String(a.name || '').toLowerCase();
+      bv = String(b.name || '').toLowerCase();
+      if (av !== bv) return (av < bv ? -1 : 1) * dirMul;
+    }
+    const an = String(a.name || '').toLowerCase();
+    const bn = String(b.name || '').toLowerCase();
+    if (an === bn) return 0;
+    return (an < bn ? -1 : 1) * dirMul;
+  });
 }
 
 async function openMediaPreview(relPath) {
@@ -299,12 +425,14 @@ async function refreshMediaModal() {
   const name = MEDIA_MODAL_NAME;
   const tbody = $('mediaTableBody');
   if (!name) return;
+  updateMediaSortHeaders();
   const q = $('mediaSearch').value.trim();
+  const extFilter = ($('mediaTypeFilter')?.value || '').trim().toLowerCase();
   try {
     const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/media/files?q=` + encodeURIComponent(q), { headers: headers() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      tbody.innerHTML = `<tr><td colspan="6" class="empty">${esc(data.error || ('HTTP ' + res.status))}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">${esc(data.error || ('HTTP ' + res.status))}</td></tr>`;
       $('mediaModalPath').textContent = '';
       return;
     }
@@ -314,19 +442,25 @@ async function refreshMediaModal() {
       $('mediaRefsNote').style.display = '';
     }
     const files = data.files || [];
-    if (files.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">No files match.</td></tr>';
+    rebuildMediaTypeFilter(files);
+    const selectedExt = ($('mediaTypeFilter')?.value || '').trim().toLowerCase();
+    const displayFiles = selectedExt
+      ? files.filter(f => !f.is_dir && mediaFileExtension(f.name || '') === selectedExt)
+      : files;
+    const sortedFiles = sortMediaFiles(displayFiles);
+    if (sortedFiles.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">No files match.</td></tr>';
       return;
     }
-    tbody.innerHTML = files.map(f => {
+    tbody.innerHTML = sortedFiles.map(f => {
       const nm = JSON.stringify(f.name);
       const sz = f.is_dir ? '—' : formatBytes(f.size);
       const actions = f.is_dir ? ''
-        : `<button type="button" onclick='openMediaPreview(${nm})'>View</button> ` +
-          `<button type="button" onclick='downloadMediaRel(${nm})'>Download</button> ` +
+        : `<button type="button" onclick='downloadMediaRel(${nm})'>Download</button> ` +
           `<button type="button" onclick='openMediaRenameModal(${nm})'>Rename</button> ` +
           `<button type="button" class="danger" onclick='openMediaDeleteModal(${nm})'>Delete</button>`;
       return `<tr>
+        <td class="media-preview-thumb-cell">${mediaThumbCell(f.name, f.is_dir)}</td>
         <td style="max-width:280px;word-break:break-all;"><code>${esc(f.name)}</code></td>
         <td>${esc(f.file_type || '')}</td>
         <td>${esc(sz)}</td>
@@ -336,7 +470,7 @@ async function refreshMediaModal() {
       </tr>`;
     }).join('');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
