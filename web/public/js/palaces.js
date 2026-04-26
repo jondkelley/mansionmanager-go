@@ -1104,6 +1104,96 @@ function provisionQuotaSelectedBytes() {
   return row.bytes;
 }
 
+function palaceQuotaChartId(name) {
+  return 'pquota-' + encodeURIComponent(name).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+const PALACE_QUOTA_SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Rounded track + solid fill + diagonal hash overlay (same idea as the D3 snippet), driven by homeUsedBytes / quotaBytesMax. */
+function renderPalaceQuotaCharts() {
+  document.querySelectorAll('.palace-quota-chart[data-quota-max]').forEach((holder) => {
+    const max = Number(holder.getAttribute('data-quota-max'));
+    const used = Number(holder.getAttribute('data-quota-used') || '0');
+    const over = holder.getAttribute('data-quota-over') === '1';
+    if (!Number.isFinite(max) || max <= 0) return;
+
+    const w = 320;
+    const h = 20;
+    const usableW = w - 2;
+    let frac = used / max;
+    if (!Number.isFinite(frac) || frac < 0) frac = 0;
+    const barW = Math.min(usableW, frac * usableW);
+    const innerH = h - 2;
+
+    holder.textContent = '';
+    const svg = document.createElementNS(PALACE_QUOTA_SVG_NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'palace-quota-svg');
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+
+    const patId = `${holder.id || 'pquota'}-hash`;
+    const defs = document.createElementNS(PALACE_QUOTA_SVG_NS, 'defs');
+    const pattern = document.createElementNS(PALACE_QUOTA_SVG_NS, 'pattern');
+    pattern.setAttribute('id', patId);
+    pattern.setAttribute('width', '8');
+    pattern.setAttribute('height', '8');
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('patternTransform', 'rotate(10)');
+    const pline = document.createElementNS(PALACE_QUOTA_SVG_NS, 'line');
+    pline.setAttribute('x1', '0');
+    pline.setAttribute('y1', '0');
+    pline.setAttribute('x2', '8');
+    pline.setAttribute('y2', '8');
+    pline.setAttribute('stroke', over ? 'rgba(255,200,200,0.55)' : 'rgba(255,255,255,0.35)');
+    pline.setAttribute('stroke-width', '2');
+    pattern.appendChild(pline);
+    defs.appendChild(pattern);
+    svg.appendChild(defs);
+
+    const bg = document.createElementNS(PALACE_QUOTA_SVG_NS, 'rect');
+    bg.setAttribute('x', '0');
+    bg.setAttribute('y', '0');
+    bg.setAttribute('rx', '6');
+    bg.setAttribute('ry', '6');
+    bg.setAttribute('width', String(w));
+    bg.setAttribute('height', String(h));
+    bg.setAttribute('fill', 'rgba(0,0,0,0.6)');
+    svg.appendChild(bg);
+
+    const fillColor = over ? 'rgba(255,150,150,0.75)' : 'rgba(255,255,255,0.6)';
+    if (barW > 0.5) {
+      const r1 = document.createElementNS(PALACE_QUOTA_SVG_NS, 'rect');
+      r1.setAttribute('x', '1');
+      r1.setAttribute('y', '1');
+      r1.setAttribute('rx', '1');
+      r1.setAttribute('ry', '1');
+      r1.setAttribute('width', String(barW));
+      r1.setAttribute('height', String(innerH));
+      r1.setAttribute('fill', fillColor);
+      svg.appendChild(r1);
+
+      const r2 = document.createElementNS(PALACE_QUOTA_SVG_NS, 'rect');
+      r2.setAttribute('x', '1');
+      r2.setAttribute('y', '1');
+      r2.setAttribute('rx', '1');
+      r2.setAttribute('ry', '1');
+      r2.setAttribute('width', String(barW));
+      r2.setAttribute('height', String(innerH));
+      r2.setAttribute('fill', `url(#${patId})`);
+      svg.appendChild(r2);
+    }
+
+    const tip = document.createElementNS(PALACE_QUOTA_SVG_NS, 'title');
+    tip.textContent = `${formatPalaceQuotaShort(used)} / ${formatPalaceQuotaShort(max)}`;
+    svg.appendChild(tip);
+
+    holder.appendChild(svg);
+  });
+}
+
 function palaceQuotaDetailBlockHTML(p) {
   const max = p.quotaBytesMax;
   if (!max) {
@@ -1115,8 +1205,11 @@ function palaceQuotaDetailBlockHTML(p) {
   const over = !!p.quotaExceeded;
   const cls = over ? 'palace-detail-value palace-quota-over' : 'palace-detail-value';
   const u = p.homeUsedBytes != null ? p.homeUsedBytes : 0;
-  return `<div class="palace-detail-block">
+  const qid = palaceQuotaChartId(p.name);
+  const overData = over ? ' data-quota-over="1"' : '';
+  return `<div class="palace-detail-block palace-quota-detail">
     <span class="palace-detail-label">Quota</span>
+    <div class="palace-quota-chart" id="${esc(qid)}" data-quota-used="${esc(String(u))}" data-quota-max="${esc(String(max))}"${overData} role="img" aria-label="Home storage ${esc(formatPalaceQuotaShort(u))} of ${esc(formatPalaceQuotaShort(max))}"></div>
     <span class="${cls}">${esc(formatPalaceQuotaShort(u))} / ${esc(formatPalaceQuotaShort(max))}</span>
   </div>`;
 }
@@ -1565,6 +1658,7 @@ async function loadPalaces() {
     syncPalaceStatsPolling(expandedList);
     syncCollapsedJoinPolling();
     updatePalaceJoinNotifyBar();
+    requestAnimationFrame(() => renderPalaceQuotaCharts());
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${esc(e.message)}</td></tr>`;
     if (unregPanel) unregPanel.style.display = 'none';
