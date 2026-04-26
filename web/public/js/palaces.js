@@ -1373,7 +1373,7 @@ async function loadPalaces() {
               <div class="palace-stat-item" id="${sid}-max"><span class="palace-stat-value">—</span><span class="palace-stat-label">Max Users</span></div>
               <div class="palace-stat-item" id="${sid}-today"><span class="palace-stat-value">—</span><span class="palace-stat-label">Today</span></div>
               <div class="palace-stat-item" id="${sid}-week"><span class="palace-stat-value">—</span><span class="palace-stat-label">This Week</span></div>
-              <div class="palace-stat-item" id="${sid}-ops"><span class="palace-stat-value">—</span><span class="palace-stat-label">Operators</span></div>
+              <div class="palace-stat-item" id="${sid}-ops"><span class="palace-stat-value">—</span><span class="palace-stat-label">Wizzes</span></div>
               <div class="palace-stat-item" id="${sid}-gods"><span class="palace-stat-value">—</span><span class="palace-stat-label">Gods</span></div>
               <div class="palace-stat-item" id="${sid}-owners"><span class="palace-stat-value">—</span><span class="palace-stat-label">Owners</span></div>
               <div class="palace-stat-item" id="${sid}-uniquevis"><span class="palace-stat-value">—</span><span class="palace-stat-label">Unique Visitors</span></div>
