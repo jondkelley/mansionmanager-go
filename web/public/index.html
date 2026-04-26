@@ -839,6 +839,10 @@
     max-width: 840px;
     display: flex;
     flex-direction: column;
+    /* Definite height so flex:1 children (active prefs panel + scroll hosts) get real space.
+       Without this, height:auto + flex:1 1 0 collapses the panel to zero. */
+    height: calc(100vh - 40px);
+    height: min(92vh, calc(100dvh - 40px));
     max-height: calc(100vh - 40px);
     max-height: min(92vh, calc(100dvh - 40px));
     min-height: 0;
