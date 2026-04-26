@@ -1326,7 +1326,7 @@ async function fetchPalaceUsers(name) {
         </div>
         <div class="palace-user-grid">
           <div><span class="k">Client</span><code>${esc(u.client_version || '?')}</code></div>
-          <div><span class="k">OS</span>${palaceUsersOsCell(u.os)}</div>
+          <div class="palace-user-os-col"><span class="k">OS</span>${palaceUsersOsCell(u.os)}</div>
           <div><span class="k">Room</span>${esc(u.room_name || '?')}</div>
           <div><span class="k">IP</span><span class="palace-users-ip-cell">${palaceUsersIpCell(u.ip)}</span></div>
           <div class="wide"><span class="k">UUID</span><code>${esc(u.uuid || '')}</code></div>

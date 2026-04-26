@@ -12,6 +12,8 @@ let MEDIA_DELETE_PATH = '';
 let mediaSearchDebounce = null;
 let MEDIA_SORT_KEY = 'name';
 let MEDIA_SORT_DIR = 'asc';
+let MEDIA_THUMB_SEQ = 0;
+const MEDIA_THUMB_OBJECT_URLS = new Set();
 
 function getMediaUploadFiles() {
   if (MEDIA_PENDING_UPLOAD_FILES && MEDIA_PENDING_UPLOAD_FILES.length) return MEDIA_PENDING_UPLOAD_FILES;
@@ -219,6 +221,7 @@ function openPalaceMediaModal(palaceName) {
 
 function closeMediaModal() {
   closeMediaPreviewModal();
+  clearMediaThumbUrls();
   $('mediaModal').classList.remove('open');
   MEDIA_MODAL_NAME = '';
 }
@@ -237,6 +240,13 @@ function closeMediaPreviewModal() {
   }
   const wrap = $('mediaPreviewModal');
   if (wrap) wrap.classList.remove('open');
+}
+
+function clearMediaThumbUrls() {
+  for (const url of MEDIA_THUMB_OBJECT_URLS) {
+    try { URL.revokeObjectURL(url); } catch (_) {}
+  }
+  MEDIA_THUMB_OBJECT_URLS.clear();
 }
 
 function mediaPreviewKind(relPath, mime) {
@@ -276,12 +286,33 @@ function mediaThumbCell(name, isDir) {
   if (isDir) return '<span class="media-preview-thumb-empty">dir</span>';
   if (mediaPreviewKind(name, '') !== 'image') return '<span class="media-preview-thumb-empty">-</span>';
   const nm = JSON.stringify(name);
-  const palace = encodeURIComponent(MEDIA_MODAL_NAME);
-  const rel = encodeURIComponent(name);
-  const src = `/api/palaces/${palace}/media/download?name=${rel}`;
   return `<button type="button" title="Preview image" onclick='openMediaPreview(${nm})' style="padding:0;border:none;background:transparent;box-shadow:none;">
-    <img class="media-preview-thumb" src="${src}" alt="" loading="lazy" decoding="async" />
+    <img class="media-preview-thumb" data-media-thumb="${esc(name)}" alt="" loading="lazy" decoding="async" />
   </button>`;
+}
+
+async function loadMediaThumbs(seqToken) {
+  const palaceName = MEDIA_MODAL_NAME;
+  if (!palaceName) return;
+  const thumbs = Array.from(document.querySelectorAll('img[data-media-thumb]'));
+  for (const img of thumbs) {
+    const relPath = img.getAttribute('data-media-thumb');
+    if (!relPath) continue;
+    try {
+      const url = `/api/palaces/${encodeURIComponent(palaceName)}/media/download?name=` + encodeURIComponent(relPath);
+      const res = await fetch(url, { headers: headers() });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (!blob || !blob.size) continue;
+      const objUrl = URL.createObjectURL(blob);
+      if (seqToken !== MEDIA_THUMB_SEQ || MEDIA_MODAL_NAME !== palaceName) {
+        URL.revokeObjectURL(objUrl);
+        return;
+      }
+      MEDIA_THUMB_OBJECT_URLS.add(objUrl);
+      img.src = objUrl;
+    } catch (_) {}
+  }
 }
 
 function rebuildMediaTypeFilter(files) {
@@ -449,9 +480,13 @@ async function refreshMediaModal() {
       : files;
     const sortedFiles = sortMediaFiles(displayFiles);
     if (sortedFiles.length === 0) {
+      clearMediaThumbUrls();
       tbody.innerHTML = '<tr><td colspan="7" class="empty">No files match.</td></tr>';
       return;
     }
+    MEDIA_THUMB_SEQ += 1;
+    const seqToken = MEDIA_THUMB_SEQ;
+    clearMediaThumbUrls();
     tbody.innerHTML = sortedFiles.map(f => {
       const nm = JSON.stringify(f.name);
       const sz = f.is_dir ? '—' : formatBytes(f.size);
@@ -469,7 +504,9 @@ async function refreshMediaModal() {
         <td><div class="actions">${actions}</div></td>
       </tr>`;
     }).join('');
+    loadMediaThumbs(seqToken);
   } catch (e) {
+    clearMediaThumbUrls();
     tbody.innerHTML = `<tr><td colspan="7" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
