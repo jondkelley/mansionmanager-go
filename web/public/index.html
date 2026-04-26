@@ -23,6 +23,8 @@
 })();
 </script>
 <title>Palace Manager</title>
+<link rel="icon" type="image/png" href="/pserver.png" sizes="any" />
+<link rel="apple-touch-icon" href="/pserver.png" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html[data-theme="metal"] {
@@ -116,7 +118,21 @@
     gap: 16px;
     height: 52px;
   }
-  header h1 { font-size: 17px; font-weight: 600; }
+  .app-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+  .app-header-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    display: block;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 600; margin: 0; }
   header .version { color: var(--muted); font-size: 12px; cursor: default; }
   header .version .git-hash { opacity: .55; font-size: 11px; }
   .nav-update-dot {
@@ -168,16 +184,47 @@
     right: 0;
     bottom: 0;
     z-index: 40;
-    padding: 14px 16px;
+    padding: 10px 16px 12px;
     text-align: center;
-    font-size: 24px;
-    line-height: 1.45;
+    font-size: 11px;
+    line-height: 1.4;
     color: var(--muted);
     background: var(--footer-bg);
     border-top: 1px solid var(--footer-border);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     pointer-events: none;
+  }
+  .app-footer-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .app-footer-copy {
+    margin: 0;
+    font-size: 11px;
+  }
+  .app-footer-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text);
+    pointer-events: none;
+  }
+  .app-footer-smiley {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: block;
   }
   .app-footer a {
     pointer-events: auto;
@@ -238,20 +285,42 @@
     display: block;
     opacity: 0.92;
   }
+  /* Grid keeps quota in the top-right column; flex-wrap was pushing it full-width below manage. */
   .palace-details-top {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px 28px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 320px);
+    gap: 12px 24px;
+    align-items: start;
   }
   .palace-details-user-ctl {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 16px 28px;
-    flex: 1 1 auto;
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
+  }
+  .palace-quota-slot {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    width: 100%;
+    max-width: 320px;
+  }
+  @media (max-width: 680px) {
+    .palace-details-top {
+      grid-template-columns: 1fr;
+    }
+    .palace-details-user-ctl {
+      grid-row: 1;
+    }
+    .palace-quota-slot {
+      grid-column: 1;
+      grid-row: 2;
+      justify-self: stretch;
+      max-width: none;
+    }
   }
   .palace-detail-block--user {
     flex: 0 0 auto;
@@ -269,9 +338,6 @@
   .palace-quota-over {
     color: #c62828;
     font-weight: 700;
-  }
-  .palace-quota-detail {
-    flex: 0 1 320px;
   }
   .palace-quota-detail .palace-quota-chart {
     max-width: 320px;
@@ -1439,7 +1505,10 @@
 </div>
 
 <header>
-  <h1>Palace Manager</h1>
+  <div class="app-header-brand">
+    <img src="/pserver.png" width="32" height="32" class="app-header-logo" alt="" decoding="async" />
+    <h1>Palace Manager</h1>
+  </div>
   <span class="version" id="managerVersionBadge" title=""></span>
   <nav>
     <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
@@ -1758,7 +1827,13 @@
 </main>
 
 <footer class="app-footer" role="contentinfo">
-  Copyright 2026 jonk at <a href="https://thepalace.app" target="_blank" rel="noopener noreferrer">https://thepalace.app</a> - The Palace Restoration Project
+  <div class="app-footer-inner">
+    <p class="app-footer-copy">Copyright 2026 jonk at <a href="https://thepalace.app" target="_blank" rel="noopener noreferrer">https://thepalace.app</a></p>
+    <p class="app-footer-brand">
+      <img src="/smiley.png" width="22" height="22" class="app-footer-smiley" alt="" decoding="async" />
+      <span>The Palace Restoration Project</span>
+    </p>
+  </div>
 </footer>
 
 <!-- Provision Modal -->

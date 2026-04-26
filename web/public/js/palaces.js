@@ -1197,7 +1197,7 @@ function renderPalaceQuotaCharts() {
 function palaceQuotaDetailBlockHTML(p) {
   const max = p.quotaBytesMax;
   if (!max) {
-    return `<div class="palace-detail-block">
+    return `<div class="palace-detail-block palace-quota-slot">
       <span class="palace-detail-label">Quota</span>
       <span class="palace-detail-value">Unlimited</span>
     </div>`;
@@ -1207,7 +1207,7 @@ function palaceQuotaDetailBlockHTML(p) {
   const u = p.homeUsedBytes != null ? p.homeUsedBytes : 0;
   const qid = palaceQuotaChartId(p.name);
   const overData = over ? ' data-quota-over="1"' : '';
-  return `<div class="palace-detail-block palace-quota-detail">
+  return `<div class="palace-detail-block palace-quota-detail palace-quota-slot">
     <span class="palace-detail-label">Quota</span>
     <div class="palace-quota-chart" id="${esc(qid)}" data-quota-used="${esc(String(u))}" data-quota-max="${esc(String(max))}"${overData} role="img" aria-label="Home storage ${esc(formatPalaceQuotaShort(u))} of ${esc(formatPalaceQuotaShort(max))}"></div>
     <span class="${cls}">${esc(formatPalaceQuotaShort(u))} / ${esc(formatPalaceQuotaShort(max))}</span>
