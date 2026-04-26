@@ -1303,37 +1303,42 @@ async function fetchPalaceUsers(name) {
     const res = await fetch(`/api/palaces/${encodeURIComponent(name)}/palace-users`, { headers: headers() });
     if (!res.ok) {
       palaceUsersRows = [];
-      $('palaceUsersBody').innerHTML = `<tr><td colspan="14" class="empty">Error: HTTP ${res.status}</td></tr>`;
+      $('palaceUsersBody').innerHTML = `<div class="empty">Error: HTTP ${res.status}</div>`;
       return;
     }
     const users = await res.json();
     palaceUsersRows = Array.isArray(users) ? users : [];
     if (!Array.isArray(users) || users.length === 0) {
       $('palaceUsersCount').textContent = '0 users';
-      $('palaceUsersBody').innerHTML = '<tr><td colspan="14" class="empty">No users connected</td></tr>';
+      $('palaceUsersBody').innerHTML = '<div class="empty">No users connected</div>';
       return;
     }
     $('palaceUsersCount').textContent = `${users.length} user${users.length === 1 ? '' : 's'}`;
     $('palaceUsersBody').innerHTML = users.map(u => `
-      <tr>
-        <td><code>${u.id}</code></td>
-        <td>${formatSignonTime(u.signon_seconds)}</td>
-        <td>${esc(u.role)}</td>
-        <td><strong>${esc(u.name)}</strong></td>
-        <td><code>${esc(u.client_version)}</code></td>
-        <td>${palaceUsersOsCell(u.os)}</td>
-        <td>${esc(u.room_name)}</td>
-        <td class="palace-users-ip-cell">${palaceUsersIpCell(u.ip)}</td>
-        <td><code style="font-size:10px;">${esc(u.uuid || '')}</code></td>
-        <td><code>${u.puid_ctr || 0}</code></td>
-        <td><code>${esc(u.crc)}</code></td>
-        <td><code>${u.cnt || 0}</code></td>
-        <td><code>${esc(u.wiz_key)}</code></td>
-        <td><button type="button" class="palace-user-moderate-btn" data-user-id="${u.id}">Actions…</button></td>
-      </tr>`).join('');
+      <article class="palace-user-card">
+        <div class="palace-user-card-head">
+          <div class="palace-user-main">
+            <strong>${esc(u.name || '?')}</strong>
+            <span class="badge">${esc(u.role || '?')}</span>
+            <span class="palace-user-meta">#${u.id} · ${formatSignonTime(u.signon_seconds)}</span>
+          </div>
+          <button type="button" class="palace-user-moderate-btn" data-user-id="${u.id}">Actions…</button>
+        </div>
+        <div class="palace-user-grid">
+          <div><span class="k">Client</span><code>${esc(u.client_version || '?')}</code></div>
+          <div><span class="k">OS</span>${palaceUsersOsCell(u.os)}</div>
+          <div><span class="k">Room</span>${esc(u.room_name || '?')}</div>
+          <div><span class="k">IP</span><span class="palace-users-ip-cell">${palaceUsersIpCell(u.ip)}</span></div>
+          <div class="wide"><span class="k">UUID</span><code>${esc(u.uuid || '')}</code></div>
+          <div><span class="k">PUID</span><code>${u.puid_ctr || 0}</code></div>
+          <div><span class="k">CRC</span><code>${esc(u.crc || '')}</code></div>
+          <div><span class="k">CNT</span><code>${u.cnt || 0}</code></div>
+          <div class="wide"><span class="k">Key</span><code>${esc(u.wiz_key || '')}</code></div>
+        </div>
+      </article>`).join('');
   } catch (e) {
     palaceUsersRows = [];
-    $('palaceUsersBody').innerHTML = `<tr><td colspan="14" class="empty">Error: ${esc(e.message)}</td></tr>`;
+    $('palaceUsersBody').innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
   }
 }
 
@@ -1347,7 +1352,7 @@ async function openPalaceUsersModal(name) {
   palaceUsersSelectedUser = null;
   $('palaceUsersModalTitle').textContent = `Connected Users — ${name}`;
   $('palaceUsersCount').textContent = '';
-  $('palaceUsersBody').innerHTML = '<tr><td colspan="14" class="empty">Loading…</td></tr>';
+  $('palaceUsersBody').innerHTML = '<div class="empty">Loading…</div>';
   $('palaceUsersModal').classList.add('open');
   await fetchPalaceUsers(name);
   palaceUsersTimer = setInterval(() => fetchPalaceUsers(name), 5000);
@@ -1392,10 +1397,10 @@ function setPalaceUserActionMode(action) {
   buttons.forEach(btn => { if (btn.dataset.action !== action) btn.classList.remove('primary'); });
 
   if (action === 'ban') {
-    duration.value = '';
-    duration.disabled = true;
-    label.textContent = 'Duration';
-    hint.textContent = 'Permanent deny + kick.';
+    duration.disabled = false;
+    duration.value = duration.value || '1d';
+    label.textContent = 'Ban Duration';
+    hint.textContent = 'Timed deny + kick. Use 0 for permanent.';
   } else if (action === 'kill') {
     duration.disabled = false;
     duration.value = duration.value || '5';
@@ -1457,7 +1462,7 @@ async function submitPalaceUserAction() {
     reason: $('palaceUserActionReason').value.trim(),
   };
   const duration = ($('palaceUserActionDuration').value || '').trim();
-  if (action === 'kill' || action === 'track') {
+  if (action === 'ban' || action === 'kill' || action === 'track') {
     if (!duration) {
       setPalaceUserActionAlert('Duration is required for this action.', 'error');
       return;

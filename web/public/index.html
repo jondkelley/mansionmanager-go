@@ -328,16 +328,45 @@
   .bans-alert.error { background: rgba(220,38,38,.12); border: 1px solid rgba(220,38,38,.35); color: var(--red); display: block; }
   .bans-alert.success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: var(--green); display: block; }
   /* Palace users modal table */
-  .palace-users-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .palace-users-table th, .palace-users-table td {
-    padding: 5px 8px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-shade);
-    white-space: nowrap;
+  .palace-users-list { display: flex; flex-direction: column; gap: 10px; }
+  .palace-user-card {
+    border: 1px solid var(--border-shade);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,.02);
   }
-  .palace-users-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--card); }
-  .palace-users-table td code { font-size: 11px; }
-  .palace-users-table td:last-child { white-space: nowrap; }
+  .palace-user-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .palace-user-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .palace-user-meta { color: var(--muted); font-size: 11px; }
+  .palace-user-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    gap: 7px 12px;
+    font-size: 12px;
+  }
+  .palace-user-grid > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .palace-user-grid .k {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
+  .palace-user-grid code { font-size: 11px; overflow-wrap: anywhere; }
+  .palace-user-grid .wide { grid-column: span 2; }
+  @media (max-width: 980px) {
+    .palace-user-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+    .palace-user-grid .wide { grid-column: span 2; }
+  }
+  @media (max-width: 640px) {
+    .palace-user-grid { grid-template-columns: 1fr; }
+    .palace-user-grid .wide { grid-column: span 1; }
+  }
   .palace-user-moderate-btn { font-size: 11px; padding: 3px 9px; }
   .palace-users-ip-cell { white-space: nowrap; }
   a.palace-users-ipinfo {
@@ -354,7 +383,7 @@
   a.palace-users-ipinfo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
   a.palace-users-ipinfo svg { flex-shrink: 0; opacity: 0.9; }
   .palace-users-os-wrap { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
-  .palace-users-os-icon { width: 20px; height: auto; max-height: 22px; vertical-align: middle; display: block; }
+  .palace-users-os-icon { width: 20px; height: auto; max-height: 22px; display: block; }
   .palace-users-os-text { font-size: 12px; }
   .palace-users-scroll { max-height: 480px; overflow-y: auto; }
   #palaceUserActionDetails {
@@ -1519,15 +1548,7 @@
       <span id="palaceUsersCount" style="font-size:12px;color:var(--muted);"></span>
     </div>
     <div class="palace-users-scroll" style="flex:1;overflow-y:auto;">
-      <table class="palace-users-table">
-        <thead>
-          <tr>
-            <th>#</th><th>Online</th><th>Role</th><th>Name</th><th>Client</th><th>OS</th><th>Room</th>
-            <th>IP</th><th>UUID</th><th>PUID</th><th>CRC</th><th>CNT</th><th>Key</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="palaceUsersBody"><tr><td colspan="14" class="empty">Loading…</td></tr></tbody>
-      </table>
+      <div id="palaceUsersBody" class="palace-users-list"><div class="empty">Loading…</div></div>
     </div>
     <div class="modal-footer" style="flex-shrink:0;"><button type="button" onclick="closePalaceUsersModal()">Close</button></div>
   </div>
