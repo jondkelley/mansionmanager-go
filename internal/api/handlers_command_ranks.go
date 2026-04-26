@@ -102,9 +102,12 @@ func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, p
 	rows := make([]row, 0, len(defaultCommandRanks)+len(overrides))
 
 	for _, cmd := range sortedCommandKeys(defaultCommandRanks) {
+		if _, isAlias := rankCommandAliases[cmd]; isAlias {
+			continue
+		}
 		seen[cmd] = struct{}{}
 		def := defaultCommandRanks[cmd]
-		ov, has := overrides[cmd]
+		ov, has := mergeOverrideForCanonical(cmd, overrides)
 		var op *int
 		if has {
 			i := ov
@@ -127,6 +130,9 @@ func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, p
 		if _, ok := seen[cmd]; ok {
 			continue
 		}
+		if _, isSynonym := rankCommandAliases[cmd]; isSynonym {
+			continue
+		}
 		def := intrinsicDefaultRank(cmd)
 		ov := overrides[cmd]
 		op := ov
@@ -142,7 +148,7 @@ func (s *Server) handleCommandRanksGet(w http.ResponseWriter, r *http.Request, p
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"commands": rows,
-		"schema":   "command-ranks v2 — full DefaultCommandRanks + extra serverprefs keys; sync with mansionsource-go internal/server/rank_cmds.go",
+		"schema":   "command-ranks v3 — canonical commands only (synonyms merged); sync with mansionsource-go internal/server/rank_cmds.go",
 		"rankNames": map[int]string{
 			0: "guest",
 			1: "member",
@@ -181,7 +187,8 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid command name %q (use a-z, digits, underscore; or a known server command)", k))
 			return
 		}
-		norm[ks] = v
+		canon := canonicalRankCommandName(ks)
+		norm[canon] = v
 	}
 	req.Ranks = norm
 	if len(req.Ranks) == 0 {
@@ -218,13 +225,14 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 
 	for cmd, p := range req.Ranks {
 		if p == nil {
-			delete(overrides, cmd)
+			deleteRankOverrideAndAliases(overrides, cmd)
 			continue
 		}
 		def := intrinsicDefaultRank(cmd)
 		if *p == def {
-			delete(overrides, cmd)
+			deleteRankOverrideAndAliases(overrides, cmd)
 		} else {
+			deleteRankOverrideAndAliases(overrides, cmd)
 			overrides[cmd] = *p
 		}
 	}

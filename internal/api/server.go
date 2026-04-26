@@ -341,6 +341,10 @@ func (s *Server) routePalaceByName(w http.ResponseWriter, r *http.Request) {
 		s.handlePalaceAction(w, r, name, action)
 	case action == "prefs-form" && r.Method == http.MethodGet:
 		s.handlePalacePrefsForm(w, r, name)
+	case action == "serverprefs-form" && r.Method == http.MethodGet:
+		s.handleServerPrefsFormGet(w, r, name)
+	case action == "serverprefs-form" && r.Method == http.MethodPut:
+		s.handleServerPrefsFormPut(w, r, name)
 	case action == "server-prefs" && r.Method == http.MethodPut:
 		s.handlePalaceServerPrefsSave(w, r, name)
 	case action == "misc" && r.Method == http.MethodGet:

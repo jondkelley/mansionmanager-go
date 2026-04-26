@@ -234,6 +234,17 @@
   .palace-detail-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .palace-detail-value code { font-size: 12px; }
   .palace-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: flex-start; }
+  /* Control row: inline SVGs (Feather-style strokes), no icon font dependency */
+  .palace-ctl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .palace-ctl-btn .palace-ctl-icon {
+    flex-shrink: 0;
+    display: block;
+    opacity: 0.92;
+  }
   .palace-details-top {
     display: flex;
     flex-wrap: wrap;
@@ -2035,9 +2046,10 @@
     <p id="palaceSettingsLead" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;"></p>
     <div class="prefs-tab-row">
       <button type="button" class="active" id="palacePrefsTabPserver" onclick="palaceSettingsSwitchTab('pserver')">Pserver.prefs</button>
-      <button type="button" id="palacePrefsTabMisc" onclick="palaceSettingsSwitchTab('misc')">Misc</button>
+      <button type="button" id="palacePrefsTabServerprefs" onclick="palaceSettingsSwitchTab('serverprefs')">ServerPrefs.json</button>
       <button type="button" id="palacePrefsTabRanks" onclick="palaceSettingsSwitchTab('ranks')">Ranks</button>
       <button type="button" id="palacePrefsTabRatbot" onclick="palaceSettingsSwitchTab('ratbot')">Ratbot</button>
+      <button type="button" id="palacePrefsTabMisc" onclick="palaceSettingsSwitchTab('misc')">Misc</button>
     </div>
 
     <div id="palacePrefsPanelPserver" class="prefs-panel active">
@@ -2115,38 +2127,158 @@
     </div>
     </div>
 
-    <div id="palacePrefsPanelMisc" class="prefs-panel">
-      <p class="prefs-hint">Set runtime options for this palace instance.</p>
-      <div class="card" style="margin-top:0;">
-        <h2 style="margin-bottom:10px;">Logging verbosity (-v)</h2>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;">
-          Controls pserver log detail level passed to the service command line. Higher values are noisier.
-        </p>
-        <div class="form-row">
-          <div class="field">
-            <label>Verbosity level</label>
-            <select id="palaceMiscVerbosity">
-              <option value="1">1 (minimal)</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5 (maximum)</option>
+    <div id="palacePrefsPanelServerprefs" class="prefs-panel">
+      <p style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text);">Server preferences (<code>serverprefs.json</code>)</p>
+      <p class="prefs-hint" style="margin-top:0;">Parsed by <strong>mansionsource-go</strong> <code>internal/serverprefs</code>. The <strong>guided form</strong> only changes documented keys; bans, promotion hashes, command ranks, bless config, operator hold, name gag, nick registration, and ratbot avatar JSON stay exactly as on disk.</p>
+      <p id="palaceServerprefsPreservedNote" class="prefs-hint" style="display:none;background:rgba(100,160,255,.08);border:1px solid rgba(100,160,255,.22);border-radius:8px;padding:8px 12px;"></p>
+      <div class="prefs-mode-row" style="margin-top:10px;">
+        <label><input type="radio" name="palaceServerprefsEditMode" id="palaceServerprefsModeGuided" value="guided" checked onchange="syncPalaceServerprefsEditMode()" /> Guided form</label>
+        <label><input type="radio" name="palaceServerprefsEditMode" id="palaceServerprefsModeAdvanced" value="advanced" onchange="syncPalaceServerprefsEditMode()" /> Advanced JSON</label>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin:-4px 0 10px;line-height:1.45;">Use the form for safe, validated choices. Advanced mode is the full file — invalid JSON will be rejected.</p>
+
+      <div id="palaceServerprefsGuided" class="prefs-modal-scroll">
+        <details class="prefs-sec" open>
+          <summary>Website &amp; directory (YP) text</summary>
+          <p class="prefs-hint" style="margin-top:0;">Stored as <code>website</code>, <code>yp_language</code>, <code>yp_category</code>, <code>yp_description</code>. Empty fields remove the key (server uses defaults from <code>pserver.prefs</code> where applicable).</p>
+          <div class="field" style="margin-bottom:8px;"><label>Public website URL</label><input id="spfWebsite" type="text" style="width:100%;max-width:none;" placeholder="https://…" autocomplete="off" /></div>
+          <div class="form-row">
+            <div class="field" style="flex:1;"><label>YP language</label><input id="spfYpLanguage" type="text" style="width:100%;max-width:none;" /></div>
+            <div class="field" style="flex:1;"><label>YP category</label><input id="spfYpCategory" type="text" style="width:100%;max-width:none;" /></div>
+          </div>
+          <div class="field"><label>YP long description</label><textarea id="spfYpDescription" rows="2" style="width:100%;max-width:none;font-family:inherit;font-size:13px;"></textarea></div>
+        </details>
+        <details class="prefs-sec" open>
+          <summary>Timeouts &amp; housekeeping</summary>
+          <div class="form-row">
+            <div class="field"><label>Wizard timeout room ID</label><input id="spfTimeoutRoomId" type="number" min="0" max="32767" placeholder="0 = unset" /></div>
+            <div class="field"><label>Autopurge ban list (days)</label><input id="spfAutopurgeDays" type="number" min="0" placeholder="0 = off" /></div>
+          </div>
+        </details>
+        <details class="prefs-sec" open>
+          <summary>Unicode &amp; names</summary>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfUnicodeNames" /> <span>Allow UTF‑8 <strong>display names</strong> (<code>unicode_names</code>)</span></label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfUnicodeFull" /> <span>Full UTF‑8 chat &amp; extended limits (<code>unicode</code>, default on)</span></label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="spfAltNames" /> <span>Allow extended / non‑ASCII name characters (<code>alt_names</code>, default on)</span></label>
+        </details>
+        <details class="prefs-sec" open>
+          <summary>Rooms, props &amp; ESP</summary>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfNoLooseProps" /> <span>Members/guests may not move loose props server‑wide (<code>nolooseprops_non_ops</code>)</span></label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfEspEnabled" /> <span>Allow cross‑room ESP whispers (<code>esp_enabled</code>, default on)</span></label>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Who sees “painting / dropped prop” room lines</label>
+            <select id="spfRoomAnnotations">
+              <option value="everyone">Everyone (default)</option>
+              <option value="wizards">Wizards &amp; up only</option>
+              <option value="off">Off</option>
             </select>
           </div>
+          <div class="field"><label>Prop‑freeze room IDs</label><input id="spfPropFreezeRooms" type="text" style="width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;" placeholder="Comma-separated room IDs, e.g. 1, 42, 99" /></div>
+        </details>
+        <details class="prefs-sec">
+          <summary>Operator notifications</summary>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfNotifyLogon" /> <span>Page wizards on member/guest logon (<code>notify_logon</code>)</span></label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="spfNotifyLogoff" /> <span>Page wizards on logoff (<code>notify_logoff</code>)</span></label>
+        </details>
+        <details class="prefs-sec" open>
+          <summary>HTTP media &amp; uploads</summary>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfPublicMedia" /> <span>Allow public directory listings on built‑in media server (<code>public_media</code>, default on)</span></label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfSecureProps" /> <span>Secure props mode (<code>secure_props</code>)</span></label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfMediaManagerEnabled" /> <span>Enable <code>/mediamanager</code> endpoint (default on)</span></label>
+          <div class="form-row">
+            <div class="field" style="flex:1;">
+              <label>Who receives media manager URL from <code>mediaupload</code></label>
+              <select id="spfMediaManagerRank">
+                <option value="owners">Owners only (default)</option>
+                <option value="gods">Gods &amp; owners</option>
+                <option value="wizards">Wizards &amp; up</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1;">
+              <label>Media upload “Config” tab visibility</label>
+              <select id="spfMediaUploadRank">
+                <option value="owners">Owners only (default)</option>
+                <option value="gods">Gods &amp; owners</option>
+                <option value="wizards">Wizards &amp; up</option>
+                <option value="off">Off (hide tab)</option>
+              </select>
+            </div>
+          </div>
+        </details>
+        <details class="prefs-sec">
+          <summary>Logon &amp; clients</summary>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfLegacyBlock" /> <span>Block legacy clients without AuxRegistrationRec (<code>legacyclients</code>)</span></label>
+          <div class="field"><label>Overflow room chain</label><input id="spfOverflowRooms" type="text" style="width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;" placeholder="Ordered room IDs when ENTRANCE is full, e.g. 2, 3, 5" /></div>
+        </details>
+        <details class="prefs-sec">
+          <summary>Ratbot rooms</summary>
+          <div class="field"><label>Rooms where trivia ratbot may run</label><input id="spfRatbotsRooms" type="text" style="width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;" placeholder="Comma-separated room IDs" /></div>
+        </details>
+        <details class="prefs-sec">
+          <summary>Flood kill limits</summary>
+          <p class="prefs-hint" style="margin-top:0;">Per‑minute thresholds (0 = that axis off). See mansionsource <code>FloodKillLimits</code>.</p>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfFkEnabled" /> <span>Master enable</span></label>
+          <div class="form-row">
+            <div class="field"><label>Ban/kill duration (min)</label><input id="spfFkTime" type="number" min="0" /></div>
+            <div class="field"><label>Moves / min</label><input id="spfFkMove" type="number" min="0" /></div>
+            <div class="field"><label>Chat / min</label><input id="spfFkChat" type="number" min="0" /></div>
+            <div class="field"><label>Whisper / min</label><input id="spfFkWhisper" type="number" min="0" /></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>ESP / min</label><input id="spfFkEsp" type="number" min="0" /></div>
+            <div class="field"><label>Page / min</label><input id="spfFkPage" type="number" min="0" /></div>
+            <div class="field"><label>Prop change / min</label><input id="spfFkProp" type="number" min="0" /></div>
+            <div class="field"><label>Prop drop / min</label><input id="spfFkPropdrop" type="number" min="0" /></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>Draw / min</label><input id="spfFkDraw" type="number" min="0" /></div>
+            <div class="field"><label>Username change / min</label><input id="spfFkUsername" type="number" min="0" /></div>
+          </div>
+        </details>
+        <details class="prefs-sec">
+          <summary>Sound chat rate limit</summary>
+          <p class="prefs-hint" style="margin-top:0;">Lines beginning with <code>)</code>. Default in server is 10 per 60 seconds.</p>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfSlEnabled" /> <span>Enable limiter</span></label>
+          <div class="form-row">
+            <div class="field"><label>Allowed lines per window</label><input id="spfSlTimes" type="number" min="1" /></div>
+            <div class="field"><label>Window (seconds)</label><input id="spfSlTimeframe" type="number" min="1" /></div>
+          </div>
+        </details>
+        <details class="prefs-sec">
+          <summary>Password complexity (new passwords)</summary>
+          <p class="prefs-hint" style="margin-top:0;">Top‑level <code>password_security</code> (not the copy inside <code>bless_config</code>).</p>
+          <div class="field" style="max-width:200px;"><label>Minimum length</label><input id="spfPwMinLen" type="number" min="1" max="128" /></div>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer;"><input type="checkbox" id="spfPwRequireNumber" /> Require a digit</label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfPwRequireSymbol" /> Require a symbol</label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="spfPwRequireUpper" /> Require uppercase</label>
+          <label class="prefs-hint" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="spfPwRequireLower" /> Require lowercase</label>
+        </details>
+      </div>
+
+      <div id="palaceServerprefsAdvanced" class="prefs-modal-scroll" style="display:none;">
+        <p class="prefs-hint">Full <code>serverprefs.json</code>. Keys managed by the guided form, ranks tab, or in‑server commands may be overwritten if you later save from those tools.</p>
+        <div class="form-row" style="margin:10px 0;flex-wrap:wrap;gap:8px;align-items:center;">
+          <button type="button" onclick="formatPalaceServerprefsJSON()">Format JSON</button>
+          <button type="button" onclick="validatePalaceServerprefsJSON()">Validate</button>
         </div>
-        <div id="palaceMiscError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
-        <div class="modal-footer" style="margin-top:8px;">
-          <button type="button" onclick="closePalaceSettingsModal()">Close</button>
-          <button type="button" class="primary" id="palaceMiscSaveBtn" onclick="savePalaceMisc()">Save &amp; restart</button>
-        </div>
+        <textarea id="palaceServerprefsEditor" spellcheck="false" style="min-height:min(360px,45vh);width:100%;max-width:none;font-family:ui-monospace,monospace;font-size:12px;line-height:1.4;"></textarea>
+      </div>
+
+      <div id="palaceServerprefsInfo" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:18px;"></div>
+      <div id="palaceServerprefsError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:4px;"></div>
+      <div class="modal-footer" style="margin-top:10px;">
+        <button type="button" onclick="closePalaceSettingsModal()">Close</button>
+        <button type="button" id="palaceServerprefsReloadBtn" onclick="reloadPalaceServerConfigFromServerprefsTab()">Reload server config</button>
+        <button type="button" class="primary" id="palaceServerprefsSaveBtn" onclick="savePalaceServerprefs()">Save &amp; restart</button>
       </div>
     </div>
 
     <div id="palacePrefsPanelRanks" class="prefs-panel">
       <p class="prefs-hint" style="margin-top:0;">
-        Minimum <strong>user</strong> rank (guest through owner) required to run each backtick command. This list mirrors
-        <code>DefaultCommandRanks</code> in mansionsource-go; extra keys from <code>serverprefs.json</code> appear if you used
-        <code>rankset</code> on other names. Values are stored as <code>command_ranks</code>. Use <strong>Reload server config</strong>
+        Minimum <strong>user</strong> rank (guest through owner) required to run each backtick command. One row per primary
+        command (synonyms like <code>uban</code>/<code>unban</code> or <code>purge</code>/<code>purgelimit</code> are folded
+        into the canonical name). Extra keys from <code>serverprefs.json</code> appear if you used <code>rankset</code> on other
+        names. Values are stored as <code>command_ranks</code>. Use <strong>Reload server config</strong>
         (SIGHUP) so the running pserver rereads <code>pserver.pat</code>, <code>pserver.prefs</code>, and <code>serverprefs.json</code>.
       </p>
       <div class="form-row" style="margin-bottom:10px;">
@@ -2197,6 +2329,33 @@
       <div class="modal-footer" style="margin-top:10px;">
         <button type="button" onclick="closePalaceSettingsModal()">Close</button>
         <button type="button" class="primary" id="ratbotSaveBtn" onclick="saveRatbotTrivia()">Save trivia file</button>
+      </div>
+    </div>
+
+    <div id="palacePrefsPanelMisc" class="prefs-panel">
+      <p class="prefs-hint">Set runtime options for this palace instance.</p>
+      <div class="card" style="margin-top:0;">
+        <h2 style="margin-bottom:10px;">Logging verbosity (-v)</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45;">
+          Controls pserver log detail level passed to the service command line. Higher values are noisier.
+        </p>
+        <div class="form-row">
+          <div class="field">
+            <label>Verbosity level</label>
+            <select id="palaceMiscVerbosity">
+              <option value="1">1 (minimal)</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5 (maximum)</option>
+            </select>
+          </div>
+        </div>
+        <div id="palaceMiscError" style="color:var(--red);font-size:13px;min-height:18px;margin-top:8px;"></div>
+        <div class="modal-footer" style="margin-top:8px;">
+          <button type="button" onclick="closePalaceSettingsModal()">Close</button>
+          <button type="button" class="primary" id="palaceMiscSaveBtn" onclick="savePalaceMisc()">Save &amp; restart</button>
+        </div>
       </div>
     </div>
   </div>

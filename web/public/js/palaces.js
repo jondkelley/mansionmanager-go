@@ -5,13 +5,153 @@ function syncPalaceSettingsMode() {
   $('palaceSettingsRawWrap').style.display = raw ? '' : 'none';
 }
 
+function syncPalaceServerprefsEditMode() {
+  const adv = $('palaceServerprefsModeAdvanced') && $('palaceServerprefsModeAdvanced').checked;
+  const g = $('palaceServerprefsGuided');
+  const a = $('palaceServerprefsAdvanced');
+  if (g) g.style.display = adv ? 'none' : '';
+  if (a) a.style.display = adv ? '' : 'none';
+}
+
+function parseCommaIntList(s) {
+  if (!s || !String(s).trim()) return [];
+  return String(s)
+    .split(/[\s,]+/)
+    .map(x => parseInt(x.trim(), 10))
+    .filter(n => Number.isFinite(n));
+}
+
+function populateServerPrefsGuidedFromForm(f) {
+  if (!f) return;
+  const setv = (id, v) => {
+    const el = $(id);
+    if (el) el.value = v != null && v !== '' ? String(v) : '';
+  };
+  setv('spfWebsite', f.website);
+  setv('spfYpLanguage', f.ypLanguage);
+  setv('spfYpCategory', f.ypCategory);
+  setv('spfYpDescription', f.ypDescription);
+  setv('spfTimeoutRoomId', f.timeoutRoomId != null ? f.timeoutRoomId : '');
+  setv('spfAutopurgeDays', f.autopurgeBanlistDays != null ? f.autopurgeBanlistDays : '');
+  if ($('spfUnicodeNames')) $('spfUnicodeNames').checked = !!f.unicodeNames;
+  if ($('spfUnicodeFull')) $('spfUnicodeFull').checked = f.unicodeFull !== false;
+  if ($('spfAltNames')) $('spfAltNames').checked = f.altNames !== false;
+  if ($('spfNoLooseProps')) $('spfNoLooseProps').checked = !!f.noLoosePropsNonOps;
+  if ($('spfEspEnabled')) $('spfEspEnabled').checked = f.espEnabled !== false;
+  if ($('spfRoomAnnotations')) {
+    const ra = (f.roomAnnotations || 'everyone').toLowerCase();
+    $('spfRoomAnnotations').value = ['everyone', 'wizards', 'off'].includes(ra) ? ra : 'everyone';
+  }
+  if ($('spfNotifyLogon')) $('spfNotifyLogon').checked = !!f.notifyLogon;
+  if ($('spfNotifyLogoff')) $('spfNotifyLogoff').checked = !!f.notifyLogoff;
+  if ($('spfPublicMedia')) $('spfPublicMedia').checked = f.publicMedia !== false;
+  if ($('spfSecureProps')) $('spfSecureProps').checked = !!f.secureProps;
+  if ($('spfMediaManagerEnabled')) $('spfMediaManagerEnabled').checked = f.mediaManagerEnabled !== false;
+  if ($('spfMediaManagerRank')) {
+    const r = (f.mediaManagerRank || 'owners').toLowerCase();
+    $('spfMediaManagerRank').value = ['wizards', 'gods'].includes(r) ? r : 'owners';
+  }
+  if ($('spfMediaUploadRank')) {
+    const u = (f.mediaUploadConfigRank || 'owners').toLowerCase();
+    $('spfMediaUploadRank').value = ['wizards', 'gods', 'off'].includes(u) ? u : 'owners';
+  }
+  if ($('spfLegacyBlock')) $('spfLegacyBlock').checked = !!f.legacyClientsBlock;
+  if ($('spfOverflowRooms')) $('spfOverflowRooms').value = Array.isArray(f.overflowRoomIds) ? f.overflowRoomIds.join(', ') : '';
+  if ($('spfPropFreezeRooms')) $('spfPropFreezeRooms').value = Array.isArray(f.propFreezeRoomIds) ? f.propFreezeRoomIds.join(', ') : '';
+  if ($('spfRatbotsRooms')) $('spfRatbotsRooms').value = Array.isArray(f.ratbotsAllowedRoomIds) ? f.ratbotsAllowedRoomIds.join(', ') : '';
+  const fk = f.floodKill || {};
+  if ($('spfFkEnabled')) $('spfFkEnabled').checked = !!fk.enabled;
+  setv('spfFkTime', fk.time);
+  setv('spfFkMove', fk.move);
+  setv('spfFkChat', fk.chat);
+  setv('spfFkWhisper', fk.whisper);
+  setv('spfFkEsp', fk.esp);
+  setv('spfFkPage', fk.page);
+  setv('spfFkProp', fk.prop);
+  setv('spfFkPropdrop', fk.propdrop);
+  setv('spfFkDraw', fk.draw);
+  setv('spfFkUsername', fk.username);
+  const sl = f.soundLimit || {};
+  if ($('spfSlEnabled')) $('spfSlEnabled').checked = sl.enabled !== false;
+  setv('spfSlTimes', sl.times != null ? sl.times : 10);
+  setv('spfSlTimeframe', sl.timeframe != null ? sl.timeframe : 60);
+  const pw = f.passwordSecurity || {};
+  setv('spfPwMinLen', pw.minLength != null ? pw.minLength : 8);
+  if ($('spfPwRequireNumber')) $('spfPwRequireNumber').checked = pw.requireNumber !== false;
+  if ($('spfPwRequireSymbol')) $('spfPwRequireSymbol').checked = !!pw.requireSymbol;
+  if ($('spfPwRequireUpper')) $('spfPwRequireUpper').checked = !!pw.requireUpper;
+  if ($('spfPwRequireLower')) $('spfPwRequireLower').checked = !!pw.requireLower;
+}
+
+function collectServerPrefsFormDTO() {
+  const num = (id, def) => {
+    const v = parseInt($(id).value, 10);
+    return Number.isFinite(v) ? v : def;
+  };
+  const fk = {
+    enabled: $('spfFkEnabled').checked,
+    time: num('spfFkTime', 0),
+    move: num('spfFkMove', 0),
+    chat: num('spfFkChat', 0),
+    whisper: num('spfFkWhisper', 0),
+    esp: num('spfFkEsp', 0),
+    page: num('spfFkPage', 0),
+    prop: num('spfFkProp', 0),
+    propdrop: num('spfFkPropdrop', 0),
+    draw: num('spfFkDraw', 0),
+    username: num('spfFkUsername', 0),
+  };
+  return {
+    website: ($('spfWebsite') && $('spfWebsite').value) || '',
+    ypLanguage: ($('spfYpLanguage') && $('spfYpLanguage').value) || '',
+    ypCategory: ($('spfYpCategory') && $('spfYpCategory').value) || '',
+    ypDescription: ($('spfYpDescription') && $('spfYpDescription').value) || '',
+    timeoutRoomId: num('spfTimeoutRoomId', 0),
+    autopurgeBanlistDays: (() => {
+      const v = parseInt($('spfAutopurgeDays').value, 10);
+      return Number.isFinite(v) ? v : 0;
+    })(),
+    unicodeNames: $('spfUnicodeNames').checked,
+    unicodeFull: $('spfUnicodeFull').checked,
+    altNames: $('spfAltNames').checked,
+    noLoosePropsNonOps: $('spfNoLooseProps').checked,
+    espEnabled: $('spfEspEnabled').checked,
+    roomAnnotations: ($('spfRoomAnnotations') && $('spfRoomAnnotations').value) || 'everyone',
+    notifyLogon: $('spfNotifyLogon').checked,
+    notifyLogoff: $('spfNotifyLogoff').checked,
+    publicMedia: $('spfPublicMedia').checked,
+    secureProps: $('spfSecureProps').checked,
+    mediaManagerEnabled: $('spfMediaManagerEnabled').checked,
+    mediaManagerRank: ($('spfMediaManagerRank') && $('spfMediaManagerRank').value) || 'owners',
+    mediaUploadConfigRank: ($('spfMediaUploadRank') && $('spfMediaUploadRank').value) || 'owners',
+    legacyClientsBlock: $('spfLegacyBlock').checked,
+    overflowRoomIds: parseCommaIntList($('spfOverflowRooms') && $('spfOverflowRooms').value),
+    propFreezeRoomIds: parseCommaIntList($('spfPropFreezeRooms') && $('spfPropFreezeRooms').value),
+    ratbotsAllowedRoomIds: parseCommaIntList($('spfRatbotsRooms') && $('spfRatbotsRooms').value),
+    floodKill: fk,
+    soundLimit: {
+      enabled: $('spfSlEnabled').checked,
+      times: num('spfSlTimes', 10),
+      timeframe: num('spfSlTimeframe', 60),
+    },
+    passwordSecurity: {
+      minLength: Math.max(1, num('spfPwMinLen', 8)),
+      requireNumber: $('spfPwRequireNumber').checked,
+      requireSymbol: $('spfPwRequireSymbol').checked,
+      requireUpper: $('spfPwRequireUpper').checked,
+      requireLower: $('spfPwRequireLower').checked,
+    },
+  };
+}
+
 function palaceSettingsSwitchTab(tab) {
   SETTINGS_PREFS_TAB = tab || 'pserver';
   const tabs = [
     { id: 'pserver', btn: 'palacePrefsTabPserver', panel: 'palacePrefsPanelPserver' },
-    { id: 'misc', btn: 'palacePrefsTabMisc', panel: 'palacePrefsPanelMisc' },
+    { id: 'serverprefs', btn: 'palacePrefsTabServerprefs', panel: 'palacePrefsPanelServerprefs' },
     { id: 'ranks', btn: 'palacePrefsTabRanks', panel: 'palacePrefsPanelRanks' },
     { id: 'ratbot', btn: 'palacePrefsTabRatbot', panel: 'palacePrefsPanelRatbot' },
+    { id: 'misc', btn: 'palacePrefsTabMisc', panel: 'palacePrefsPanelMisc' },
   ];
   tabs.forEach(t => {
     const active = t.id === SETTINGS_PREFS_TAB;
@@ -407,6 +547,129 @@ async function reloadPalaceServerConfig() {
   }
 }
 
+function formatPalaceServerprefsJSON() {
+  const el = $('palaceServerprefsEditor');
+  if (!el) return;
+  $('palaceServerprefsError').textContent = '';
+  $('palaceServerprefsInfo').textContent = '';
+  try {
+    const o = JSON.parse((el.value || '').trim() || '{}');
+    el.value = JSON.stringify(o, null, 2) + '\n';
+    $('palaceServerprefsInfo').textContent = 'Formatted.';
+  } catch (e) {
+    $('palaceServerprefsError').textContent = e.message || String(e);
+  }
+}
+
+function validatePalaceServerprefsJSON() {
+  const el = $('palaceServerprefsEditor');
+  if (!el) return;
+  $('palaceServerprefsError').textContent = '';
+  $('palaceServerprefsInfo').textContent = '';
+  try {
+    JSON.parse((el.value || '').trim() || '{}');
+    $('palaceServerprefsInfo').textContent = 'JSON is valid.';
+  } catch (e) {
+    $('palaceServerprefsError').textContent = e.message || String(e);
+  }
+}
+
+async function savePalaceServerprefsJSON() {
+  if (!SETTINGS_PALACE) return;
+  const el = $('palaceServerprefsEditor');
+  if (!el) return;
+  $('palaceServerprefsError').textContent = '';
+  $('palaceServerprefsInfo').textContent = '';
+  let text = el.value || '';
+  try {
+    const o = JSON.parse(text.trim() || '{}');
+    text = JSON.stringify(o, null, 2) + '\n';
+  } catch (e) {
+    $('palaceServerprefsError').textContent = 'Fix JSON before save: ' + (e.message || String(e));
+    return;
+  }
+  const btn = $('palaceServerprefsSaveBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/server-files/serverprefs.json`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ content: text }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceServerprefsError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    el.value = text;
+    $('palaceServerprefsInfo').textContent = (out.restarted ? 'Saved and restarted.' : 'Saved.') + ' Reopen or use Reload server config if you changed files elsewhere.';
+    btn.disabled = false;
+    loadPalaces();
+  } catch (e) {
+    $('palaceServerprefsError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
+async function savePalaceServerprefsGuided() {
+  if (!SETTINGS_PALACE) return;
+  $('palaceServerprefsError').textContent = '';
+  $('palaceServerprefsInfo').textContent = '';
+  const btn = $('palaceServerprefsSaveBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/serverprefs-form`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ form: collectServerPrefsFormDTO() }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceServerprefsError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    $('palaceServerprefsInfo').textContent = (out.restarted ? 'Saved guided fields and restarted.' : 'Saved.') + ' Sensitive keys on disk were left unchanged.';
+    btn.disabled = false;
+    loadPalaces();
+  } catch (e) {
+    $('palaceServerprefsError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
+async function savePalaceServerprefs() {
+  const adv = $('palaceServerprefsModeAdvanced') && $('palaceServerprefsModeAdvanced').checked;
+  if (adv) await savePalaceServerprefsJSON();
+  else await savePalaceServerprefsGuided();
+}
+
+async function reloadPalaceServerConfigFromServerprefsTab() {
+  if (!SETTINGS_PALACE) return;
+  $('palaceServerprefsError').textContent = '';
+  $('palaceServerprefsInfo').textContent = '';
+  const btn = $('palaceServerprefsReloadBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/palaces/${encodeURIComponent(SETTINGS_PALACE)}/reload-config`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $('palaceServerprefsError').textContent = out.error || ('HTTP ' + res.status);
+      btn.disabled = false;
+      return;
+    }
+    $('palaceServerprefsInfo').textContent = (out.note || 'SIGHUP sent.') + ' Running pserver should reread pat, prefs, and serverprefs.json.';
+    btn.disabled = false;
+  } catch (e) {
+    $('palaceServerprefsError').textContent = e.message || String(e);
+    btn.disabled = false;
+  }
+}
+
 function collectPrefsFormDTO() {
   const num = id => {
     const v = parseInt($(id).value, 10);
@@ -449,6 +712,17 @@ async function openPalaceSettingsModal(name) {
   if ($('palaceRanksInfo')) $('palaceRanksInfo').textContent = '';
   if ($('palaceRanksSaveBtn')) $('palaceRanksSaveBtn').disabled = false;
   if ($('palaceRanksReloadBtn')) $('palaceRanksReloadBtn').disabled = false;
+  if ($('palaceServerprefsSaveBtn')) $('palaceServerprefsSaveBtn').disabled = false;
+  if ($('palaceServerprefsReloadBtn')) $('palaceServerprefsReloadBtn').disabled = false;
+  if ($('palaceServerprefsEditor')) $('palaceServerprefsEditor').value = '';
+  if ($('palaceServerprefsError')) $('palaceServerprefsError').textContent = '';
+  if ($('palaceServerprefsInfo')) $('palaceServerprefsInfo').textContent = '';
+  if ($('palaceServerprefsPreservedNote')) {
+    $('palaceServerprefsPreservedNote').style.display = 'none';
+    $('palaceServerprefsPreservedNote').textContent = '';
+  }
+  if ($('palaceServerprefsModeGuided')) $('palaceServerprefsModeGuided').checked = true;
+  syncPalaceServerprefsEditMode();
   if ($('palaceRanksBody')) $('palaceRanksBody').innerHTML = '<tr><td colspan="2" class="empty">Loading…</td></tr>';
   if ($('palaceRanksFilter')) $('palaceRanksFilter').value = '';
   $('palaceSettingsTitle').textContent = 'Palace Preferences — ' + name;
@@ -464,15 +738,19 @@ async function openPalaceSettingsModal(name) {
   $('palaceSettingsModal').classList.add('open');
 
   try {
-    const [pres, pform, fres, crr] = await Promise.all([
+    const [pres, pform, fres, spFormRes, spj, crr] = await Promise.all([
       fetch(`/api/palaces/${encodeURIComponent(name)}`, { headers: headers() }),
       fetch(`/api/palaces/${encodeURIComponent(name)}/prefs-form`, { headers: headers() }),
       fetch(`/api/palaces/${encodeURIComponent(name)}/server-files/pserver.prefs`, { headers: headers() }),
+      fetch(`/api/palaces/${encodeURIComponent(name)}/serverprefs-form`, { headers: headers() }),
+      fetch(`/api/palaces/${encodeURIComponent(name)}/server-files/serverprefs.json`, { headers: headers() }),
       fetch(`/api/palaces/${encodeURIComponent(name)}/command-ranks`, { headers: headers() }),
     ]);
     const pd = await pres.json().catch(() => ({}));
     const formData = await pform.json().catch(() => ({}));
     const rawFile = await fres.json().catch(() => ({}));
+    const spFormData = await spFormRes.json().catch(() => ({}));
+    const spData = await spj.json().catch(() => ({}));
     const rankData = await crr.json().catch(() => ({}));
 
     if (!pres.ok) {
@@ -511,6 +789,49 @@ async function openPalaceSettingsModal(name) {
         $('palaceRanksError').textContent = rankData.error || ('command-ranks HTTP ' + crr.status);
       }
     }
+
+    if (spFormRes.ok && spFormData.form) {
+      populateServerPrefsGuidedFromForm(spFormData.form);
+      const pk = Array.isArray(spFormData.preservedKeys) ? spFormData.preservedKeys : [];
+      if (pk.length && $('palaceServerprefsPreservedNote')) {
+        $('palaceServerprefsPreservedNote').style.display = '';
+        $('palaceServerprefsPreservedNote').textContent =
+          'This palace also has on-disk data we never touch from this tab: ' + pk.map(esc).join(', ') + '.';
+      }
+    } else if ($('palaceServerprefsError')) {
+      $('palaceServerprefsError').textContent =
+        spFormData.error || ('serverprefs-form HTTP ' + spFormRes.status);
+    }
+
+    const ed = $('palaceServerprefsEditor');
+    if (ed) {
+      if (spj.ok && typeof spData.content === 'string') {
+        const raw = spData.content.trim();
+        if (!raw) {
+          ed.value = '{\n  "version": 1\n}\n';
+        } else {
+          try {
+            ed.value = JSON.stringify(JSON.parse(raw), null, 2) + '\n';
+          } catch (e) {
+            ed.value = spData.content;
+            $('palaceServerprefsInfo').textContent =
+              'Advanced JSON: could not pretty-print — ' + (e.message || e);
+          }
+        }
+      } else if (spj.status === 404) {
+        ed.value = '{\n  "version": 1\n}\n';
+      } else if (!spj.ok) {
+        ed.value = '{\n  "version": 1\n}\n';
+        const extra = spData.error || ('serverprefs.json HTTP ' + spj.status);
+        if (!spFormRes.ok) {
+          $('palaceServerprefsError').textContent =
+            ($('palaceServerprefsError').textContent ? $('palaceServerprefsError').textContent + ' · ' : '') + extra;
+        } else if ($('palaceServerprefsInfo')) {
+          $('palaceServerprefsInfo').textContent = 'Guided form loaded; raw file fetch: ' + extra;
+        }
+      }
+    }
+
     void loadPalaceMisc();
     void refreshRatbotFileList();
   } catch (e) {
@@ -525,6 +846,8 @@ function closePalaceSettingsModal() {
   SETTINGS_PREFS_TAB = 'pserver';
   SETTINGS_RATBOT_ROWS = [];
   SETTINGS_RATBOT_CURRENT_FILE = '';
+  if ($('palaceServerprefsModeGuided')) $('palaceServerprefsModeGuided').checked = true;
+  syncPalaceServerprefsEditMode();
 }
 
 async function savePalaceSettings() {
@@ -581,11 +904,23 @@ function palaceStatusDot(status) {
   return { dotClass: 'status-dot-warn', title: 'Status unknown' };
 }
 
+/** Inline SVGs for service controls (stroke icons in the Feather / Heroicons tradition; `currentColor` matches button text). */
+const PALACE_CTL_SVG = {
+  stop:
+    '<svg class="palace-ctl-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>',
+  start:
+    '<svg class="palace-ctl-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7L8 5z"/></svg>',
+  restart:
+    '<svg class="palace-ctl-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+};
+
 /** Stop / Start / Restart — runs immediately (no confirmation). */
 function palaceServiceControlButtonsHTML(nameJson) {
-  return `<button type="button" onclick='void palaceAction(${nameJson},"stop")'>Stop</button>` +
-    `<button type="button" onclick='void palaceAction(${nameJson},"start")'>Start</button>` +
-    `<button type="button" onclick='void palaceAction(${nameJson},"restart")'>Restart</button>`;
+  return (
+    `<button type="button" class="palace-ctl-btn" title="Stop" aria-label="Stop" onclick='void palaceAction(${nameJson},"stop")'>${PALACE_CTL_SVG.stop}Stop</button>` +
+    `<button type="button" class="palace-ctl-btn" title="Start" aria-label="Start" onclick='void palaceAction(${nameJson},"start")'>${PALACE_CTL_SVG.start}Start</button>` +
+    `<button type="button" class="palace-ctl-btn" title="Restart" aria-label="Restart" onclick='void palaceAction(${nameJson},"restart")'>${PALACE_CTL_SVG.restart}Restart</button>`
+  );
 }
 
 const PROVISION_TCP_RANGE = [9990, 10990];
@@ -1009,15 +1344,15 @@ async function loadPalaces() {
               <div class="palace-detail-block">
                 <span class="palace-detail-label">Manage</span>
                 <div class="palace-detail-actions">
-                  ${mediaBtn}
-                  ${backupsBtn}
-                  ${filesBtn}
-                  ${settingsBtn}
                   ${logsBtn}
                   ${usersBtn}
                   ${bansBtn}
+                  ${mediaBtn}
+                  ${filesBtn}
+                  ${settingsBtn}
                   ${propsBtn}
                   ${pagesBtn}
+                  ${backupsBtn}
                 </div>
               </div>
             </div>

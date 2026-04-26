@@ -1,6 +1,61 @@
 package api
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
+
+// rankCommandAliases maps synonym spellings to the canonical primary command name
+// (see mansionsource-go internal/server/help.go). The web UI lists only canonical
+// commands; overrides saved under a synonym are merged onto the primary row.
+var rankCommandAliases = map[string]string{
+	"revision":   "rev",
+	"respond":    "re",
+	"pinx":       "pin",
+	"setface":    "setcolor",
+	"setpos":     "setcolor",
+	"join":       "er",
+	"rejoin":     "er",
+	"uban":       "unban",
+	"maxocc":     "maxserverocc",
+	"maxservocc": "maxserverocc",
+	"maxroomocc": "defaultroomocc",
+	"oppass":     "wizpass",
+	"purge":      "purgelimit",
+	"setrank":    "rankset",
+}
+
+func canonicalRankCommandName(cmd string) string {
+	c := strings.ToLower(strings.TrimSpace(cmd))
+	if core, ok := rankCommandAliases[c]; ok {
+		return core
+	}
+	return c
+}
+
+func mergeOverrideForCanonical(canonical string, overrides map[string]int) (val int, has bool) {
+	if v, ok := overrides[canonical]; ok {
+		return v, true
+	}
+	for alias, core := range rankCommandAliases {
+		if core != canonical {
+			continue
+		}
+		if v, ok := overrides[alias]; ok {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+func deleteRankOverrideAndAliases(overrides map[string]int, canonical string) {
+	delete(overrides, canonical)
+	for alias, core := range rankCommandAliases {
+		if core == canonical {
+			delete(overrides, alias)
+		}
+	}
+}
 
 // defaultCommandRanks mirrors mansionsource-go internal/server/rank_cmds.go DefaultCommandRanks.
 // CommandRank: 0=guest, 1=member, 2=wizard, 3=god, 4=owner.
@@ -209,8 +264,15 @@ var defaultCommandRanks = map[string]int{
 const implicitDefaultRank = 2
 
 func intrinsicDefaultRank(cmd string) int {
+	cmd = strings.ToLower(strings.TrimSpace(cmd))
 	if d, ok := defaultCommandRanks[cmd]; ok {
 		return d
+	}
+	canon := canonicalRankCommandName(cmd)
+	if canon != cmd {
+		if d, ok := defaultCommandRanks[canon]; ok {
+			return d
+		}
 	}
 	return implicitDefaultRank
 }
