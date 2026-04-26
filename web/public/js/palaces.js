@@ -1551,32 +1551,34 @@ async function loadPalaces() {
       </tr>
       <tr class="palace-details-row" style="display:${expanded ? '' : 'none'};">
         <td colspan="5">
-          <div class="palace-details-wrap palace-details-top">
-            <div class="palace-detail-block">
-              <span class="palace-detail-label">Service user</span>
-              <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
-            </div>
-            ${palaceQuotaDetailBlockHTML(p)}
-            <div class="palace-details-side">
-              <div class="palace-detail-block">
-                <span class="palace-detail-label">Control</span>
-                <div class="palace-detail-actions">${controlBtns}</div>
+          <div class="palace-details-top">
+            <div class="palace-details-user-ctl">
+              <div class="palace-detail-block palace-detail-block--user">
+                <span class="palace-detail-label">Service user</span>
+                <span class="palace-detail-value"><code>${esc(p.user || p.name)}</code></span>
               </div>
-              <div class="palace-detail-block">
-                <span class="palace-detail-label">Manage</span>
-                <div class="palace-detail-actions">
-                  ${logsBtn}
-                  ${usersBtn}
-                  ${bansBtn}
-                  ${mediaBtn}
-                  ${filesBtn}
-                  ${settingsBtn}
-                  ${propsBtn}
-                  ${pagesBtn}
-                  ${backupsBtn}
+              <div class="palace-details-ctl-manage">
+                <div class="palace-detail-block">
+                  <span class="palace-detail-label">Control</span>
+                  <div class="palace-detail-actions">${controlBtns}</div>
+                </div>
+                <div class="palace-detail-block">
+                  <span class="palace-detail-label">Manage</span>
+                  <div class="palace-detail-actions">
+                    ${logsBtn}
+                    ${usersBtn}
+                    ${bansBtn}
+                    ${mediaBtn}
+                    ${filesBtn}
+                    ${settingsBtn}
+                    ${propsBtn}
+                    ${pagesBtn}
+                    ${backupsBtn}
+                  </div>
                 </div>
               </div>
             </div>
+            ${palaceQuotaDetailBlockHTML(p)}
           </div>
           ${p.httpPort ? `
           <div class="palace-stats-strip" id="${sid}">
