@@ -935,6 +935,55 @@ let logLiveName = null;
 let logActiveFile = 'pserver.log';
 let logAllLines = [];
 
+function _statusClass(code) {
+  const n = Number(code);
+  if (!Number.isFinite(n)) return 'log-http-status-unknown';
+  if (n >= 200 && n < 300) return 'log-http-status-ok';
+  if (n >= 300 && n < 400) return 'log-http-status-redirect';
+  if (n >= 400 && n < 500) return 'log-http-status-client';
+  if (n >= 500 && n < 600) return 'log-http-status-server';
+  return 'log-http-status-unknown';
+}
+
+function _decorateLogIds(html) {
+  return html
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, '<span class="log-id">$&</span>')
+    .replace(/\b(?:uuid|puid|crc|cnt|trackId|id|spec)=[^\s"]+/g, '<span class="log-id">$&</span>')
+    .replace(/\{[A-Z0-9]{6,}\}/g, '<span class="log-id">$&</span>');
+}
+
+function _lineClass(raw) {
+  const s = raw.toLowerCase();
+  if (s.includes('error') || s.includes('failed') || s.includes('panic')) return 'log-evt-error';
+  if (s.includes('signal terminated') || s.includes('shutting down') || s.includes('exiting') || s.includes('sighup')) return 'log-evt-shutdown';
+  if (s.includes('starting') || s.includes('server ready') || s.includes('listening on') || s.includes('loaded ') || s.includes('watching ')) return 'log-evt-startup';
+  if (s.includes('audit ') || s.includes('made owner') || s.includes('unbanned by') || s.includes('page from system')) return 'log-evt-audit';
+  if (s.includes('tracked user') || s.includes('trackip')) return 'log-evt-track';
+  if (s.includes('new connection') || s.includes('logged on') || s.includes('disconnecting') || s.includes('changed name')) return 'log-evt-user';
+  return '';
+}
+
+function _renderLogLine(rawLine) {
+  let line = String(rawLine || '');
+  let tsHtml = '';
+  const ts = line.match(/^((?:\d{4}-\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2})(\s+)(.*)$/);
+  if (ts) {
+    tsHtml = `<span class="log-ts">${esc(ts[1])}</span>${esc(ts[2])}`;
+    line = ts[3];
+  }
+
+  const http = line.match(/^HTTP\s+([A-Z]+)\s+(\S+)\s+->\s+(\d{3})$/);
+  if (http) {
+    const statusClass = _statusClass(http[3]);
+    return `<div class="log-line">${tsHtml}<span class="log-http-method">HTTP ${esc(http[1])}</span> <span class="log-http-path">${esc(http[2])}</span> -> <span class="${statusClass}">${esc(http[3])}</span></div>`;
+  }
+
+  const cls = _lineClass(line);
+  const body = _decorateLogIds(esc(line));
+  if (cls) return `<div class="log-line"><span class="${cls}">${tsHtml}${body}</span></div>`;
+  return `<div class="log-line">${tsHtml}${body}</div>`;
+}
+
 function _renderLogContent() {
   const el = $('logContent');
   const searchEl = $('logSearch');
@@ -942,7 +991,7 @@ function _renderLogContent() {
   const fromBottom = el.scrollHeight - el.scrollTop;
   const stickBottom = fromBottom <= el.clientHeight + 80;
   const lines = term ? logAllLines.filter(l => l.toLowerCase().includes(term)) : logAllLines;
-  el.textContent = lines.join('\n');
+  el.innerHTML = lines.map(_renderLogLine).join('');
   if (stickBottom) {
     el.scrollTop = el.scrollHeight;
   } else {
