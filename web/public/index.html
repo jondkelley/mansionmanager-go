@@ -1546,6 +1546,7 @@
     <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
     <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none">StaffPass™</button>
     <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none">Users</button>
+    <button type="button" id="navAudit" onclick="showTab('audit',this)" style="display:none">Audit log</button>
     <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Updates<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
     <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Initial Setup</button>
     <button type="button" id="logoutBtn" onclick="doLogout()">Sign out</button>
@@ -1619,6 +1620,52 @@
       </tr></thead>
       <tbody id="subaccountsBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
     </table>
+  </div>
+</div>
+
+<!-- ===== AUDIT LOG (admin + tenant; mutations only, not views) ===== -->
+<div id="tab-audit" class="tab">
+  <div class="card">
+    <h2>Audit log</h2>
+    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:14px;">
+      Recent create/update/delete and other mutating actions from Palace Manager. Ordinary list/view requests are not logged.
+    </p>
+    <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:14px;">
+      <div class="field">
+        <label for="auditFilterPalace">Palace</label>
+        <input id="auditFilterPalace" type="text" autocomplete="off" placeholder="any" style="min-width:140px;" />
+      </div>
+      <div class="field" id="auditFilterTenantWrap" style="display:none;">
+        <label for="auditFilterTenant">Tenant</label>
+        <input id="auditFilterTenant" type="text" autocomplete="off" placeholder="any" style="min-width:140px;" />
+      </div>
+      <div class="field" id="auditFilterActorWrap">
+        <label for="auditFilterActor"><span id="auditFilterActorLabel">Actor</span></label>
+        <input id="auditFilterActor" type="text" autocomplete="off" placeholder="any" style="min-width:140px;" />
+      </div>
+      <div class="field">
+        <label for="auditFilterLimit">Limit</label>
+        <input id="auditFilterLimit" type="number" min="1" max="2000" value="200" style="width:88px;" />
+      </div>
+      <button type="button" class="primary" onclick="loadAuditLog()">Apply</button>
+      <button type="button" onclick="resetAuditFilters(); loadAuditLog();">Reset</button>
+    </div>
+    <p id="auditFilterHint" style="font-size:12px;color:var(--muted);margin:-8px 0 12px;display:none;"></p>
+    <div id="auditLogError" style="color:var(--red);font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+    <div style="overflow:auto;max-height:min(70vh,720px);border:1px solid var(--border);border-radius:8px;">
+      <table style="width:100%;min-width:720px;font-size:13px;">
+        <thead><tr>
+          <th style="white-space:nowrap;">Time (UTC)</th>
+          <th>Actor</th>
+          <th>Role</th>
+          <th>Scope tenant</th>
+          <th>Palace</th>
+          <th>Action</th>
+          <th>Detail</th>
+        </tr></thead>
+        <tbody id="auditLogBody"><tr><td colspan="7" class="empty">Open this tab to load entries.</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -2934,6 +2981,7 @@
 <script src="/js/auth.js"></script>
 <script src="/js/users.js"></script>
 <script src="/js/subaccounts.js"></script>
+<script src="/js/audit.js"></script>
 <script src="/js/wizpasses.js"></script>
 <script src="/js/media.js"></script>
 <script src="/js/pat-highlight.js"></script>

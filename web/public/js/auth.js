@@ -44,6 +44,8 @@ function applySessionUI() {
   });
   const navUsers = document.getElementById('navUsers');
   if (navUsers) navUsers.style.display = admin || tenant ? '' : 'none';
+  const navAudit = document.getElementById('navAudit');
+  if (navAudit) navAudit.style.display = admin || tenant ? '' : 'none';
   const wizBtn = document.getElementById('navWizPasses');
   if (wizBtn) wizBtn.style.display = primaryAdmin ? '' : 'none';
   const adminPanel = document.getElementById('usersAdminPanel');

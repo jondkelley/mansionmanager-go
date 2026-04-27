@@ -15,6 +15,7 @@ function showTab(name, btn) {
   if (name === 'wizpasses') loadWizPasses();
   if (name === 'update') { loadPserverUpdateStatus(); loadRolloutPanel(); loadManagerVersionInfo(); }
   if (name === 'nginx') { loadNginxSettingsForm(); loadNginxStatus(); loadBootstrapStatus(); }
+  if (name === 'audit') loadAuditLog();
 }
 
 document.addEventListener('keydown', (ev) => {

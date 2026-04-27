@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"palace-manager/internal/api"
+	"palace-manager/internal/auditlog"
 	"palace-manager/internal/authstore"
 	"palace-manager/internal/bootstrap"
 	"palace-manager/internal/config"
@@ -107,7 +108,9 @@ func runServe() {
 	// machine can discover the manager's API URL without manual configuration.
 	writePserverClientConf(cfg)
 
-	srv := api.New(cfg, *configPath, version, gitHash, instMgr, prov, nginxMgr, bootRunner, reg, vers, unregStore, userStore)
+	auditPath := envOr("PALACE_MANAGER_AUDIT", auditlog.DefaultPath)
+	auditStore := auditlog.New(auditPath)
+	srv := api.New(cfg, *configPath, version, gitHash, instMgr, prov, nginxMgr, bootRunner, reg, vers, unregStore, userStore, auditStore)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
