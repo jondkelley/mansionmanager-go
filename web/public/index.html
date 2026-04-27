@@ -909,6 +909,132 @@
     box-shadow: 0 0 0 1px rgba(240,192,96,.35);
   }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .users-admin-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  .users-admin-head h2 { margin: 0; }
+  .users-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    max-width: 520px;
+  }
+  .users-stat-card {
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    background-image: var(--metal-shine), var(--metal-brush);
+    box-shadow: var(--metal-edge), 0 1px 2px rgba(0,0,0,.12);
+    text-align: center;
+  }
+  .users-stat-card .n { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; letter-spacing: -0.02em; }
+  .users-stat-card .l { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .users-stat-card.users-stat-accent { border-color: rgba(139,159,239,.45); }
+  html[data-theme="basic"] .users-stat-card.users-stat-accent { border-color: rgba(59,130,246,.35); }
+  .users-filter-panel {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--inset);
+    padding: 14px 16px 16px;
+    margin-bottom: 16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .users-filter-panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .users-filter-panel-title::before {
+    content: '';
+    width: 4px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .users-filter-bar { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; }
+  .users-filter-bar .field { margin: 0; }
+  .users-filter-bar .field input,
+  .users-filter-bar .field select { width: auto; min-width: 140px; max-width: 220px; }
+  .users-filter-bar .field.users-filter-search-field input { min-width: 200px; max-width: 280px; }
+  .users-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+  .users-filter-hint { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
+  .users-table-wrap {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: auto;
+    max-height: min(68vh, 720px);
+    box-shadow: var(--metal-drop);
+  }
+  .users-table-wrap table { width: 100%; min-width: 720px; border-collapse: collapse; }
+  .users-table-wrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface2);
+    background-image: var(--metal-shine), var(--metal-brush);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-shade);
+    white-space: nowrap;
+  }
+  .users-table-wrap tbody tr { transition: background .12s ease; }
+  .users-table-wrap tbody tr:hover { background: rgba(139,159,239,.06); }
+  html[data-theme="basic"] .users-table-wrap tbody tr:hover { background: rgba(59,130,246,.06); }
+  .users-table-wrap tbody td { padding: 12px; vertical-align: middle; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .users-table-wrap tbody tr:last-child td { border-bottom: none; }
+  .user-cell-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .user-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.2);
+  }
+  .user-avatar-admin { background: linear-gradient(145deg, #c084fc, #7c3aed); }
+  .user-avatar-tenant { background: linear-gradient(145deg, #5fd4a0, #0d9488); }
+  .user-avatar-sub { background: linear-gradient(145deg, #8b9fef, #4f6ad6); }
+  .user-cell-id-meta { min-width: 0; }
+  .user-cell-id-meta .uname { font-weight: 600; font-size: 14px; word-break: break-all; }
+  .user-cell-id-meta .uhandle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .user-role-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .user-role-pill-admin { background: rgba(192,132,252,.12); color: #c084fc; border-color: rgba(192,132,252,.35); }
+  .user-role-pill-tenant { background: rgba(95,212,160,.12); color: var(--green); border-color: rgba(95,212,160,.3); }
+  .user-role-pill-sub { background: rgba(139,159,239,.14); color: var(--accent); border-color: rgba(139,159,239,.35); }
+  html[data-theme="basic"] .user-role-pill-admin { color: #7c3aed; }
+  .users-pwd-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
+  .users-pwd-must { background: rgba(241,120,120,.12); color: var(--red); border: 1px solid rgba(241,120,120,.35); }
+  .users-pwd-ok { background: rgba(95,212,160,.1); color: var(--green); border: 1px solid rgba(95,212,160,.28); }
+  .users-scope-cell { vertical-align: top; font-size: 12px; line-height: 1.4; max-width: 420px; }
+  .users-perm-block { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+  .users-perm-block:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+  .users-perm-palace { font-weight: 600; color: var(--accent); font-size: 12px; margin-bottom: 3px; }
+  .users-perm-chip { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); margin: 0 4px 4px 0; color: var(--muted); }
+  .users-empty-illustration { text-align: center; padding: 28px 16px; color: var(--muted); }
+  .users-empty-illustration .big { font-size: 40px; line-height: 1; margin-bottom: 8px; opacity: .5; }
   button {
     background-color: var(--surface2);
     background-image: var(--metal-shine), var(--metal-brush);
@@ -1595,16 +1721,76 @@
 <!-- ===== USERS TAB (admin: manager users; tenant: subaccounts) ===== -->
 <div id="tab-users" class="tab">
   <div id="usersAdminPanel" class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h2>Users</h2>
-      <button type="button" class="primary" onclick="openUserModal(null)">+ User</button>
+    <div class="users-admin-head">
+      <div>
+        <h2>Users &amp; access</h2>
+        <p style="font-size:13px;color:var(--muted);margin-top:6px;max-width:520px;line-height:1.45;">
+          Admins have full control. Tenants own palaces. Subaccounts sign in separately with delegated permissions per palace.
+        </p>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;">
+        <div class="users-stat-grid" aria-label="User counts">
+          <div class="users-stat-card"><div class="n" id="usersStatTotal">—</div><div class="l">Total</div></div>
+          <div class="users-stat-card users-stat-accent"><div class="n" id="usersStatAdmins">—</div><div class="l">Admins</div></div>
+          <div class="users-stat-card"><div class="n" id="usersStatTenants">—</div><div class="l">Tenants</div></div>
+          <div class="users-stat-card"><div class="n" id="usersStatSubs">—</div><div class="l">Subaccounts</div></div>
+        </div>
+        <button type="button" class="primary" onclick="openUserModal(null)">+ Add user</button>
+      </div>
     </div>
+
+    <div class="users-filter-panel">
+      <div class="users-filter-panel-title">Find people</div>
+      <div class="users-filter-bar">
+        <div class="field users-filter-search-field">
+          <label for="usersFilterSearch">Search username</label>
+          <input id="usersFilterSearch" type="search" autocomplete="off" placeholder="Type to narrow…" oninput="scheduleUsersTableFilter()" />
+        </div>
+        <div class="field">
+          <label for="usersFilterPalaceSelect">Palace</label>
+          <select id="usersFilterPalaceSelect" onchange="renderUsersTable()">
+            <option value="">Any palace</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="usersFilterTenantSelect">Tenant</label>
+          <select id="usersFilterTenantSelect" onchange="renderUsersTable()">
+            <option value="">Any tenant</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="usersFilterRole">Role</label>
+          <select id="usersFilterRole" onchange="renderUsersTable()">
+            <option value="">All roles</option>
+            <option value="admin">Admin</option>
+            <option value="tenant">Tenant</option>
+            <option value="subaccount">Subaccount</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="usersFilterPwd">Password status</label>
+          <select id="usersFilterPwd" onchange="renderUsersTable()">
+            <option value="">Any</option>
+            <option value="must">Must change</option>
+            <option value="ok">Up to date</option>
+          </select>
+        </div>
+        <div class="users-filter-actions">
+          <button type="button" onclick="void loadUsers()" title="Reload from server">↻ Refresh</button>
+          <button type="button" onclick="resetUsersFilters()">Clear filters</button>
+        </div>
+      </div>
+      <p class="users-filter-hint">Palace and tenant lists are built from your current user directory. Use <strong>Search</strong> for partial username matches.</p>
+    </div>
+    <p id="usersFilterSummary" style="font-size:12px;color:var(--muted);margin:0 0 12px;min-height:18px;font-weight:500;"></p>
+    <div class="users-table-wrap">
     <table>
       <thead><tr>
-        <th>Username</th><th>Role</th><th>Palaces</th><th>Must change pwd</th><th></th>
+        <th>User</th><th>Role</th><th>Parent tenant</th><th>Palaces &amp; delegated access</th><th>Password</th><th style="width:1%">Actions</th>
       </tr></thead>
-      <tbody id="usersBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody id="usersBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
+    </div>
   </div>
   <div id="usersTenantPanel" class="card" style="display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -2529,7 +2715,7 @@
         <input type="radio" name="removePalacePurge" value="true" onchange="syncRemovePalaceSubmitStyle()" />
         <div class="remove-option-body">
           <div class="remove-option-label">Unregister and delete the Linux account</div>
-          <div class="remove-option-desc">Same as unregister, plus remove the Linux user for this palace and delete their home directory. Suitable when you are done with that account entirely. This cannot be undone.</div>
+          <div class="remove-option-desc">Same as unregister, plus remove the Linux user for this palace and delete their home directory. Palace Manager also removes this palace from tenant assignments; any tenant left with no palaces (and their subaccounts) is removed from the user list. Subaccounts that only had access to this palace are removed. This cannot be undone.</div>
         </div>
       </label>
     </div>

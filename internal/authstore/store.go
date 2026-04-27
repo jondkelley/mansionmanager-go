@@ -27,7 +27,7 @@ type User struct {
 	Username           string              `json:"username"`
 	PasswordBcrypt     string              `json:"password_bcrypt"`
 	Role               Role                `json:"role"`
-	Palaces            []string            `json:"palaces"` // tenant: palace names; admin: empty or ["*"] means all
+	Palaces            []string            `json:"palaces"`                 // tenant: palace names; admin: empty or ["*"] means all
 	ParentTenant       string              `json:"parent_tenant,omitempty"` // subaccount: owning tenant username
 	PalacePerms        map[string][]string `json:"palace_perms,omitempty"`  // subaccount: palace -> permission keys
 	MustChangePassword bool                `json:"must_change_password"`
@@ -132,10 +132,10 @@ func CanAccessPalace(role Role, tenantPalaces []string, palacePerms map[string][
 }
 
 var (
-	ErrNotFound            = errors.New("user not found")
-	ErrLastAdmin           = errors.New("cannot remove the last admin user")
-	ErrInvalidRole         = errors.New("invalid role")
-	ErrTenantPalaces       = errors.New("tenant must have at least one palace")
+	ErrNotFound          = errors.New("user not found")
+	ErrLastAdmin         = errors.New("cannot remove the last admin user")
+	ErrInvalidRole       = errors.New("invalid role")
+	ErrTenantPalaces     = errors.New("tenant must have at least one palace")
 	ErrSubaccountPalaces = errors.New("subaccount must have at least one palace with permissions")
 	ErrSubaccountParent  = errors.New("subaccount parent must be an existing tenant")
 )

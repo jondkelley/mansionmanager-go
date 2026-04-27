@@ -558,12 +558,12 @@ func (s *Server) handleChatLogs(w http.ResponseWriter, r *http.Request, name str
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"name":               name,
-		"lines":              tail,
-		"format":             format,
-		"chatlogConfigured":  configured,
-		"fileExists":         fileExists,
-		"path":               logPath,
+		"name":              name,
+		"lines":             tail,
+		"format":            format,
+		"chatlogConfigured": configured,
+		"fileExists":        fileExists,
+		"path":              logPath,
 	})
 }
 
