@@ -107,6 +107,7 @@ async function loadAuditLog() {
         tr.appendChild(td);
       }
       const tdD = document.createElement('td');
+      tdD.className = 'audit-detail-cell';
       tdD.style.maxWidth = '320px';
       tdD.style.wordBreak = 'break-word';
       tdD.style.color = 'var(--muted)';

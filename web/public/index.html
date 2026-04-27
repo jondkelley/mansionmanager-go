@@ -373,7 +373,7 @@
     margin-left: 6px;
   }
   .provision-quota-row input[type="range"] { width: 100%; max-width: 420px; }
-  #provisionModal .modal { min-width: 400px; max-width: 520px; }
+  #provisionModal .modal { max-width: 520px; }
   #provisionModal .provision-form-stack {
     display: flex;
     flex-direction: column;
@@ -1251,7 +1251,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
-    min-width: 480px;
+    min-width: 0;
     max-width: 680px;
     width: 90%;
     box-shadow: var(--metal-edge), 0 16px 48px rgba(0,0,0,.5);
@@ -1621,6 +1621,7 @@
     -webkit-backdrop-filter: none;
   }
 </style>
+<link rel="stylesheet" href="/responsive.css" />
 </head>
 <body>
 
@@ -1662,24 +1663,25 @@
   </div>
 </div>
 
-<header>
+<header class="app-header">
   <div class="app-header-brand">
     <img src="/pserver.png" width="32" height="32" class="app-header-logo" alt="" decoding="async" />
     <h1>Palace Manager</h1>
   </div>
   <span class="version" id="managerVersionBadge" title=""></span>
-  <nav>
-    <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)">Palaces</button>
-    <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none">StaffPass™</button>
-    <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none">Users</button>
-    <button type="button" id="navAudit" onclick="showTab('audit',this)" style="display:none">Audit log</button>
-    <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none">Updates<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
-    <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none">Initial Setup</button>
+  <button type="button" id="navToggleBtn" class="header-nav-toggle" aria-expanded="false" aria-controls="appNav">Menu</button>
+  <nav id="appNav" class="app-nav" aria-label="Primary">
+    <button type="button" class="active" id="navPalaces" onclick="showTab('palaces',this)" title="Alt+1">Palaces</button>
+    <button type="button" id="navWizPasses" onclick="showTab('wizpasses',this)" style="display:none" title="Alt+4">StaffPass™</button>
+    <button type="button" id="navUsers" onclick="showTab('users',this)" style="display:none" title="Alt+2">Users</button>
+    <button type="button" id="navAudit" onclick="showTab('audit',this)" style="display:none" title="Alt+3">Audit log</button>
+    <button type="button" id="navUpdate" onclick="showTab('update',this)" style="display:none" title="Alt+5">Updates<span id="updateDot" class="nav-update-dot" style="display:none;" title="Update available"></span></button>
+    <button type="button" id="navNginx" onclick="showTab('nginx',this)" style="display:none" title="Alt+6">Initial Setup</button>
     <button type="button" id="logoutBtn" onclick="doLogout()">Sign out</button>
   </nav>
 </header>
 
-<main>
+<main class="app-main">
 
 <!-- ===== PALACES TAB ===== -->
 <div id="tab-palaces" class="tab active">
@@ -1688,7 +1690,7 @@
       <h2>Palace Instances</h2>
       <button type="button" class="primary" id="btnNewPalace" onclick="openProvisionModal()" style="display:none">+ New Palace</button>
     </div>
-    <table id="palaceTable">
+    <table id="palaceTable" class="responsive-table responsive-table-palaces">
       <thead><tr>
         <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>Pserver</th>
       </tr></thead>
@@ -1708,7 +1710,7 @@
       <p class="unregistered-lead">
         Not in <code>registry.json</code> anymore (e.g. after <strong>Unregister only</strong>). Palace Manager keeps a snapshot in <code>/etc/palace-manager/unregistered-palaces.json</code> so they stay listed here even if systemd does not show the unit. Use <strong>Register…</strong> to put them back in the registry and restore nginx routing; restore or recreate the <code>palman-</code> unit on the host if you need the service to start.
       </p>
-      <table>
+      <table class="responsive-table">
         <thead><tr>
           <th>Name</th><th>Status</th><th>TCP</th><th>HTTP</th><th>Actions</th>
         </tr></thead>
@@ -1784,7 +1786,7 @@
     </div>
     <p id="usersFilterSummary" style="font-size:12px;color:var(--muted);margin:0 0 12px;min-height:18px;font-weight:500;"></p>
     <div class="users-table-wrap">
-    <table>
+    <table id="usersTable" class="responsive-table responsive-table-users">
       <thead><tr>
         <th>User</th><th>Role</th><th>Parent tenant</th><th>Palaces &amp; delegated access</th><th>Password</th><th style="width:1%">Actions</th>
       </tr></thead>
@@ -1800,7 +1802,7 @@
     <p style="color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:14px;">
       Subaccounts sign in to Palace Manager with their own password. For each palace you control, choose which areas they may use (start/stop, logs, in-server users, bans, media, files, settings, props, pages, backups).
     </p>
-    <table>
+    <table id="subaccountsTable" class="responsive-table">
       <thead><tr>
         <th>Username</th><th>Palace access</th><th>Must change pwd</th><th></th>
       </tr></thead>
@@ -1838,8 +1840,8 @@
     </div>
     <p id="auditFilterHint" style="font-size:12px;color:var(--muted);margin:-8px 0 12px;display:none;"></p>
     <div id="auditLogError" style="color:var(--red);font-size:13px;margin-bottom:10px;min-height:18px;"></div>
-    <div style="overflow:auto;max-height:min(70vh,720px);border:1px solid var(--border);border-radius:8px;">
-      <table style="width:100%;min-width:720px;font-size:13px;">
+    <div class="audit-table-wrap">
+      <table id="auditLogTable" class="responsive-table responsive-table-audit" style="font-size:13px;">
         <thead><tr>
           <th style="white-space:nowrap;">Time (UTC)</th>
           <th>Actor</th>
@@ -1896,7 +1898,7 @@
       <p style="font-size:13px;color:var(--text);margin:0;">Global hash entries: <strong id="wizPassGlobalCount">0</strong></p>
     </div>
 
-    <table style="margin-top:10px;">
+    <table id="wizPassTable" class="responsive-table responsive-table-wizpasses" style="margin-top:10px;">
       <thead><tr><th>Line</th><th>Scope</th><th>User</th><th>Actions</th></tr></thead>
       <tbody id="wizPassEntriesBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
     </table>
@@ -2277,7 +2279,7 @@
 
 <!-- Media: notice / error (stacked above media modal) -->
 <div class="modal-bg modal-stacked" id="mediaMessageModal">
-  <div class="modal" style="min-width:360px;max-width:480px;">
+  <div class="modal" style="max-width:480px;">
     <h3 id="mediaMessageTitle">Notice</h3>
     <p id="mediaMessageBody" style="font-size:13px;line-height:1.55;margin-bottom:12px;"></p>
     <div class="modal-footer">
@@ -2288,7 +2290,7 @@
 
 <!-- Media: rename -->
 <div class="modal-bg modal-stacked" id="mediaRenameModal">
-  <div class="modal" style="min-width:420px;">
+  <div class="modal">
     <h3>Rename file</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">From <code id="mediaRenameFromDisplay"></code></p>
     <div class="field">
@@ -2305,7 +2307,7 @@
 
 <!-- Media: delete confirm -->
 <div class="modal-bg modal-stacked" id="mediaDeleteModal">
-  <div class="modal" style="min-width:400px;">
+  <div class="modal">
     <h3>Delete file</h3>
     <p style="font-size:13px;line-height:1.55;margin-bottom:12px;">
       Remove <strong id="mediaDeletePathDisplay"></strong> from media? This cannot be undone.
@@ -2489,7 +2491,7 @@
 
 <!-- Palace Pages Gmsg Confirm (stacked) -->
 <div class="modal-bg modal-stacked" id="palacePagesGmsgConfirmModal">
-  <div class="modal" style="min-width:420px;max-width:560px;">
+  <div class="modal" style="max-width:560px;">
     <h3>Send global message?</h3>
     <p style="font-size:13px;line-height:1.55;color:var(--text);margin-bottom:12px;">
       This will go to everyone on the server, are you sure?
@@ -2577,7 +2579,7 @@
 
 <!-- Server file save confirm -->
 <div class="modal-bg modal-stacked" id="sfSaveModal">
-  <div class="modal" style="min-width:420px;max-width:540px;">
+  <div class="modal" style="max-width:540px;">
     <h3>Save server file</h3>
     <p class="modal-lead">You should take a backup before clicking anything else.</p>
     <p class="modal-lead" style="margin-bottom:6px;">
@@ -2596,7 +2598,7 @@
 
 <!-- User Modal -->
 <div class="modal-bg" id="userModal">
-  <div class="modal" style="min-width:420px;">
+  <div class="modal">
     <h3 id="userModalTitle">Add user</h3>
     <div class="field" style="margin-bottom:12px;">
       <label>Username</label>
@@ -2633,7 +2635,7 @@
 
 <!-- Subaccount modal (tenant) -->
 <div class="modal-bg" id="subaccountModal">
-  <div class="modal" style="min-width:480px;max-width:640px;max-height:90vh;display:flex;flex-direction:column;">
+  <div class="modal" style="max-width:640px;max-height:90vh;display:flex;flex-direction:column;">
     <h3 id="subaccountModalTitle">Add subaccount</h3>
     <div style="overflow-y:auto;flex:1;padding-right:4px;">
       <div class="field" style="margin-bottom:12px;">
@@ -2657,7 +2659,7 @@
 
 <!-- Edit palace registry + unit (admin) -->
 <div class="modal-bg" id="editPalaceModal">
-  <div class="modal" style="min-width:460px;max-width:560px;">
+  <div class="modal" style="max-width:560px;">
     <h3>Edit palace</h3>
     <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;">
       Updates <code>/etc/palace-manager/registry.json</code> and, when TCP/HTTP or the palace name changes, the <code>palman-</code> systemd unit on disk (service is stopped briefly). The Linux service user and data directory are <strong>not</strong> renamed here. Saving runs the same nginx media map regen as after a palace restart.
@@ -2699,7 +2701,7 @@
 
 <!-- Remove palace (admin) -->
 <div class="modal-bg" id="removePalaceModal">
-  <div class="modal" style="min-width:440px;max-width:540px;">
+  <div class="modal" style="max-width:540px;">
     <h3>Remove palace</h3>
     <p class="modal-lead">You are about to remove <code id="removePalaceNameDisplay"></code> from Palace Manager.</p>
     <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:4px;">Pick how far removal should go. The request runs as soon as you confirm.</p>
@@ -2733,7 +2735,7 @@
 
 <!-- Register orphan unit (admin) -->
 <div class="modal-bg" id="registerPalaceModal">
-  <div class="modal" style="min-width:460px;max-width:560px;">
+  <div class="modal" style="max-width:560px;">
     <h3>Register palace</h3>
     <p class="modal-lead">Add <code id="registerPalaceTitleName"></code> back into <code>/etc/palace-manager/registry.json</code> using details from the existing <code>palman-</code> systemd unit.</p>
     <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;">TCP/HTTP defaults are parsed from <code>ExecStart</code> when possible. Adjust if you changed the unit by hand.</p>
@@ -3120,7 +3122,7 @@
 
 <!-- Delete user -->
 <div class="modal-bg" id="deleteUserModal">
-  <div class="modal" style="min-width:400px;max-width:480px;">
+  <div class="modal" style="max-width:480px;">
     <h3>Delete user</h3>
     <p style="font-size:13px;line-height:1.55;color:var(--text);margin-bottom:12px;">
       Permanently delete <strong id="deleteUserNameDisplay"></strong>? They will lose access immediately and cannot sign in again.
@@ -3135,7 +3137,7 @@
 
 <!-- Upload pserver.pat (restart required) -->
 <div class="modal-bg" id="patUploadModal">
-  <div class="modal" style="min-width:420px;max-width:520px;">
+  <div class="modal" style="max-width:520px;">
     <h3>Replace pserver.pat</h3>
     <p id="patUploadPalaceLabel" style="font-size:13px;margin-bottom:12px;"></p>
     <div id="patUploadStepWarn" style="background:rgba(240,192,96,.1);border:1px solid rgba(240,192,96,.35);border-radius:8px;padding:12px 14px;margin-bottom:14px;">

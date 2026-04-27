@@ -495,3 +495,17 @@ curl -X POST http://127.0.0.1:3000/api/nginx/regen \
 curl http://127.0.0.1:3000/api/bootstrap/status \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
+
+---
+
+## Responsive UI QA checklist
+
+When changing dashboard UI, run this quick check before shipping:
+
+- Validate widths: 320, 375, 414, 768, 1024, 1280+.
+- Confirm header/nav works in both mobile menu mode and desktop horizontal mode.
+- Verify no primary flow or modal requires horizontal page scrolling at 320px.
+- Check `Palaces`, `Users`, `Audit log`, and `StaffPass` tables in mobile card mode and desktop table mode.
+- Open/close each major modal with both mouse/touch and `Escape`.
+- Confirm safe-area spacing on iOS devices (footer, modal edges, and header).
+- Confirm reduced-motion mode still works (no required animation-only affordance).

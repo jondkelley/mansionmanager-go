@@ -6,7 +6,8 @@ function showTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   $('tab-' + name).classList.add('active');
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
+  closeMobileNav();
   if (name === 'palaces') loadPalaces();
   if (name === 'users') {
     if (SESSION && SESSION.role === 'tenant') loadSubaccounts();
@@ -18,9 +19,75 @@ function showTab(name, btn) {
   if (name === 'audit') loadAuditLog();
 }
 
+function isMobileNavViewport() {
+  return window.matchMedia('(max-width: 860px)').matches;
+}
+
+function setMobileNavOpen(open) {
+  const nav = $('appNav');
+  const toggle = $('navToggleBtn');
+  if (!nav || !toggle) return;
+  const shouldOpen = !!open && isMobileNavViewport();
+  nav.classList.toggle('open', shouldOpen);
+  toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+  if (shouldOpen) {
+    nav.querySelector('button:not([style*="display:none"])')?.focus();
+  }
+}
+
+function closeMobileNav() {
+  setMobileNavOpen(false);
+}
+
+function toggleMobileNav() {
+  const nav = $('appNav');
+  if (!nav) return;
+  setMobileNavOpen(!nav.classList.contains('open'));
+}
+
+function registerNavigationUI() {
+  const toggle = $('navToggleBtn');
+  const nav = $('appNav');
+  if (!toggle || !nav) return;
+  toggle.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    toggleMobileNav();
+  });
+  document.addEventListener('click', (ev) => {
+    if (!isMobileNavViewport()) return;
+    const target = ev.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('#appNav') || target.closest('#navToggleBtn')) return;
+    closeMobileNav();
+  });
+  window.addEventListener('resize', () => {
+    if (!isMobileNavViewport()) closeMobileNav();
+  });
+}
+
+function registerKeyboardTabShortcuts() {
+  const shortcuts = ['palaces', 'users', 'audit', 'wizpasses', 'update', 'nginx'];
+  document.addEventListener('keydown', (ev) => {
+    if (!(ev.altKey || ev.metaKey) || ev.shiftKey || ev.ctrlKey) return;
+    const keyNum = Number(ev.key);
+    if (!Number.isInteger(keyNum) || keyNum < 1 || keyNum > shortcuts.length) return;
+    const tab = shortcuts[keyNum - 1];
+    const navBtn = $('nav' + (tab === 'wizpasses' ? 'WizPasses' : tab.charAt(0).toUpperCase() + tab.slice(1)));
+    if (!navBtn || navBtn.style.display === 'none') return;
+    showTab(tab, navBtn);
+    ev.preventDefault();
+  });
+}
+
+registerNavigationUI();
+registerKeyboardTabShortcuts();
+
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
-  if ($('mediaPreviewModal').classList.contains('open')) {
+  if ($('appNav') && $('appNav').classList.contains('open')) {
+    closeMobileNav();
+    ev.preventDefault();
+  } else if ($('mediaPreviewModal').classList.contains('open')) {
     closeMediaPreviewModal();
     ev.preventDefault();
   } else if ($('mediaMessageModal').classList.contains('open')) {

@@ -1,0 +1,338 @@
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-1: 8px;
+  --radius-2: 12px;
+  --bp-xs: 360px;
+  --bp-sm: 640px;
+  --bp-md: 860px;
+  --bp-lg: 1080px;
+  --bp-xl: 1320px;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+header {
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
+}
+
+main {
+  padding-left: clamp(var(--space-3), 3vw, var(--space-6));
+  padding-right: clamp(var(--space-3), 3vw, var(--space-6));
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.modal-bg {
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
+  padding-right: max(var(--space-2), env(safe-area-inset-right));
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  padding-left: max(var(--space-2), env(safe-area-inset-left));
+}
+
+.modal {
+  min-width: 0;
+  width: min(680px, calc(100vw - 24px));
+  max-width: min(680px, calc(100vw - 24px));
+  max-height: min(90vh, calc(100dvh - 24px));
+}
+
+.app-footer {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.header-nav-toggle {
+  display: none;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: var(--radius-1);
+  font-size: 12px;
+  line-height: 1;
+  min-height: 40px;
+}
+
+.header-nav-toggle:hover {
+  background: var(--btn-hover-bg);
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.audit-table-wrap {
+  overflow: auto;
+  max-height: min(70vh, 720px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.audit-detail-cell {
+  max-width: 320px;
+  word-break: break-word;
+}
+
+.responsive-table {
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  header {
+    min-height: 52px;
+    height: auto;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  header h1 {
+    font-size: 16px;
+  }
+
+  header .version {
+    margin-left: auto;
+    order: 2;
+  }
+
+  .header-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+  }
+
+  nav.app-nav {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+    margin-left: 0;
+    padding-top: 6px;
+  }
+
+  nav.app-nav.open {
+    display: flex;
+  }
+
+  nav.app-nav button {
+    text-align: left;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  main {
+    padding-top: 16px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .form-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .form-row .field {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .users-admin-head {
+    gap: 12px;
+  }
+
+  .users-admin-head > div:last-child {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .users-stat-grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #provisionModal .modal,
+  #subaccountModal .modal,
+  #editPalaceModal .modal,
+  #registerPalaceModal .modal,
+  #removePalaceModal .modal,
+  #userModal .modal {
+    width: min(680px, calc(100vw - 20px));
+    max-width: min(680px, calc(100vw - 20px));
+  }
+
+  .users-table-wrap {
+    max-height: none;
+    overflow: visible;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .responsive-table {
+    min-width: 0 !important;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .responsive-table thead {
+    display: none;
+  }
+
+  .responsive-table tbody tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    background: var(--surface2);
+  }
+
+  .responsive-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+    align-items: start;
+    font-size: 13px;
+  }
+
+  .responsive-table tbody td:last-child {
+    border-bottom: none;
+  }
+
+  .responsive-table tbody td::before {
+    display: none;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+  }
+
+  .responsive-table tbody td.empty {
+    display: block;
+    border-bottom: none;
+    padding: 12px 8px;
+    text-align: left;
+  }
+
+  .responsive-table tbody td.empty::before {
+    content: none;
+  }
+
+  .responsive-table-users tbody td:nth-child(1)::before { display: block; content: "User"; }
+  .responsive-table-users tbody td:nth-child(2)::before { display: block; content: "Role"; }
+  .responsive-table-users tbody td:nth-child(3)::before { display: block; content: "Parent tenant"; }
+  .responsive-table-users tbody td:nth-child(4)::before { display: block; content: "Palaces"; }
+  .responsive-table-users tbody td:nth-child(5)::before { display: block; content: "Password"; }
+  .responsive-table-users tbody td:nth-child(6)::before { display: block; content: "Actions"; }
+
+  .responsive-table-audit tbody td:nth-child(1)::before { display: block; content: "Time"; }
+  .responsive-table-audit tbody td:nth-child(2)::before { display: block; content: "Actor"; }
+  .responsive-table-audit tbody td:nth-child(3)::before { display: block; content: "Role"; }
+  .responsive-table-audit tbody td:nth-child(4)::before { display: block; content: "Tenant"; }
+  .responsive-table-audit tbody td:nth-child(5)::before { display: block; content: "Palace"; }
+  .responsive-table-audit tbody td:nth-child(6)::before { display: block; content: "Action"; }
+  .responsive-table-audit tbody td:nth-child(7)::before { display: block; content: "Detail"; }
+
+  .responsive-table-palaces tbody td:nth-child(1)::before { display: block; content: "Name"; }
+  .responsive-table-palaces tbody td:nth-child(2)::before { display: block; content: "Status"; }
+  .responsive-table-palaces tbody td:nth-child(3)::before { display: block; content: "TCP"; }
+  .responsive-table-palaces tbody td:nth-child(4)::before { display: block; content: "HTTP"; }
+  .responsive-table-palaces tbody td:nth-child(5)::before { display: block; content: "Pserver"; }
+
+  #subaccountsTable tbody td:nth-child(1)::before { display: block; content: "Username"; }
+  #subaccountsTable tbody td:nth-child(2)::before { display: block; content: "Palaces"; }
+  #subaccountsTable tbody td:nth-child(3)::before { display: block; content: "Password"; }
+  #subaccountsTable tbody td:nth-child(4)::before { display: block; content: "Actions"; }
+
+  .responsive-table-wizpasses tbody td:nth-child(1)::before { display: block; content: "Line"; }
+  .responsive-table-wizpasses tbody td:nth-child(2)::before { display: block; content: "Scope"; }
+  .responsive-table-wizpasses tbody td:nth-child(3)::before { display: block; content: "User"; }
+  .responsive-table-wizpasses tbody td:nth-child(4)::before { display: block; content: "Actions"; }
+
+  #tab-audit .form-row {
+    gap: 10px;
+  }
+
+  #tab-audit .form-row .field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #tab-audit .form-row > button {
+    width: 100%;
+  }
+}
+
+@media (min-width: 861px) {
+  .app-nav {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1080px) {
+  main {
+    max-width: 1240px;
+  }
+
+  .card {
+    padding: 22px;
+  }
+
+  .users-filter-bar {
+    grid-template-columns: repeat(5, minmax(120px, 1fr)) auto;
+  }
+
+  .users-table-wrap table {
+    min-width: 980px;
+  }
+
+  .responsive-table-users tbody td,
+  #auditLogTable tbody td {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
+
+@media (min-width: 1320px) {
+  main {
+    max-width: 1340px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
