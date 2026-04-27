@@ -80,6 +80,7 @@ func (s *Server) handlePalaceMiscSave(w http.ResponseWriter, r *http.Request, pa
 		writeError(w, http.StatusInternalServerError, "saved verbosity but restart failed: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.misc.save", palaceName, map[string]string{"verbosity": fmt.Sprintf("%d", req.Verbosity)})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "verbosity": req.Verbosity, "restarted": true})
 }
 
@@ -335,5 +336,6 @@ func (s *Server) handlePalaceRatbotFileSave(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.ratbot.save", palaceName, map[string]string{"file": name})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "questionCount": len(questions)})
 }

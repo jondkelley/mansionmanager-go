@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"palace-manager/internal/authstore"
@@ -181,6 +182,7 @@ func (s *Server) handleWizPassesCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "wizpass.create", "", map[string]string{"scope": scope, "username": username})
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"ok":       true,
 		"path":     path,
@@ -248,6 +250,7 @@ func (s *Server) handleWizPassesDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "entry not found")
 		return
 	}
+	s.writeAudit(r.Context(), "wizpass.delete", "", map[string]string{"line": strconv.Itoa(req.Line)})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
 		"path": path,

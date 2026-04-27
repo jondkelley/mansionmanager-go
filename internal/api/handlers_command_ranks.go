@@ -285,6 +285,7 @@ func (s *Server) handleCommandRanksPut(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.command_ranks.put", palaceName, nil)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "file": "serverprefs.json"})
 }
 
@@ -302,6 +303,7 @@ func (s *Server) handlePalaceReloadConfig(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "reload: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.reload_config", palaceName, nil)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
 		"note": "SIGHUP sent; pserver should reload pserver.pat, pserver.prefs, and serverprefs.json (check unit is active and ExecReload=kill -HUP is configured)",

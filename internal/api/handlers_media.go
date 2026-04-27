@@ -170,6 +170,7 @@ func (s *Server) handlePalaceMediaRename(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusInternalServerError, "rename failed")
 		return
 	}
+	s.writeAudit(r.Context(), "palace.media.rename", palaceName, map[string]string{"from": fromWeb, "to": filepath.ToSlash(newRel)})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
 		"name": filepath.ToSlash(newRel),
@@ -212,6 +213,7 @@ func (s *Server) handlePalaceMediaDelete(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	s.writeAudit(r.Context(), "palace.media.delete", palaceName, map[string]string{"name": q})
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 
@@ -290,5 +292,6 @@ func (s *Server) handlePalaceMediaUpload(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusBadRequest, "no files saved")
 		return
 	}
+	s.writeAudit(r.Context(), "palace.media.upload", palaceName, map[string]string{"files": strings.Join(saved, ",")})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "saved": saved})
 }

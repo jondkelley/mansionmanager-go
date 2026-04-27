@@ -177,6 +177,7 @@ func (s *Server) handlePalaceConfigBackupsSnapshot(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.config_backup.snapshot", palaceName, map[string]string{"files": strings.Join(created, ",")})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "created": created})
 }
 
@@ -365,6 +366,7 @@ func (s *Server) handlePalaceConfigBackupsRestore(w http.ResponseWriter, r *http
 		writeError(w, http.StatusInternalServerError, "restored file but start failed: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.config_backup.restore", palaceName, map[string]string{"file": base, "from": fn})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "file": base, "restoredFrom": fn})
 }
 

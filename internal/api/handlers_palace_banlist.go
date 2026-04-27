@@ -75,6 +75,9 @@ func (s *Server) handlePalaceBanlistUnban(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		s.writeAudit(r.Context(), "palace.banlist.unban", name, map[string]string{"id": req.ID})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)

@@ -70,6 +70,9 @@ func (s *Server) handlePalacePagesSend(w http.ResponseWriter, r *http.Request, n
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		s.writeAudit(r.Context(), "palace.pages.send", name, nil)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
@@ -118,6 +121,9 @@ func (s *Server) handlePalacePagesGmsg(w http.ResponseWriter, r *http.Request, n
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		s.writeAudit(r.Context(), "palace.pages.gmsg", name, nil)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)

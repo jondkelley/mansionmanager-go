@@ -177,5 +177,6 @@ func (s *Server) handlePalaceAdminUpdate(w http.ResponseWriter, r *http.Request,
 		s.nginx.TriggerDelayed(2 * time.Second)
 	}()
 
+	s.writeAudit(r.Context(), "palace.registry_update", newName, map[string]string{"previousName": oldName})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": newName, "previousName": oldName})
 }

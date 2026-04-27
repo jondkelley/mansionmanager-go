@@ -66,6 +66,13 @@ func (s *Server) handlePalacePropsCommand(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		detail := map[string]string{}
+		if cmd, ok := req["command"].(string); ok && strings.TrimSpace(cmd) != "" {
+			detail["command"] = strings.TrimSpace(cmd)
+		}
+		s.writeAudit(r.Context(), "palace.props.command", name, detail)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)

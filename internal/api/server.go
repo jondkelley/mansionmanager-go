@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"palace-manager/internal/auditlog"
 	"palace-manager/internal/authstore"
 	"palace-manager/internal/bootstrap"
 	"palace-manager/internal/config"
@@ -51,6 +52,7 @@ type Server struct {
 	vers           *versionstore.Store
 	unreg          *unregistered.Store
 	authStore      *authstore.Store
+	audit          *auditlog.Store
 	mux            *http.ServeMux
 	updateCache    *releaseCache
 	pserverUpdate  *pserverUpdateState
@@ -71,6 +73,7 @@ func New(
 	vers *versionstore.Store,
 	unreg *unregistered.Store,
 	authStore *authstore.Store,
+	audit *auditlog.Store,
 ) *Server {
 	s := &Server{
 		cfg:           cfg,
@@ -85,6 +88,7 @@ func New(
 		vers:          vers,
 		unreg:         unreg,
 		authStore:     authStore,
+		audit:         audit,
 		mux:           http.NewServeMux(),
 		updateCache:   &releaseCache{ttl: 30 * time.Minute},
 		pserverUpdate: &pserverUpdateState{},
@@ -188,6 +192,7 @@ func (s *Server) routes() {
 	s.mux.Handle("/api/users/", auth(http.HandlerFunc(s.routeUserByName)))
 	s.mux.Handle("/api/subaccounts", auth(http.HandlerFunc(s.routeSubaccounts)))
 	s.mux.Handle("/api/subaccounts/", auth(http.HandlerFunc(s.routeSubaccountByName)))
+	s.mux.Handle("/api/audit-log", auth(http.HandlerFunc(s.handleAuditLog)))
 	s.mux.Handle("/api/wizpasses", auth(http.HandlerFunc(s.routeWizPasses)))
 
 	// Palace instances

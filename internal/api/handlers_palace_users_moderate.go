@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"palace-manager/internal/authstore"
 )
@@ -48,6 +49,16 @@ func (s *Server) handlePalaceUsersModerate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		detail := map[string]string{}
+		if a, ok := req["action"].(string); ok && strings.TrimSpace(a) != "" {
+			detail["action"] = strings.TrimSpace(a)
+		}
+		if u, ok := req["username"].(string); ok && strings.TrimSpace(u) != "" {
+			detail["username"] = strings.TrimSpace(u)
+		}
+		s.writeAudit(r.Context(), "palace.users.moderate", name, detail)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)

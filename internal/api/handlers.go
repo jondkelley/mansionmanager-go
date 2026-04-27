@@ -293,6 +293,10 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 		}
 		// Async: queue gen-media scan + nginx reload without blocking this handler path.
 		go func() { s.nginx.Trigger() }()
+		s.writeAudit(r.Context(), "palace.provision", req.Name, map[string]string{
+			"tcpPort":  strconv.Itoa(req.TCPPort),
+			"httpPort": strconv.Itoa(req.HTTPPort),
+		})
 		streamLine(sw, fmt.Sprintf(`{"ok":true,"name":"%s","tcpPort":%d,"httpPort":%d}`,
 			req.Name, req.TCPPort, req.HTTPPort))
 	}
@@ -330,6 +334,7 @@ func (s *Server) handlePalaceAction(w http.ResponseWriter, r *http.Request, name
 			s.nginx.TriggerDelayed(2 * time.Second)
 		}()
 	}
+	s.writeAudit(r.Context(), "palace."+action, name, nil)
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "action": action, "name": name})
 }
 
@@ -364,6 +369,7 @@ func (s *Server) handleDeletePalace(w http.ResponseWriter, r *http.Request, name
 	}
 
 	s.nginx.Trigger()
+	s.writeAudit(r.Context(), "palace.delete", name, map[string]string{"purged": strconv.FormatBool(purge)})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "purged": purge})
 }
 
@@ -505,6 +511,7 @@ func (s *Server) handleRegisterPalace(w http.ResponseWriter, r *http.Request, na
 			resp["enableWarning"] = err.Error()
 		}
 	}
+	s.writeAudit(r.Context(), "palace.register", name, nil)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -617,6 +624,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		st.mu.Unlock()
 	}
 
+	s.writeAudit(r.Context(), "pserver.template_update", "", map[string]string{"restartAll": strconv.FormatBool(restartAll)})
 	streamLine(sw, `{"ok":true}`)
 }
 
@@ -648,6 +656,7 @@ func (s *Server) handleRolloutAll(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "pserver.rollout_all", "", map[string]string{"semver": req.Semver, "restart": strconv.FormatBool(req.Restart)})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "semver": req.Semver, "restart": req.Restart})
 }
 
@@ -667,6 +676,7 @@ func (s *Server) handlePalacePserverVersion(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.pserver_version", name, map[string]string{"semver": req.Semver, "restart": strconv.FormatBool(req.Restart)})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "semver": req.Semver, "restart": req.Restart})
 }
 
@@ -689,13 +699,16 @@ func (s *Server) handleNginxRegen(w http.ResponseWriter, r *http.Request) {
 		// Fallback to synchronous for non-streaming clients
 		if err := s.nginx.RegenWithWriter(w); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
+		s.writeAudit(r.Context(), "nginx.regen", "", nil)
 		return
 	}
 	if err := s.nginx.RegenWithWriter(sw); err != nil {
 		streamLine(sw, fmt.Sprintf("ERROR: %v", err))
 		return
 	}
+	s.writeAudit(r.Context(), "nginx.regen", "", nil)
 	streamLine(sw, `{"ok":true}`)
 }
 
@@ -798,6 +811,7 @@ func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.writeAudit(r.Context(), "nginx.settings_update", "", map[string]string{"restartAll": strconv.FormatBool(req.RestartAll)})
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -845,6 +859,7 @@ func (s *Server) handleBootstrapRun(w http.ResponseWriter, r *http.Request) {
 		streamLine(sw, fmt.Sprintf(`{"error":"%s"}`, err.Error()))
 		return
 	}
+	s.writeAudit(r.Context(), "bootstrap.run", "", nil)
 	streamLine(sw, `{"ok":true,"done":true}`)
 }
 
@@ -890,6 +905,7 @@ func (s *Server) handleHostLogrotateEnableAll(w http.ResponseWriter, r *http.Req
 		}
 		okCount++
 	}
+	s.writeAudit(r.Context(), "host.logrotate_enable_all", "", map[string]string{"configured": strconv.Itoa(okCount)})
 	streamLine(sw, fmt.Sprintf(`{"ok":true,"configured":%d,"palaces":%d}`, okCount, len(instances)))
 }
 
@@ -1231,6 +1247,7 @@ func (s *Server) handlePalaceServerFileSave(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "saved file but restart failed: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.server_file.save", palaceName, map[string]string{"file": base})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "file": base, "restarted": true})
 }
 
@@ -1387,6 +1404,7 @@ func (s *Server) handlePalaceServerPrefsSave(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, "saved prefs but restart failed: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.server_prefs.save", palaceName, map[string]string{"mode": mode})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "restarted": true})
 }
 
@@ -1599,6 +1617,7 @@ func (s *Server) handlePalacePatUpload(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusInternalServerError, "pat saved but restart failed: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.pat_upload", palaceName, nil)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": palaceName, "restarted": true})
 }
 

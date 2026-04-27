@@ -72,6 +72,7 @@ func (s *Server) handleSessionPassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "session.password_change", "", nil)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -153,6 +154,10 @@ func (s *Server) handleUsersCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "user.create", "", map[string]string{
+		"username": req.Username,
+		"role":     string(req.Role),
+	})
 	writeJSON(w, http.StatusCreated, map[string]string{"ok": "true", "username": req.Username})
 }
 
@@ -228,10 +233,22 @@ func (s *Server) handleUserPatch(w http.ResponseWriter, r *http.Request, name st
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	scope := ""
+	if u.Role == authstore.RoleTenant {
+		scope = u.Username
+	} else if u.Role == authstore.RoleSubaccount {
+		scope = u.ParentTenant
+	}
+	s.writeAuditScope(r.Context(), "user.update", "", scope, map[string]string{"username": name})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request, name string) {
+	target, ok := s.authStore.Get(name)
+	if !ok {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
 	if err := s.authStore.Delete(name); err != nil {
 		if err == authstore.ErrLastAdmin {
 			writeError(w, http.StatusConflict, err.Error())
@@ -240,5 +257,12 @@ func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request, name s
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	scope := ""
+	if target.Role == authstore.RoleTenant {
+		scope = target.Username
+	} else if target.Role == authstore.RoleSubaccount {
+		scope = target.ParentTenant
+	}
+	s.writeAuditScope(r.Context(), "user.delete", "", scope, map[string]string{"username": name})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

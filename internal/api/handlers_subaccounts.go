@@ -86,6 +86,7 @@ func (s *Server) handleSubaccountsCreate(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.writeAuditScope(r.Context(), "subaccount.create", "", parent, map[string]string{"subaccount": u.Username})
 	writeJSON(w, http.StatusCreated, map[string]string{"ok": "true", "username": u.Username})
 }
 
@@ -113,6 +114,7 @@ func (s *Server) routeSubaccountByName(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		s.writeAuditScope(r.Context(), "subaccount.delete", "", id.Username, map[string]string{"subaccount": name})
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -154,5 +156,6 @@ func (s *Server) handleSubaccountPatch(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.writeAuditScope(r.Context(), "subaccount.update", "", parent, map[string]string{"subaccount": subName})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

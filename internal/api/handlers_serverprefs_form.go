@@ -95,6 +95,7 @@ func (s *Server) handleServerPrefsFormPut(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "saved serverprefs.json but restart failed: "+err.Error())
 		return
 	}
+	s.writeAudit(r.Context(), "palace.serverprefs_form.put", palaceName, nil)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":        true,
 		"name":      palaceName,

@@ -492,3 +492,50 @@ func (s *Store) IsPrimaryAdmin(username string) bool {
 	}
 	return s.PrimaryAdminUsername() == username
 }
+
+// TenantsHavingPalace returns tenant usernames that list this palace in their Palaces slice.
+func (s *Store) TenantsHavingPalace(palaceName string) []string {
+	if palaceName == "" {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []string
+	for _, u := range s.Users {
+		if u.Role != RoleTenant {
+			continue
+		}
+		for _, p := range u.Palaces {
+			if p == palaceName {
+				out = append(out, u.Username)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// SingleTenantForPalace returns the tenant username if exactly one tenant has this palace; otherwise "".
+func (s *Store) SingleTenantForPalace(palaceName string) string {
+	if palaceName == "" {
+		return ""
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var hits []string
+	for _, u := range s.Users {
+		if u.Role != RoleTenant {
+			continue
+		}
+		for _, p := range u.Palaces {
+			if p == palaceName {
+				hits = append(hits, u.Username)
+				break
+			}
+		}
+	}
+	if len(hits) == 1 {
+		return hits[0]
+	}
+	return ""
+}

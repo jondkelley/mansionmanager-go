@@ -130,6 +130,7 @@ func (s *Server) handleManagerSelfUpdate(w http.ResponseWriter, r *http.Request)
 		streamLine(sw, fmt.Sprintf("ERROR: %v", err))
 		return
 	}
+	s.writeAudit(r.Context(), "manager.self_update", "", map[string]string{"tag": body.Tag})
 }
 
 func (s *Server) doSelfUpdate(ctx context.Context, requestedTag string, sw io.Writer) error {
