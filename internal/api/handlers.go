@@ -356,6 +356,10 @@ func (s *Server) handleDeletePalace(w http.ResponseWriter, r *http.Request, name
 			writeError(w, http.StatusInternalServerError, "disabled unit but failed to remove user: "+err.Error())
 			return
 		}
+		if err := s.authStore.RemovePalaceAfterPermanentDelete(name); err != nil {
+			writeError(w, http.StatusInternalServerError, "removed Linux account but failed to update manager users: "+err.Error())
+			return
+		}
 	}
 
 	if hadReg && !purge && s.unreg != nil {

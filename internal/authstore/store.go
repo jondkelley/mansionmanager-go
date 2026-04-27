@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 
 	"golang.org/x/crypto/bcrypt"
@@ -270,6 +271,96 @@ func (s *Store) RenamePalaceInTenantBindings(oldName, newName string) error {
 		}
 	}
 	return s.saveUnlocked()
+}
+
+// RemovePalaceAfterPermanentDelete drops palaceName from every tenant's palace list and from
+// every subaccount's palace_perms. Tenants left with no palaces are removed together with
+// their subaccounts. Subaccounts left with no delegated palaces after pruning are removed.
+func (s *Store) RemovePalaceAfterPermanentDelete(palaceName string) error {
+	palaceName = strings.TrimSpace(palaceName)
+	if palaceName == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tenantPalacesAfter := make(map[string][]string)
+	for _, u := range s.Users {
+		if u.Role != RoleTenant {
+			continue
+		}
+		fp := filterPalaceNameOut(u.Palaces, palaceName)
+		if len(fp) > 0 {
+			tenantPalacesAfter[u.Username] = fp
+		}
+	}
+
+	allowed := func(palaces []string) map[string]struct{} {
+		m := make(map[string]struct{}, len(palaces))
+		for _, p := range palaces {
+			if p != "" {
+				m[p] = struct{}{}
+			}
+		}
+		return m
+	}
+
+	var out []User
+	for _, u := range s.Users {
+		switch u.Role {
+		case RoleAdmin:
+			out = append(out, u)
+		case RoleTenant:
+			fp, ok := tenantPalacesAfter[u.Username]
+			if !ok {
+				continue
+			}
+			nu := u
+			nu.Palaces = fp
+			out = append(out, nu)
+		case RoleSubaccount:
+			parentPalaces, parentOK := tenantPalacesAfter[u.ParentTenant]
+			if !parentOK {
+				continue
+			}
+			parentSet := allowed(parentPalaces)
+			pm := NormalizePalacePerms(u.PalacePerms)
+			if len(pm) == 0 {
+				continue
+			}
+			newMap := make(map[string][]string)
+			for k, permList := range pm {
+				if _, ok := parentSet[k]; !ok {
+					continue
+				}
+				if len(permList) == 0 {
+					continue
+				}
+				newMap[k] = append([]string(nil), permList...)
+			}
+			npm := NormalizePalacePerms(newMap)
+			if len(npm) == 0 {
+				continue
+			}
+			nu := u
+			nu.PalacePerms = npm
+			out = append(out, nu)
+		default:
+			out = append(out, u)
+		}
+	}
+	s.Users = out
+	return s.saveUnlocked()
+}
+
+func filterPalaceNameOut(palaces []string, name string) []string {
+	out := make([]string, 0, len(palaces))
+	for _, p := range palaces {
+		if p != "" && p != name {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // PruneSubaccountPalacesForTenant removes palace keys from all subaccounts of tenantUsername
